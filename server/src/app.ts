@@ -135,7 +135,7 @@ export function createApp() {
     return c.json(updated);
   });
 
-  /** Создать комнату на 2 игроков. */
+  /** Создать комнату (2–10 игроков). */
   app.post("/api/rooms", async (c) => {
     let body: unknown;
     try {
@@ -150,7 +150,11 @@ export function createApp() {
         400
       );
     }
-    const room = createRoom(parsed.data.hostUserId, parsed.data.mapId);
+    const room = createRoom(
+      parsed.data.hostUserId,
+      parsed.data.mapId,
+      parsed.data.maxPlayers
+    );
     return c.json(room, 201);
   });
 
@@ -181,12 +185,19 @@ export function createApp() {
         400
       );
     }
-    const room = joinRoom(c.req.param("code"), parsed.data.userId);
-    if (!room) {
+    const result = joinRoom(c.req.param("code"), parsed.data.userId);
+    if (!result) {
       return c.json(
-        { error: "Комната недоступна (нет места или уже началась)" },
+        { error: "Комната недоступна (нет места или комната закрыта)" },
         409
       );
+    }
+    const { room, playerAdded } = result;
+    if (playerAdded && room.status === "playing") {
+      const game = ensureGameForRoom(room);
+      if (game) {
+        broadcastGameReset(room.code, game, room, { countdown: false });
+      }
     }
     return c.json(room);
   });
@@ -245,7 +256,7 @@ export function createApp() {
     clearCellUpdateQueue(room.code);
     const game = ensureGameForRoom(room);
     if (game) {
-      broadcastGameReset(room.code, game, room);
+      broadcastGameReset(room.code, game, room, { countdown: true });
     }
     return c.json({
       ...room,

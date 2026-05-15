@@ -1,4 +1,4 @@
-import { MOCK_PLAYERS } from "../mock";
+import { PLAYER_SLOT_IDS } from "../../../shared/playerSlots";
 import {
   BUILDING_SKINS,
   DEFAULT_PLAYER_APPEARANCE,
@@ -72,8 +72,8 @@ function parseAppearance(raw: unknown): PlayerAppearance | null {
 
 export function loadPlayerAppearances(): PlayerAppearancesMap {
   const defaults: PlayerAppearancesMap = {};
-  for (const p of MOCK_PLAYERS) {
-    defaults[p.id] = { ...DEFAULT_PLAYER_APPEARANCE };
+  for (const id of PLAYER_SLOT_IDS) {
+    defaults[id] = { ...DEFAULT_PLAYER_APPEARANCE };
   }
 
   try {

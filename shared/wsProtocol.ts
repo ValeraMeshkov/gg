@@ -7,13 +7,20 @@ export type SyncAppearance = {
   slotId: string;
   fighter: string;
   building: string;
+  /** Личный цвет игрока — виден сопернику (пули, эффекты попадания). */
+  displayColor?: string;
 };
 
 export type WsClientMessage =
   | { type: "join"; userId: string }
   | { type: "attack"; fromIndices: number[]; toIndex: number }
   | { type: "cancel_pending"; fromIndex: number }
-  | { type: "appearance"; fighter: string; building: string };
+  | {
+      type: "appearance";
+      fighter: string;
+      building: string;
+      displayColor?: string;
+    };
 
 export type WsServerMessage =
   | {
@@ -30,6 +37,7 @@ export type WsServerMessage =
       slotId: string;
       fighter: string;
       building: string;
+      displayColor?: string;
     }
   | {
       type: "attack_launch";

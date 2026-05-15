@@ -183,3 +183,9 @@ export function roomHref(code: string): string {
   const base = appBasePath();
   return `${base}/room/${code.toUpperCase()}`;
 }
+
+/** Полная ссылка-приглашение для друга. */
+export function inviteHref(code: string): string {
+  if (typeof window === "undefined") return roomHref(code);
+  return `${window.location.origin}${roomHref(code)}`;
+}

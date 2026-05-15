@@ -1,5 +1,8 @@
 import { CELL } from "../../shared/constants.js";
-import { createRoomSession } from "../../shared/createRoomSession.js";
+import {
+  addPlayerSpawnToCells,
+  createRoomSession,
+} from "../../shared/createRoomSession.js";
 import { playableIndices } from "../../shared/mapPlayable.js";
 import type { SyncCell } from "../../shared/wsProtocol.js";
 import type { Room } from "./rooms.js";
@@ -63,6 +66,23 @@ export function ensureGameForRoom(room: Room): RoomGameState | null {
 export function updateRoomCells(code: string, cells: SyncCell[]): void {
   const g = games.get(code.toUpperCase());
   if (g) g.cells = cells.map((c) => ({ ...c }));
+}
+
+/** Второй игрок в уже идущей комнате — своя стартовая клетка на карте. */
+export function spawnJoinedPlayerInRoom(
+  room: Room,
+  slotId: string
+): RoomGameState | null {
+  const key = room.code.toUpperCase();
+  const g = games.get(key);
+  if (!g) return null;
+  g.cells = addPlayerSpawnToCells(
+    g.mapId,
+    g.cells,
+    slotId,
+    gameSeed(room)
+  );
+  return g;
 }
 
 export function cloneCells(cells: readonly SyncCell[]): SyncCell[] {

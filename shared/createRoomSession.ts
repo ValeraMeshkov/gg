@@ -40,6 +40,25 @@ export function createRoomSession(
   return cells;
 }
 
+/** Добавить стартовую клетку игроку, подключившемуся к уже идущей партии. */
+export function addPlayerSpawnToCells(
+  mapId: string,
+  cells: readonly SyncCell[],
+  slotId: string,
+  seed: string
+): SyncCell[] {
+  const meta = playableIndices(mapId);
+  const rng = seededRandom(`${seed}:join:${slotId}`);
+  const candidates = meta.filter((i) => !cells[i]?.ownerId);
+  if (candidates.length === 0) {
+    throw new Error("Нет свободной клетки для нового игрока");
+  }
+  const idx = candidates[Math.floor(rng() * candidates.length)]!;
+  const next = cells.map((c) => ({ ...c }));
+  next[idx] = { ownerId: slotId, units: CELL.playerStart };
+  return next;
+}
+
 function mapCellCount(mapId: string): number {
   const m = MAP_PLAYABLE[mapId];
   if (!m) throw new Error(`Нет метаданных карты: ${mapId}`);

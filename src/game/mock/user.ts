@@ -1,24 +1,17 @@
 import { CELL } from "../constants";
+import { PLAYER_SLOT_IDS } from "../../../shared/playerSlots";
 
-/** Мок-игрок для клиентского прототипа (позже заменится авторизацией / сервером). */
-export const MOCK_USER = {
-  id: "mock-user",
-  displayName: "Игрок 1",
-  /** Очки в начале партии (юниты на стартовой клетке). */
+/** Мок-игроки для слотов карты (до 10 в комнате). */
+export const MOCK_PLAYERS = PLAYER_SLOT_IDS.map((id, i) => ({
+  id,
+  displayName: `Игрок ${i + 1}`,
   initialScore: CELL.playerStart,
-} as const;
+})) as readonly {
+  id: string;
+  displayName: string;
+  initialScore: number;
+}[];
 
-export const MOCK_USER_2 = {
-  id: "mock-user-2",
-  displayName: "Игрок 2",
-  initialScore: CELL.playerStart,
-} as const;
-
-export const MOCK_USER_3 = {
-  id: "mock-user-3",
-  displayName: "Игрок 3",
-  initialScore: CELL.playerStart,
-} as const;
-
-/** Порядок совпадает с клавишами 1 / 2 / 3 в прототипе. */
-export const MOCK_PLAYERS = [MOCK_USER, MOCK_USER_2, MOCK_USER_3] as const;
+export const MOCK_USER = MOCK_PLAYERS[0]!;
+export const MOCK_USER_2 = MOCK_PLAYERS[1]!;
+export const MOCK_USER_3 = MOCK_PLAYERS[2]!;

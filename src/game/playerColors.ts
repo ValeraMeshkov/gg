@@ -1,7 +1,12 @@
 import type { DisplayColorId } from "./appearance";
-import { displayColorSwatch } from "./appearance";
+import { displayColorSwatch, type PlayerAppearancesMap } from "./appearance";
+import { DISPLAY_COLORS } from "../../shared/displayColors";
+import {
+  isPlayerSlotId,
+  PLAYER_SLOT_IDS,
+  slotIndexFromId,
+} from "../../shared/playerSlots";
 import { CELL } from "./constants";
-import { MOCK_PLAYERS } from "./mock";
 
 export type PlayerDotVariant = "neutral" | "p1" | "p2" | "p3";
 
@@ -58,6 +63,36 @@ const PALETTES: readonly Palette[] = [
     strokePale: [255, 230, 170],
     strokeFull: [180, 120, 20],
   },
+  {
+    fillPale: [224, 248, 248],
+    fillFull: [62, 201, 198],
+    strokePale: [180, 230, 228],
+    strokeFull: [20, 120, 118],
+  },
+  {
+    fillPale: [255, 232, 244],
+    fillFull: [244, 114, 182],
+    strokePale: [255, 200, 220],
+    strokeFull: [180, 50, 100],
+  },
+  {
+    fillPale: [232, 240, 255],
+    fillFull: [88, 120, 220],
+    strokePale: [200, 210, 245],
+    strokeFull: [50, 70, 160],
+  },
+  {
+    fillPale: [245, 236, 228],
+    fillFull: [160, 110, 75],
+    strokePale: [230, 210, 195],
+    strokeFull: [100, 65, 40],
+  },
+  {
+    fillPale: [228, 248, 232],
+    fillFull: [56, 168, 120],
+    strokePale: [195, 230, 205],
+    strokeFull: [25, 100, 65],
+  },
 ];
 
 const PROJECTILE_COLORS = [
@@ -67,15 +102,20 @@ const PROJECTILE_COLORS = [
   { fill: "#2d7a4a", stroke: "#143d24" },
   { fill: "#7b4fc4", stroke: "#4a2d80" },
   { fill: "#c99218", stroke: "#7a5a08" },
+  { fill: "#2a9d9a", stroke: "#145a58" },
+  { fill: "#e85a9e", stroke: "#8f2048" },
+  { fill: "#5878dc", stroke: "#324890" },
+  { fill: "#a06e4a", stroke: "#644028" },
+  { fill: "#38a878", stroke: "#1a6040" },
 ] as const;
 
-/** Индекс в PALETTES для территории (0 — «вы» синий, 1+ — слоты mock). */
+/** Индекс в PALETTES для территории (0 — запас, 1+ — слоты). */
 const PALETTE_INDEX_BY_PLAYER_ID: Record<string, number> = {};
 /** Индексы data-player в PlayerShareBar.module.scss (2=красный, 3=оранжевый…). */
 const SHARE_BAR_COLOR_BY_PLAYER_ID: Record<string, number> = {};
-MOCK_PLAYERS.forEach((p, i) => {
-  PALETTE_INDEX_BY_PLAYER_ID[p.id] = i + 1;
-  SHARE_BAR_COLOR_BY_PLAYER_ID[p.id] = i + 2;
+PLAYER_SLOT_IDS.forEach((id, i) => {
+  PALETTE_INDEX_BY_PLAYER_ID[id] = i + 1;
+  SHARE_BAR_COLOR_BY_PLAYER_ID[id] = Math.min(i + 2, 11);
 });
 
 /** Личные цвета (только у себя на экране). Порядок = DISPLAY_COLORS в types. */
@@ -117,11 +157,23 @@ export type ShareBarColorView = {
   background?: string;
 };
 
-function colorsFromPalette(palette: Palette, units: number): OwnedTerritoryColors {
+/**
+ * Верхняя точка градиента заливки территории (0–1 между pale и full).
+ * 0.5 — пик яркости вдвое ниже прежнего «полного» цвета, чтобы фон не забивал картинку.
+ * Бойцы и маркеры юнитов рисуются с blendPeak = 1 (см. ownedTerritoryColorsForView).
+ */
+const TERRITORY_FILL_BLEND_PEAK = 0.5;
+
+function colorsFromPalette(
+  palette: Palette,
+  units: number,
+  blendPeak: number = TERRITORY_FILL_BLEND_PEAK
+): OwnedTerritoryColors {
   const t = Math.min(1, Math.max(0, units) / CELL.ownedCap);
+  const blend = t * blendPeak;
   return {
-    fill: lerpRgb(palette.fillPale, palette.fillFull, t),
-    stroke: lerpRgb(palette.strokePale, palette.strokeFull, t),
+    fill: lerpRgb(palette.fillPale, palette.fillFull, blend),
+    stroke: lerpRgb(palette.strokePale, palette.strokeFull, blend),
   };
 }
 
@@ -141,35 +193,29 @@ function lerpRgb(
 }
 
 function paletteIndexForOwner(ownerId: string): number | null {
-  if (!MOCK_PLAYERS.some((p) => p.id === ownerId)) return null;
-  return PALETTE_INDEX_BY_PLAYER_ID[ownerId] ?? 1;
+  if (!isPlayerSlotId(ownerId)) return null;
+  return PALETTE_INDEX_BY_PLAYER_ID[ownerId] ?? slotIndexFromId(ownerId) + 1;
 }
 
 /** Слот на карте ↔ личный цвет из селектора (совпадение → путаемся с соперником). */
-const SLOT_PALETTE_TO_DISPLAY: Record<number, DisplayColorId> = {
-  1: "red",
-  2: "orange",
-  3: "green",
-  4: "violet",
-  5: "gold",
-};
+const SLOT_PALETTE_TO_DISPLAY: Record<number, DisplayColorId> = {};
+PLAYER_SLOT_IDS.forEach((_, i) => {
+  SLOT_PALETTE_TO_DISPLAY[i + 1] = DISPLAY_COLORS[i % DISPLAY_COLORS.length]!;
+});
 
 /** Если слот соперника совпал с вашим личным цветом — другой слот только у вас на экране. */
-const OPPONENT_PALETTE_WHEN_CONFLICT: Record<number, number> = {
-  1: 2,
-  2: 1,
-  3: 1,
-  4: 2,
-  5: 1,
-};
+function alternatePaletteIndex(slotIdx: number, localDisplayColor: DisplayColorId): number {
+  for (let step = 1; step < PALETTES.length; step++) {
+    const alt = ((slotIdx - 1 + step) % (PALETTES.length - 1)) + 1;
+    if (!slotConflictsWithDisplayColor(alt, localDisplayColor)) return alt;
+  }
+  return slotIdx;
+}
 
-const SHARE_BAR_BY_PALETTE_INDEX: Record<number, number> = {
-  1: 2,
-  2: 3,
-  3: 4,
-  4: 5,
-  5: 6,
-};
+const SHARE_BAR_BY_PALETTE_INDEX: Record<number, number> = {};
+for (let i = 1; i < PALETTES.length; i++) {
+  SHARE_BAR_BY_PALETTE_INDEX[i] = Math.min(i + 1, 11);
+}
 
 function slotConflictsWithDisplayColor(
   slotPaletteIndex: number,
@@ -191,18 +237,7 @@ function effectivePaletteIndexForOwner(
     localDisplayColor &&
     slotConflictsWithDisplayColor(slotIdx, localDisplayColor)
   ) {
-    const alt = OPPONENT_PALETTE_WHEN_CONFLICT[slotIdx];
-    if (alt != null && !slotConflictsWithDisplayColor(alt, localDisplayColor)) {
-      return alt;
-    }
-    for (let i = 1; i < PALETTES.length; i++) {
-      if (
-        i !== slotIdx &&
-        !slotConflictsWithDisplayColor(i, localDisplayColor)
-      ) {
-        return i;
-      }
-    }
+    return alternatePaletteIndex(slotIdx, localDisplayColor);
   }
   return slotIdx;
 }
@@ -258,14 +293,16 @@ export function ownedTerritoryColorsForView(
   ownerId: string,
   localPlayerId: string,
   units: number,
-  localDisplayColor?: DisplayColorId
+  localDisplayColor?: DisplayColorId,
+  /** 1 — «полный» цвет палитры (бойцы, снаряды); по умолчанию — приглушённая территория. */
+  blendPeak: number = TERRITORY_FILL_BLEND_PEAK
 ): OwnedTerritoryColors | null {
   if (ownerId === localPlayerId && localDisplayColor) {
-    return colorsFromPalette(DISPLAY_COLOR_PALETTES[localDisplayColor], units);
+    return colorsFromPalette(DISPLAY_COLOR_PALETTES[localDisplayColor], units, blendPeak);
   }
   const palette = paletteForOwner(ownerId, localPlayerId, localDisplayColor);
   if (!palette) return null;
-  return colorsFromPalette(palette, units);
+  return colorsFromPalette(palette, units, blendPeak);
 }
 
 export function ownedTerritoryColors(
@@ -285,7 +322,8 @@ export function ownedDotFill(
     ownerId,
     localPlayerId,
     CELL.ownedCap,
-    localDisplayColor
+    localDisplayColor,
+    1
   );
   return maxed?.fill ?? null;
 }
@@ -306,13 +344,57 @@ export function dotVariantForOwner(
   return "p1";
 }
 
+export function isKnownPlayerSlot(ownerId: string | undefined): boolean {
+  return ownerId != null && isPlayerSlotId(ownerId);
+}
+
 export function projectileColorsForView(
   attackerId: string,
   localPlayerId: string,
+  localDisplayColor?: DisplayColorId,
+  attackerDisplayColor?: DisplayColorId
+): { fill: string; stroke: string } {
+  const dc =
+    attackerId === localPlayerId
+      ? (localDisplayColor ?? attackerDisplayColor)
+      : attackerDisplayColor;
+  if (dc) {
+    return DISPLAY_PROJECTILE_COLORS[dc];
+  }
+  const idx =
+    effectivePaletteIndexForOwner(
+      attackerId,
+      localPlayerId,
+      localDisplayColor
+    ) ?? 1;
+  return PROJECTILE_COLORS[idx] ?? PROJECTILE_COLORS[1]!;
+}
+
+/**
+ * Цвет пули/эффекта на этом экране:
+ * — свои: личный displayColor;
+ * — соперник: как его территория у вас (слот + подмена при коллизии), не его локальный violet.
+ */
+export function projectileColorsForPlayer(
+  attackerId: string,
+  localPlayerId: string,
+  appearances: PlayerAppearancesMap,
   localDisplayColor?: DisplayColorId
 ): { fill: string; stroke: string } {
-  if (attackerId === localPlayerId && localDisplayColor) {
-    return DISPLAY_PROJECTILE_COLORS[localDisplayColor];
+  if (attackerId === localPlayerId) {
+    const dc =
+      localDisplayColor ?? appearances[attackerId]?.displayColor;
+    if (dc) return DISPLAY_PROJECTILE_COLORS[dc];
+  }
+  const asOnThisScreen = ownedTerritoryColorsForView(
+    attackerId,
+    localPlayerId,
+    CELL.ownedCap,
+    localDisplayColor,
+    1
+  );
+  if (asOnThisScreen) {
+    return { fill: asOnThisScreen.fill, stroke: asOnThisScreen.stroke };
   }
   const idx =
     effectivePaletteIndexForOwner(

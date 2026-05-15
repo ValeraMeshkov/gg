@@ -1,5 +1,6 @@
 import type { MutableRefObject } from "react";
 import type { DisplayColorId, PlayerAppearancesMap } from "../game/appearance";
+import type { LandHitFx } from "../game/hitEffects";
 import type { GameMap, MapCell } from "../game/maps";
 import { TerritoryMapView } from "./TerritoryMapView";
 import type { CellPos } from "../game/maps";
@@ -21,7 +22,7 @@ export type MapViewProps = {
     placeInRow: number;
     flightFid: string;
   }[];
-  explosions?: readonly { id: string; x: number; y: number; start: number }[];
+  landHitFx?: readonly LandHitFx[];
   onCommitAttacks: (froms: readonly CellPos[], to: CellPos) => void;
   onCancelPendingFrom?: (cell: CellPos) => void;
   syncMapLayout?: boolean;

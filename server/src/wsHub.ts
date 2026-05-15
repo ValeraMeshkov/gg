@@ -10,7 +10,16 @@ import {
   setProjectileCollisionHandler,
 } from "./roomAttack.js";
 import { getRoom, type Room } from "./rooms.js";
-import { DEFAULT_BUILDING, DEFAULT_FIGHTER } from "./skins.js";
+import { defaultDisplayColorForSlot } from "../../shared/displayColors.js";
+import {
+  DEFAULT_BUILDING,
+  DEFAULT_FIGHTER,
+  normalizeDisplayColor,
+  type DisplayColorId,
+} from "./skins.js";
+
+/** roomCode → slotId → личный цвет в матче (для пуль/эффектов у соперника). */
+const slotDisplayColorsByRoom = new Map<string, Map<string, DisplayColorId>>();
 
 type ClientCtx = {
   roomCode: string;
@@ -27,7 +36,18 @@ function send(ws: WebSocket, msg: WsServerMessage): void {
   }
 }
 
+function slotColorsForRoom(roomCode: string): Map<string, DisplayColorId> {
+  const key = roomCode.toUpperCase();
+  let m = slotDisplayColorsByRoom.get(key);
+  if (!m) {
+    m = new Map();
+    slotDisplayColorsByRoom.set(key, m);
+  }
+  return m;
+}
+
 function appearancesForRoom(room: Room): SyncAppearance[] {
+  const colors = slotColorsForRoom(room.code);
   return room.players
     .filter((p): p is typeof p & { slotId: string } => Boolean(p.slotId))
     .map((p) => {
@@ -36,6 +56,8 @@ function appearancesForRoom(room: Room): SyncAppearance[] {
         slotId: p.slotId,
         fighter: profile?.fighter ?? DEFAULT_FIGHTER,
         building: profile?.building ?? DEFAULT_BUILDING,
+        displayColor:
+          colors.get(p.slotId) ?? defaultDisplayColorForSlot(p.slotId),
       };
     });
 }
@@ -43,7 +65,8 @@ function appearancesForRoom(room: Room): SyncAppearance[] {
 export function broadcastGameReset(
   roomCode: string,
   game: RoomGameState,
-  room: Room
+  room: Room,
+  options?: { countdown?: boolean }
 ): void {
   broadcastAll(roomCode.toUpperCase(), {
     type: "game_reset",
@@ -51,7 +74,7 @@ export function broadcastGameReset(
     cells: game.cells.map((c) => ({ ...c })),
     appearances: appearancesForRoom(room),
     serverTime: Date.now(),
-    countdown: true,
+    countdown: options?.countdown === true,
   });
 }
 
@@ -156,11 +179,14 @@ export function attachRoomWebSocket(server: HttpServer): void {
       }
 
       if (msg.type === "appearance") {
+        const dc = normalizeDisplayColor(msg.displayColor);
+        if (dc) slotColorsForRoom(ctx.roomCode).set(ctx.slotId, dc);
         broadcastAll(ctx.roomCode, {
           type: "appearance",
           slotId: ctx.slotId,
           fighter: msg.fighter,
           building: msg.building,
+          ...(dc ? { displayColor: dc } : {}),
         });
         return;
       }

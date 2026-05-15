@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createRoom, isRoomApiEnabled } from "../api/roomApi";
 import { gameHref, roomHref } from "../appUrl";
+import { MAX_ROOM_PLAYERS } from "../../shared/playerSlots";
 import { getOrCreateUserId } from "../lib/userId";
 import styles from "./RoomPage.module.scss";
 
@@ -26,7 +27,7 @@ export function RoomLobby({ mapId }: RoomLobbyProps) {
     setError(null);
     try {
       const room = await createRoom(getOrCreateUserId(), mapId);
-      window.location.assign(roomHref(room.code));
+      window.location.assign(gameHref(room.mapId, room.code));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка создания");
     } finally {
@@ -45,10 +46,10 @@ export function RoomLobby({ mapId }: RoomLobbyProps) {
 
   return (
     <div className={styles.root}>
-      <h1 className={styles.title}>Игра вдвоём</h1>
+      <h1 className={styles.title}>Мультиплеер</h1>
       <p className={styles.lead}>
-        Создайте комнату и отправьте ссылку другу. Когда оба в комнате — хост
-        нажимает «Начать». Синхронизация ходов на карте — следующий этап.
+        Создайте комнату — сразу попадёте на карту. По ссылке может зайти любое
+        число друзей (до {MAX_ROOM_PLAYERS} на поле).
       </p>
 
       <section className={styles.panel}>
@@ -65,7 +66,7 @@ export function RoomLobby({ mapId }: RoomLobbyProps) {
 
       <section className={styles.panel}>
         <h2 className={styles.panelTitle}>Войти по коду</h2>
-        <div className={styles.field}>
+        <div className={styles.fieldRow}>
           <input
             className={styles.input}
             value={joinCode}

@@ -17,10 +17,19 @@ import {
   mapShotSpeedPerMs,
 } from "../game/maps";
 import { fetchRoom, restartRoom } from "../api/roomApi";
+import { inviteHref } from "../appUrl";
 import {
   useRoomGameSync,
   type AttackLaunchEvent,
 } from "../hooks/useRoomGameSync";
+import {
+  collisionHitFxSeed,
+  hasActiveLandHitFx,
+  pruneLandHitFx,
+  rollLandHitFx,
+  type LandHitFx,
+  LAND_HIT_FX_COLOR,
+} from "../game/hitEffects";
 import { shareBarColorForView } from "../game/playerColors";
 import {
   appearancesFromSync,
@@ -78,6 +87,8 @@ type FlightPayload = {
   fromIndex: number;
   toIndex: number;
   amount: number;
+  /** Атака по чужой/нейтральной клетке (не подкрепление) — для визуала попаданий. */
+  visualCombat: boolean;
   waveSpawnTids: Partial<Record<number, number>>;
   simLandTids: Partial<Record<string, number>>;
 };
@@ -121,12 +132,6 @@ type MapProjectile = {
   flightFid: string;
 };
 
-type ExplosionFx = {
-  id: string;
-  x: number;
-  y: number;
-  start: number;
-};
 
 function cloneCells(c: MapCell[]): MapCell[] {
   return c.map((x) => ({ ...x }));
@@ -134,7 +139,7 @@ function cloneCells(c: MapCell[]): MapCell[] {
 
 type RoomGameOutcome = "won" | "lost" | "draw";
 
-/** Победа/поражение в комнате на 2 игроков: у кого-то из пары 0 очков. */
+/** Победа: остался один игрок с очками > 0 (FFA). */
 function roomGameOutcomeForLocal(
   roomSlotIds: readonly string[],
   scores: ReadonlyMap<string, number>,
@@ -142,19 +147,23 @@ function roomGameOutcomeForLocal(
 ): RoomGameOutcome | null {
   if (roomSlotIds.length < 2) return null;
   const alive = roomSlotIds.filter((id) => (scores.get(id) ?? 0) > 0);
-  if (alive.length >= 2) return null;
+  if (alive.length > 1) return null;
   if (alive.length === 0) return "draw";
   const winnerId = alive[0]!;
   return winnerId === localPlayerId ? "won" : "lost";
 }
 
 /** Сумма юнитов на всех клетках игрока. */
-function playerScoresFromCells(cells: readonly MapCell[]): Map<string, number> {
+function playerScoresFromCells(
+  cells: readonly MapCell[],
+  slotIds: readonly string[] = []
+): Map<string, number> {
   const totals = new Map<string, number>();
-  for (const p of MOCK_PLAYERS) totals.set(p.id, 0);
+  for (const id of slotIds) totals.set(id, 0);
   for (const cell of cells) {
     const id = cell.ownerId;
-    if (!id || !totals.has(id)) continue;
+    if (!id) continue;
+    if (!totals.has(id)) totals.set(id, 0);
     totals.set(id, totals.get(id)! + (cell.units ?? 0));
   }
   return totals;
@@ -165,9 +174,10 @@ function playerScoresFromCells(cells: readonly MapCell[]): Map<string, number> {
  */
 function playerScoresForRoom(
   cells: readonly MapCell[],
-  flights: readonly FlightPayload[]
+  flights: readonly FlightPayload[],
+  slotIds: readonly string[]
 ): Map<string, number> {
-  const totals = playerScoresFromCells(cells);
+  const totals = playerScoresFromCells(cells, slotIds);
   for (const flight of flights) {
     for (const sim of flight.sims) {
       if (!sim.spawnApplied || sim.landApplied || sim.destroyed) continue;
@@ -186,9 +196,10 @@ function playerScoresForRoom(
  */
 function playerScoresForShareBar(
   cells: readonly MapCell[],
-  flights: readonly FlightPayload[]
+  flights: readonly FlightPayload[],
+  slotIds: readonly string[]
 ): Map<string, number> {
-  const totals = playerScoresFromCells(cells);
+  const totals = playerScoresFromCells(cells, slotIds);
   for (const flight of flights) {
     const targetOwner = cells[flight.toIndex]?.ownerId;
     for (const sim of flight.sims) {
@@ -282,6 +293,11 @@ function projectileFlightAngle(sim: ProjectileSim): number {
   return Math.atan2(by - ay, bx - ax);
 }
 
+/** Точка приземления конкретной пули (с учётом шеренги/клина пачки). */
+function projectileLandPosition(sim: ProjectileSim): { x: number; y: number } {
+  return { x: sim.tx + sim.offX, y: sim.ty + sim.offY };
+}
+
 function buildFlightPayload(
   amount: number,
   from: CellPos,
@@ -309,6 +325,10 @@ function buildFlightPayload(
   const base = baseTime;
   const fid =
     attackId ?? `${base}-${Math.random().toString(36).slice(2, 10)}`;
+  const toI = cellIndex(map, to);
+  const targetOwner = map.cells[toI]?.ownerId ?? null;
+  const visualCombat = targetOwner !== attackerId;
+
   const sims: ProjectileSim[] = Array.from({ length: amount }, (_, i) => {
     const releaseWave = Math.floor(i / SHOT.waveSize);
     const kInWave = i - releaseWave * SHOT.waveSize;
@@ -352,8 +372,9 @@ function buildFlightPayload(
     attackId: fid,
     sims,
     fromIndex: cellIndex(map, from),
-    toIndex: cellIndex(map, to),
+    toIndex: toI,
     amount,
+    visualCombat,
     waveSpawnTids: {},
     simLandTids: {},
   };
@@ -456,6 +477,9 @@ export function GameCanvas({
   const [roomBusy, setRoomBusy] = useState(false);
   const [roomActionError, setRoomActionError] = useState<string | null>(null);
   const [roomSlotIds, setRoomSlotIds] = useState<string[]>([]);
+  const [roomPlayerCount, setRoomPlayerCount] = useState(0);
+  const [roomMaxPlayers, setRoomMaxPlayers] = useState(2);
+  const [linkCopied, setLinkCopied] = useState(false);
   type MatchCountdownPhase = 3 | 2 | 1 | "go";
   const [matchCountdown, setMatchCountdown] =
     useState<MatchCountdownPhase | null>(null);
@@ -480,6 +504,8 @@ export function GameCanvas({
       if (cancelled || !room) return;
       setRoomMapId(room.mapId);
       setIsHost(room.hostUserId === getOrCreateUserId());
+      setRoomPlayerCount(room.players.length);
+      setRoomMaxPlayers(room.maxPlayers);
       setRoomSlotIds(
         room.players
           .map((p) => p.slotId)
@@ -526,8 +552,47 @@ export function GameCanvas({
     };
   }, [roomCode]);
 
+  useEffect(() => {
+    if (!roomCode) return;
+    let cancelled = false;
+    const poll = async () => {
+      const room = await fetchRoom(roomCode);
+      if (cancelled || !room) return;
+      setRoomPlayerCount(room.players.length);
+      setRoomMaxPlayers(room.maxPlayers);
+      const slotIds = room.players
+        .map((p) => p.slotId)
+        .filter((id): id is string => Boolean(id));
+      if (slotIds.length > roomSlotIds.length && room.game?.cells) {
+        const next = room.game.cells.map((c) => ({ ...c }));
+        cellsRef.current = next;
+        setCells(cloneCells(next));
+        setRoomSlotIds(slotIds);
+      }
+    };
+    const id = window.setInterval(() => void poll(), 2500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [roomCode, roomSlotIds.length]);
+
+  const copyInviteLink = async () => {
+    if (!roomCode) return;
+    try {
+      await navigator.clipboard.writeText(inviteHref(roomCode));
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 2200);
+    } catch {
+      setRoomActionError("Не удалось скопировать ссылку");
+    }
+  };
+
   const [projectiles, setProjectiles] = useState<readonly MapProjectile[]>([]);
-  const [explosions, setExplosions] = useState<readonly ExplosionFx[]>([]);
+  const [landHitFx, setLandHitFx] = useState<readonly LandHitFx[]>([]);
+  const landHitFxRef = useRef<readonly LandHitFx[]>([]);
+  landHitFxRef.current = landHitFx;
+  const playerAppearancesRef = useRef<PlayerAppearancesMap>({});
   /** Пересчёт полосы, когда меняются полёты без обновления cells (столкновения пуль). */
   const [scoreEpoch, setScoreEpoch] = useState(0);
   const bumpScoreDisplay = () => setScoreEpoch((e) => e + 1);
@@ -561,7 +626,8 @@ export function GameCanvas({
       rafRef.current = null;
     }
     setProjectiles([]);
-    setExplosions([]);
+    landHitFxRef.current = [];
+    setLandHitFx([]);
   };
 
   const resetLocalCombat = useCallback(() => {
@@ -642,7 +708,7 @@ export function GameCanvas({
       }
 
       const hitR2 = projectileHitRadius2();
-      const newBooms: ExplosionFx[] = [];
+      const newBooms: LandHitFx[] = [];
       for (let i = 0; i < inAir.length; i++) {
         const a = inAir[i]!;
         if (a.sim.destroyed) continue;
@@ -671,14 +737,16 @@ export function GameCanvas({
           const by = pa && pb ? (pa.y + pb.y) / 2 : pa?.y ?? pb?.y ?? 0;
           cancelProjectileSim(a.flight, a.sim, untrackTimeoutId);
           cancelProjectileSim(b.flight, b.sim, untrackTimeoutId);
-          newBooms.push({
-            id: `boom-${now.toFixed(0)}-${i}-${j}-${Math.random()
-              .toString(36)
-              .slice(2, 7)}`,
-            x: bx,
-            y: by,
-            start: now,
-          });
+          const collideSeed = collisionHitFxSeed(a.sim.id, b.sim.id);
+          if (rollLandHitFx(collideSeed)) {
+            newBooms.push({
+              id: `boom-${collideSeed}`,
+              x: bx,
+              y: by,
+              start: now,
+              color: LAND_HIT_FX_COLOR,
+            });
+          }
           removeFlightIfComplete(a.flight);
           removeFlightIfComplete(b.flight);
           bumpScoreDisplay();
@@ -705,26 +773,52 @@ export function GameCanvas({
           }
         }
       }
-      setProjectiles(pts);
-
       const boomDur = SHOT.explosionDurationMs;
-      setExplosions((prev) => {
-        const kept = prev.filter((e) => now - e.start < boomDur);
-        if (newBooms.length === 0 && kept.length === prev.length)
-          return kept as readonly ExplosionFx[];
-        return [...kept, ...newBooms];
-      });
+      const prunedFx = pruneLandHitFx(landHitFxRef.current, now, boomDur);
+      const nextFx =
+        newBooms.length > 0 ? [...prunedFx, ...newBooms] : prunedFx;
+      landHitFxRef.current = nextFx;
 
-      if (flightsRef.current.length === 0) {
-        rafRef.current = null;
+      const flightsLeft = flightsRef.current.length > 0;
+      const fxLeft = hasActiveLandHitFx(nextFx, now, boomDur);
+      if (fxLeft || newBooms.length > 0) {
+        setLandHitFx(nextFx);
+      }
+      if (flightsLeft) {
+        setProjectiles(pts);
+      } else {
         setProjectiles([]);
-        setExplosions([]);
+      }
+
+      if (!flightsLeft && !fxLeft) {
+        rafRef.current = null;
         return;
       }
       rafRef.current = requestAnimationFrame(tick);
     };
 
     rafRef.current = requestAnimationFrame(tick);
+  };
+
+  const spawnLandHitFx = (
+    seed: string,
+    x: number,
+    y: number,
+    _attackerId: string,
+    fxId: string
+  ) => {
+    if (!rollLandHitFx(seed)) return;
+    const now = performance.now();
+    setLandHitFx((prev) => {
+      const kept = pruneLandHitFx(prev, now, SHOT.explosionDurationMs);
+      const next = [
+        ...kept,
+        { id: fxId, x, y, start: now, color: LAND_HIT_FX_COLOR },
+      ];
+      landHitFxRef.current = next;
+      return next;
+    });
+    ensureDrawLoop();
   };
 
   const removeFlightIfComplete = (flight: FlightPayload) => {
@@ -789,36 +883,26 @@ export function GameCanvas({
     if (sim.landApplied || sim.destroyed) return;
     sim.landApplied = true;
     const toI = flight.toIndex;
-    const cell = cellsRef.current[toI]!;
     const attackerId = sim.hitAffiliationId;
-    const friendly = cell.ownerId != null && cell.ownerId === attackerId;
-    const center = mapDotCenter(
-      session.map,
-      cellPosFromIndex(session.map, toI)
-    );
+    const landPos = projectileLandPosition(sim);
     if (!roomCodeRef.current) {
       const next = cloneCells(cellsRef.current);
       next[toI] = applyIncrementalLandHit(next[toI]!, attackerId);
       cellsRef.current = next;
       pushCellsToReact();
     }
-    // В комнате клетки меняет сервер, но взрыв на чужой/нейтральной точке — только визуал.
-    if (!friendly) {
-      const now = performance.now();
-      setExplosions((prev) => {
-        const kept = prev.filter(
-          (e) => now - e.start < SHOT.explosionDurationMs
-        );
-        return [
-          ...kept,
-          {
-            id: `boom-land-${sim.id}`,
-            x: center.x,
-            y: center.y,
-            start: now,
-          },
-        ];
-      });
+    // Эффект только при атаке чужой/нейтральной клетки в момент попадания (не подкрепление).
+    const cell = cellsRef.current[toI]!;
+    const isOwnCell =
+      cell.ownerId != null && cell.ownerId === attackerId;
+    if (flight.visualCombat && !isOwnCell) {
+      spawnLandHitFx(
+        sim.id,
+        landPos.x,
+        landPos.y,
+        attackerId,
+        `land-${sim.id}`
+      );
     }
     removeFlightIfComplete(flight);
     if (roomCodeRef.current) bumpScoreDisplay();
@@ -881,9 +965,9 @@ export function GameCanvas({
   const liveScores = useMemo(
     () =>
       roomCode
-        ? playerScoresForRoom(cells, flightsRef.current)
-        : playerScoresForShareBar(cells, flightsRef.current),
-    [cells, scoreEpoch, roomCode]
+        ? playerScoresForRoom(cells, flightsRef.current, roomSlotIds)
+        : playerScoresForShareBar(cells, flightsRef.current, roomSlotIds),
+    [cells, scoreEpoch, roomCode, roomSlotIds]
   );
 
   const shareBarPlayers = useMemo(() => {
@@ -1032,8 +1116,8 @@ export function GameCanvas({
         applyGameReset(mapId, snapCells, appearances, countdown);
       },
       onAppearances: applyRemoteAppearances,
-      onAppearance: (slotId, fighter, building) => {
-        applyRemoteAppearances([{ slotId, fighter, building }]);
+      onAppearance: (slotId, fighter, building, displayColor) => {
+        applyRemoteAppearances([{ slotId, fighter, building, displayColor }]);
       },
       onProjectileCollision: handleProjectileCollision,
     });
@@ -1050,13 +1134,30 @@ export function GameCanvas({
     localPlayerId,
     controlledAppearance,
   ]);
+  playerAppearancesRef.current = playerAppearancesMerged;
+
+  useEffect(() => {
+    if (!roomCode || !wsConnected) return;
+    sendAppearance(
+      controlledAppearance.fighter,
+      controlledAppearance.building,
+      controlledAppearance.displayColor
+    );
+  }, [
+    roomCode,
+    wsConnected,
+    sendAppearance,
+    controlledAppearance.fighter,
+    controlledAppearance.building,
+    controlledAppearance.displayColor,
+  ]);
 
   const patchMyAppearanceRoom = useCallback(
     (patch: MyAppearancePatch) => {
       const next = { ...controlledAppearance, ...patch };
       patchMyAppearance(patch);
       if (roomCode && wsConnected) {
-        sendAppearance(next.fighter, next.building);
+        sendAppearance(next.fighter, next.building, next.displayColor);
       }
     },
     [
@@ -1176,27 +1277,40 @@ export function GameCanvas({
             Комната {roomCode}
             {wsConnected ? " — онлайн" : " — подключение…"}
             {!syncReady ? " — загрузка поля…" : null}
+            {` — игроков ${roomPlayerCount}/${roomMaxPlayers}`}
+            {roomPlayerCount < roomMaxPlayers
+              ? " — можно звать ещё по ссылке"
+              : ""}
           </p>
-          {isHost ? (
-            <div className={styles.roomBannerActions}>
-              <button
-                type="button"
-                className={styles.roomBtn}
-                disabled={roomBusy}
-                onClick={() => void handleRefreshState()}
-              >
-                Обновить
-              </button>
-              <button
-                type="button"
-                className={styles.roomBtnPrimary}
-                disabled={roomBusy}
-                onClick={() => void handleNewGame()}
-              >
-                Новая игра
-              </button>
-            </div>
-          ) : null}
+          <div className={styles.roomBannerActions}>
+            <button
+              type="button"
+              className={styles.roomBtnPrimary}
+              onClick={() => void copyInviteLink()}
+            >
+              {linkCopied ? "Скопировано" : "Ссылка"}
+            </button>
+            {isHost ? (
+              <>
+                <button
+                  type="button"
+                  className={styles.roomBtn}
+                  disabled={roomBusy}
+                  onClick={() => void handleRefreshState()}
+                >
+                  Обновить
+                </button>
+                <button
+                  type="button"
+                  className={styles.roomBtnPrimary}
+                  disabled={roomBusy}
+                  onClick={() => void handleNewGame()}
+                >
+                  Новая игра
+                </button>
+              </>
+            ) : null}
+          </div>
           {roomActionError ? (
             <p className={styles.roomBannerError}>{roomActionError}</p>
           ) : null}
@@ -1289,7 +1403,7 @@ export function GameCanvas({
           activePlayerRef={activePlayerRef}
           playerAppearances={playerAppearancesMerged}
           projectiles={projectiles}
-          explosions={explosions}
+          landHitFx={landHitFx}
           syncMapLayout={Boolean(roomCode)}
           onCommitAttacks={handleCommitAttacks}
           onCancelPendingFrom={handleCancelPendingFrom}

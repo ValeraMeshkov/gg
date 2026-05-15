@@ -1,4 +1,11 @@
-import type { DisplayColorId } from "./types";
+import {
+  DISPLAY_COLORS,
+  normalizeDisplayColor as normalizeDisplayColorShared,
+  type DisplayColorId,
+} from "../../../shared/displayColors";
+
+export type { DisplayColorId };
+export { DISPLAY_COLORS };
 
 export type DisplayColorOption = {
   id: DisplayColorId;
@@ -18,14 +25,8 @@ export const DISPLAY_COLOR_OPTIONS: readonly DisplayColorOption[] = [
   { id: "pink", label: "Розовый", swatch: "#f472b6" },
 ] as const;
 
-const DISPLAY_COLOR_SET = new Set(
-  DISPLAY_COLOR_OPTIONS.map((o) => o.id)
-);
-
 export function normalizeDisplayColor(v: unknown): DisplayColorId | null {
-  return typeof v === "string" && DISPLAY_COLOR_SET.has(v as DisplayColorId)
-    ? (v as DisplayColorId)
-    : null;
+  return normalizeDisplayColorShared(v);
 }
 
 export function displayColorSwatch(id: DisplayColorId): string {

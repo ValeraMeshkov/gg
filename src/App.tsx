@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
+import { createRoom, isRoomApiEnabled } from "./api/roomApi";
 import { GameCanvas } from "./components/GameCanvas";
 import { MapCatalogSelect } from "./components/MapCatalogSelect";
 import { MapDotEditor } from "./components/MapDotEditor";
+import { RoomJoinRedirect } from "./components/RoomJoinRedirect";
 import { RoomLobby } from "./components/RoomLobby";
-import { RoomWaiting } from "./components/RoomWaiting";
-import { readAppRoute, roomLobbyHref, writeAppRoute } from "./appUrl";
+import { readAppRoute, writeAppRoute, gameHref } from "./appUrl";
+import { getOrCreateUserId } from "./lib/userId";
 import styles from "./App.module.scss";
 
 function App() {
   const [route, setRoute] = useState(readAppRoute);
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     const onPopState = () => setRoute(readAppRoute());
@@ -32,6 +36,27 @@ function App() {
       return next;
     });
   }, []);
+
+  const handleCreateRoom = useCallback(async () => {
+    if (!isRoomApiEnabled()) {
+      setCreateError(
+        import.meta.env.DEV
+          ? "Запустите сервер: npm run dev:server"
+          : "Сервер не настроен (api-config.json)"
+      );
+      return;
+    }
+    setCreateBusy(true);
+    setCreateError(null);
+    try {
+      const room = await createRoom(getOrCreateUserId(), route.mapId);
+      window.location.assign(gameHref(room.mapId, room.code));
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : "Не удалось создать комнату");
+    } finally {
+      setCreateBusy(false);
+    }
+  }, [route.mapId]);
 
   if (route.edit) {
     return (
@@ -57,7 +82,7 @@ function App() {
     return (
       <div className={styles.app}>
         <main className={styles.main}>
-          <RoomWaiting roomCode={route.roomCode} />
+          <RoomJoinRedirect roomCode={route.roomCode} />
         </main>
       </div>
     );
@@ -71,10 +96,20 @@ function App() {
           onMapIdChange={setMapId}
           hint={route.roomCode ? "Карта (новая партия)" : undefined}
         />
-        <a className={styles.roomLink} href={roomLobbyHref()}>
-          Вдвоём
-        </a>
+        {!route.roomCode ? (
+          <button
+            type="button"
+            className={styles.createRoomBtn}
+            disabled={createBusy}
+            onClick={() => void handleCreateRoom()}
+          >
+            {createBusy ? "Создаём…" : "Создать комнату"}
+          </button>
+        ) : null}
       </header>
+      {createError ? (
+        <p className={styles.createRoomError}>{createError}</p>
+      ) : null}
       <main className={styles.main}>
         <GameCanvas
           key={route.roomCode ? `room-${route.roomCode}` : `solo-${route.mapId}`}

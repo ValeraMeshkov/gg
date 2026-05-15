@@ -33,3 +33,9 @@ export type BuildingSkinId = (typeof BUILDING_SKINS)[number];
 
 export const DEFAULT_FIGHTER = "triangle";
 export const DEFAULT_BUILDING = "circle";
+
+export {
+  DISPLAY_COLORS,
+  normalizeDisplayColor,
+  type DisplayColorId,
+} from "../../shared/displayColors.js";

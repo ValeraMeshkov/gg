@@ -48,6 +48,26 @@
   background: #e8b830;
 }
 
+.segment[data-player='7'] {
+  background: #2a9d9a;
+}
+
+.segment[data-player='8'] {
+  background: #e85a9e;
+}
+
+.segment[data-player='9'] {
+  background: #5878dc;
+}
+
+.segment[data-player='10'] {
+  background: #a06e4a;
+}
+
+.segment[data-player='11'] {
+  background: #38a878;
+}
+
 .segment:hover {
   filter: brightness(1.06);
 }

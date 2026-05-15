@@ -1,6 +1,5 @@
 import type { CSSProperties, MutableRefObject, ReactElement } from "react";
 import { useRef, useState } from "react";
-import { SHOT } from "../game/constants";
 import {
   getCell,
   isTerritoryIndexHidden,
@@ -15,13 +14,9 @@ import {
   TERRITORY_LABEL_FONT,
   TERRITORY_LABEL_OFFSET_Y,
 } from "../game/mapLayout";
-import {
-  mapExplosionFlashGrow,
-  mapExplosionRingBase,
-  mapExplosionRingGrow,
-  mapProjectileRadius,
-  mapTargetGlowRadius,
-} from "../game/maps/mapScale";
+import { mapProjectileRadius } from "../game/maps/mapScale";
+import type { LandHitFx } from "../game/hitEffects";
+import { LandHitFxLayer } from "./map/LandHitFxLayer";
 import { appearanceForPlayer, type PlayerAppearancesMap } from "../game/appearance";
 import type { DisplayColorId } from "../game/appearance";
 import {
@@ -29,7 +24,7 @@ import {
   dotVariantForOwner,
   ownedDotFill,
   ownedTerritoryColorsForView,
-  projectileColorsForView,
+  projectileColorsForPlayer,
 } from "../game/playerColors";
 import { AimArrowGroup } from "./map/AimArrowGroup";
 import { BuildingMarker } from "./map/BuildingMarker";
@@ -39,8 +34,15 @@ import { type UnitDotVariant } from "./map/UnitDot";
 import { clientPointToMapSpace } from "./map/svgCoords";
 import styles from "./MapView.module.scss";
 
-const DOT_HIT_EXTRA = 5;
+/** Кольцо вокруг точки (своя — белое, враг — красное) */
+const DOT_RING_PADDING = 8;
+/** Зона наведения / прицеливания — одинаковая для всех точек */
+const DOT_HIT_PADDING = 14;
 const ARROW_TRIM = TERRITORY_DOT_RADIUS + 3;
+
+function dotHitRadius(): number {
+  return TERRITORY_DOT_RADIUS + DOT_HIT_PADDING;
+}
 
 function trimmedAimSegment(
   x1: number,
@@ -78,7 +80,7 @@ type TerritoryMapViewProps = {
     angle: number;
     attackerId: string;
   }[];
-  explosions?: readonly { id: string; x: number; y: number; start: number }[];
+  landHitFx?: readonly LandHitFx[];
   onCommitAttacks: (froms: readonly CellPos[], to: CellPos) => void;
   onCancelPendingFrom?: (cell: CellPos) => void;
   /** В комнате — только канонические скрытые точки карты (без localStorage). */
@@ -150,12 +152,12 @@ function cellUnderCursorDot(
   mapY: number,
   hiddenOpts?: { syncMapLayout?: boolean }
 ): CellPos | null {
-  const hitR = TERRITORY_DOT_RADIUS + DOT_HIT_EXTRA;
   let bestIndex: number | null = null;
   let bestD = Infinity;
   for (let index = 0; index < map.territories.length; index++) {
     if (isTerritoryIndexHidden(map, index, hiddenOpts)) continue;
     const c = mapDotCenter(map, cellPos(index));
+    const hitR = dotHitRadius();
     const d = Math.hypot(mapX - c.x, mapY - c.y);
     if (d <= hitR && d < bestD) {
       bestD = d;
@@ -183,6 +185,16 @@ function multiAttackAllowed(
   return shooters.every((s) => canAttackTarget(s, target));
 }
 
+/** Красный прицел только на чужой/нейтральной клетке, не на своей. */
+function isEnemyAimTarget(
+  map: TerritoryGameMap,
+  localId: string,
+  target: CellPos
+): boolean {
+  const cell = getCell(map, target.x);
+  return cell.ownerId !== localId;
+}
+
 type DragState = {
   sources: CellPos[];
   hoverCell: CellPos | null;
@@ -196,7 +208,7 @@ export function TerritoryMapView({
   activePlayerRef,
   playerAppearances,
   projectiles,
-  explosions = [],
+  landHitFx = [],
   onCommitAttacks,
   onCancelPendingFrom,
   syncMapLayout = false,
@@ -204,15 +216,30 @@ export function TerritoryMapView({
   const hiddenOpts = syncMapLayout ? { syncMapLayout: true as const } : undefined;
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
+  const [hoveredOwnIndex, setHoveredOwnIndex] = useState<number | null>(null);
   const { stroke: aimStroke, head: aimHead } = aimColorsForLocalPlayer(
     localPlayerId,
     localDisplayColor
   );
   const projR = mapProjectileRadius(map);
-  const glowR = mapTargetGlowRadius(map);
+  const enemyAimRingR = TERRITORY_DOT_RADIUS + DOT_RING_PADDING;
 
   const activeSources = drag?.sources ?? [];
   const aimEnd = drag?.aimEnd ?? null;
+
+  const hoverTargetValid = Boolean(
+    drag &&
+      drag.hoverCell &&
+      isEnemyAimTarget(map, activePlayerRef.current, drag.hoverCell) &&
+      multiAttackAllowed(
+        map,
+        activePlayerRef.current,
+        drag.sources,
+        drag.hoverCell
+      )
+  );
+  const aimTargetIndex =
+    hoverTargetValid && drag?.hoverCell ? drag.hoverCell.x : null;
 
   const territoryBacks: ReactElement[] = [];
   const territoryDots: ReactElement[] = [];
@@ -230,7 +257,10 @@ export function TerritoryMapView({
     const owner = cell.ownerId;
     const canDragFrom = owner === localPlayerId && units > 0;
     const inMulti = activeSources.some((s) => s.x === index);
-
+    const ownHighlighted =
+      canDragFrom && (hoveredOwnIndex === index || inMulti);
+    const ownRingR = TERRITORY_DOT_RADIUS + DOT_RING_PADDING;
+    const ownHitR = TERRITORY_DOT_RADIUS + DOT_HIT_PADDING;
     territoryBacks.push(
       <g key={`${territory.id}-back`} data-x={index} data-y={0}>
         <TerritoryPaths
@@ -238,9 +268,7 @@ export function TerritoryMapView({
           territoryId={territory.id}
           paths={territory.paths}
           clip={territory.clip}
-          className={`${fillClass}${
-            inMulti ? ` ${styles.territoryMultiSelect}` : ""
-          }`}
+          className={fillClass}
           style={fillStyle}
         />
       </g>
@@ -254,33 +282,52 @@ export function TerritoryMapView({
       : "circle";
     territoryDots.push(
       <g key={`${territory.id}-dots`} data-spot={index + 1}>
-        <BuildingMarker
-          skin={buildingSkin}
-          cx={dotCenter.x}
-          cy={dotCenter.y}
-          size={TERRITORY_DOT_RADIUS}
-          variant={dotVariant}
-          fillStyle={dotMidFillStyle}
-        />
-        <text
-          className={styles.territoryLabel}
-          x={dotCenter.x}
-          y={dotCenter.y + TERRITORY_LABEL_OFFSET_Y}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontSize={TERRITORY_LABEL_FONT}
-        >
-          {units}
-        </text>
-        {canDragFrom ? (
+        {ownHighlighted ? (
           <circle
-            className={styles.dotHit}
+            className={`${styles.ownDotRing}${
+              inMulti ? ` ${styles.ownDotRingSelected}` : ""
+            }`}
             cx={dotCenter.x}
             cy={dotCenter.y}
-            r={TERRITORY_DOT_RADIUS + DOT_HIT_EXTRA}
+            r={ownRingR}
+          />
+        ) : null}
+        <g
+          className={
+            ownHighlighted ? styles.ownDotMarkerEmphasis : undefined
+          }
+        >
+          <BuildingMarker
+            skin={buildingSkin}
+            cx={dotCenter.x}
+            cy={dotCenter.y}
+            size={TERRITORY_DOT_RADIUS}
+            variant={dotVariant}
+            fillStyle={dotMidFillStyle}
+          />
+          <text
+            className={styles.territoryLabel}
+            x={dotCenter.x}
+            y={dotCenter.y + TERRITORY_LABEL_OFFSET_Y}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize={TERRITORY_LABEL_FONT}
+          >
+            {units}
+          </text>
+        </g>
+        {canDragFrom ? (
+          <circle
+            className={styles.ownDotHit}
+            cx={dotCenter.x}
+            cy={dotCenter.y}
+            r={ownHitR}
+            onPointerEnter={() => setHoveredOwnIndex(index)}
+            onPointerLeave={() => setHoveredOwnIndex(null)}
             onPointerDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
+              setHoveredOwnIndex(index);
               svgRef.current?.setPointerCapture(e.pointerId);
               const svg = svgRef.current;
               const pt = svg
@@ -327,20 +374,8 @@ export function TerritoryMapView({
     }
   }
 
-  const hoverTargetValid =
-    drag &&
-    drag.hoverCell &&
-    multiAttackAllowed(
-      map,
-      activePlayerRef.current,
-      drag.sources,
-      drag.hoverCell
-    );
-
-  const glowCenter =
-    hoverTargetValid && drag.hoverCell
-      ? mapDotCenter(map, drag.hoverCell)
-      : null;
+  const enemyAimCenter =
+    aimTargetIndex !== null ? mapDotCenter(map, cellPos(aimTargetIndex)) : null;
 
   return (
     <svg
@@ -382,6 +417,7 @@ export function TerritoryMapView({
           : drag.hoverCell;
         const sourcesFinal = drag.sources;
         setDrag(null);
+        setHoveredOwnIndex(null);
         if (!targetCell) return;
 
         const sole = sourcesFinal.length === 1 ? sourcesFinal[0] ?? null : null;
@@ -408,22 +444,26 @@ export function TerritoryMapView({
           targetCell
         );
       }}
-      onPointerCancel={() => setDrag(null)}
+      onPointerCancel={() => {
+        setDrag(null);
+        setHoveredOwnIndex(null);
+      }}
     >
       {territoryBacks}
-      {glowCenter ? (
+      {enemyAimCenter ? (
         <circle
-          className={styles.targetGlowTerritory}
-          cx={glowCenter.x}
-          cy={glowCenter.y}
-          r={glowR}
+          className={styles.enemyAimRing}
+          cx={enemyAimCenter.x}
+          cy={enemyAimCenter.y}
+          r={enemyAimRingR}
         />
       ) : null}
       <g aria-hidden>
         {projectiles.map((p) => {
-          const { fill } = projectileColorsForView(
+          const { fill } = projectileColorsForPlayer(
             p.attackerId,
             localPlayerId,
+            playerAppearances,
             localDisplayColor
           );
           const fighterSkin = appearanceForPlayer(
@@ -446,39 +486,7 @@ export function TerritoryMapView({
       </g>
       {territoryDots}
       {aimLines}
-      <g aria-hidden>
-        {explosions.map((e) => {
-          const phase = Math.min(
-            1,
-            (performance.now() - e.start) / SHOT.explosionDurationMs
-          );
-          const rFlash = projR + phase * mapExplosionFlashGrow(map);
-          const op = (1 - phase) * 0.92;
-          const rRing =
-            mapExplosionRingBase(map) + phase * mapExplosionRingGrow(map);
-          return (
-            <g key={e.id} className={styles.explosion}>
-              <circle
-                className={styles.explosionFlash}
-                cx={e.x}
-                cy={e.y}
-                r={rFlash}
-                opacity={op}
-              />
-              <circle
-                className={styles.explosionRing}
-                cx={e.x}
-                cy={e.y}
-                r={rRing}
-                fill="none"
-                stroke="#ff6f00"
-                strokeWidth={2}
-                opacity={op * 0.75}
-              />
-            </g>
-          );
-        })}
-      </g>
+      <LandHitFxLayer map={map} effects={landHitFx} projR={projR} />
     </svg>
   );
 }

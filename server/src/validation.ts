@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_ROOM_PLAYERS, MIN_ROOM_PLAYERS } from "../../shared/playerSlots.js";
 import { BUILDING_SKINS, FIGHTER_SKINS } from "./skins.js";
 
 export const createUserBodySchema = z.object({
@@ -21,6 +22,7 @@ const roomUserId = z.string().min(8).max(128);
 export const createRoomBodySchema = z.object({
   hostUserId: roomUserId,
   mapId: z.string().min(1).max(64).optional(),
+  maxPlayers: z.number().int().min(MIN_ROOM_PLAYERS).max(MAX_ROOM_PLAYERS).optional(),
 });
 
 export const joinRoomBodySchema = z.object({

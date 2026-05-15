@@ -29,8 +29,7 @@ export const MAP_SHOT_SPEED_PER_MS =
 export const TERRITORY_DOT_RADIUS = 14 / 1.5;
 
 /** Радиус пули в viewBox: диаметр кружка ÷ 3. */
-export const TERRITORY_PROJECTILE_R =
-  (TERRITORY_DOT_RADIUS * 2) / 3 / 2;
+export const TERRITORY_PROJECTILE_R = (TERRITORY_DOT_RADIUS * 2) / 3 / 2;
 
 /** @deprecated Используйте TERRITORY_PROJECTILE_R — 0.034 слишком мало для viewBox. */
 export const MAP_PROJECTILE_R = TERRITORY_PROJECTILE_R;

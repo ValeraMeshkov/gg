@@ -30,19 +30,9 @@ export const BUILDING_SKINS = [
 
 export type BuildingSkinId = (typeof BUILDING_SKINS)[number];
 
-/** Личный цвет на карте — только у себя в браузере, сопернику не передаётся. */
-export const DISPLAY_COLORS = [
-  "blue",
-  "green",
-  "red",
-  "orange",
-  "violet",
-  "gold",
-  "cyan",
-  "pink",
-] as const;
+import type { DisplayColorId } from "../../../shared/displayColors";
 
-export type DisplayColorId = (typeof DISPLAY_COLORS)[number];
+export { DISPLAY_COLORS, type DisplayColorId } from "../../../shared/displayColors";
 
 export type PlayerAppearance = {
   fighter: FighterSkinId;

@@ -24,7 +24,8 @@ export function fighterFlightRotation(
 export function renderFighterGlyph(
   skin: FighterSkinId,
   s: number,
-  fill: string
+  fill: string,
+  opts?: { skullEyeFill?: string }
 ): ReactElement | null {
   switch (skin) {
     case "heart":
@@ -38,7 +39,8 @@ export function renderFighterGlyph(
           fill={fill}
         />
       );
-    case "skull":
+    case "skull": {
+      const eyeFill = opts?.skullEyeFill ?? "#fff";
       return (
         <g fill={fill}>
           <ellipse cx={0} cy={-s * 0.08} rx={s * 0.55} ry={s * 0.62} />
@@ -53,18 +55,19 @@ export function renderFighterGlyph(
             cx={-s * 0.22}
             cy={-s * 0.12}
             r={s * 0.12}
-            fill="#fff"
-            opacity={0.9}
+            fill={eyeFill}
+            opacity={0.92}
           />
           <circle
             cx={s * 0.22}
             cy={-s * 0.12}
             r={s * 0.12}
-            fill="#fff"
-            opacity={0.9}
+            fill={eyeFill}
+            opacity={0.92}
           />
         </g>
       );
+    }
     case "bear":
       return (
         <g fill={fill}>

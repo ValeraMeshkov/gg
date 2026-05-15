@@ -33,7 +33,12 @@ type UseRoomGameSyncOptions = {
     countdown: boolean
   ) => void;
   onAppearances: (players: SyncAppearance[]) => void;
-  onAppearance: (slotId: string, fighter: string, building: string) => void;
+  onAppearance: (
+    slotId: string,
+    fighter: string,
+    building: string,
+    displayColor?: string
+  ) => void;
   onProjectileCollision: (
     destroyed: readonly { attackId: string; simIndex: number }[]
   ) => void;
@@ -106,7 +111,8 @@ export function useRoomGameSync({
         handlersRef.current.onAppearance(
           msg.slotId,
           msg.fighter,
-          msg.building
+          msg.building,
+          msg.displayColor
         );
       } else if (msg.type === "cells") {
         handlersRef.current.onCells(msg.cells);
@@ -163,10 +169,21 @@ export function useRoomGameSync({
   }, []);
 
   const sendAppearance = useCallback(
-    (fighter: FighterSkinId, building: BuildingSkinId) => {
+    (
+      fighter: FighterSkinId,
+      building: BuildingSkinId,
+      displayColor?: string
+    ) => {
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ type: "appearance", fighter, building }));
+      ws.send(
+        JSON.stringify({
+          type: "appearance",
+          fighter,
+          building,
+          ...(displayColor ? { displayColor } : {}),
+        })
+      );
     },
     []
   );

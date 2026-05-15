@@ -43,6 +43,36 @@
   cursor: pointer;
 }
 
+/* Своя точка: кольцо и расширенная зона нажатия */
+.ownDotRing {
+  fill: rgba(255, 255, 255, 0.38);
+  stroke: #ffffff;
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+  transition:
+    fill 0.15s ease,
+    stroke-width 0.15s ease;
+}
+
+.ownDotRingSelected {
+  fill: rgba(255, 255, 255, 0.52);
+  stroke: #ffffff;
+  stroke-width: 2.5px;
+}
+
+.ownDotMarkerEmphasis {
+  filter: brightness(1.14) saturate(1.06);
+  transition: filter 0.15s ease;
+}
+
+.ownDotHit {
+  fill: transparent;
+  stroke: none;
+  pointer-events: all;
+  cursor: pointer;
+}
+
 .dotP1 {
   fill: #1a3a5c;
   pointer-events: none;
@@ -96,12 +126,6 @@
   pointer-events: none;
 }
 
-.territoryMultiSelect {
-  stroke: rgba(15, 25, 45, 0.55);
-  stroke-width: 3px;
-  vector-effect: non-scaling-stroke;
-}
-
 .territoryLabel {
   fill: #0d0d0d;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -109,10 +133,11 @@
   pointer-events: none;
 }
 
-.targetGlowTerritory {
-  fill: rgba(255, 105, 75, 0.2);
-  stroke: rgba(240, 90, 55, 0.55);
-  stroke-width: 2px;
+/* Враг под прицелом: только кольцо на точке */
+.enemyAimRing {
+  fill: rgba(255, 60, 50, 0.4);
+  stroke: #ff4444;
+  stroke-width: 2.5px;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
@@ -132,5 +157,13 @@
 }
 
 .explosionRing {
+  vector-effect: non-scaling-stroke;
+}
+
+.landHitWaveBurst {
+  pointer-events: none;
+}
+
+.landHitWave {
   vector-effect: non-scaling-stroke;
 }

@@ -1,13 +1,15 @@
+import { defaultDisplayColorForSlot } from "../../../shared/displayColors";
+import { normalizeDisplayColor } from "./displayColors";
 import {
   normalizeBuildingSkin,
   normalizeFighterSkin,
   type PlayerAppearancesMap,
 } from "./storage";
-import {
-  DEFAULT_PLAYER_APPEARANCE,
-  type BuildingSkinId,
-  type FighterSkinId,
-  type PlayerAppearance,
+import type {
+  BuildingSkinId,
+  DisplayColorId,
+  FighterSkinId,
+  PlayerAppearance,
 } from "./types";
 import type { SyncAppearance } from "../../../shared/wsProtocol";
 
@@ -19,10 +21,13 @@ export function appearancesFromSync(
     const fighter = normalizeFighterSkin(p.fighter);
     const building = normalizeBuildingSkin(p.building);
     if (!fighter || !building) continue;
+    const displayColor =
+      normalizeDisplayColor(p.displayColor) ??
+      defaultDisplayColorForSlot(p.slotId);
     out[p.slotId] = {
       fighter,
       building,
-      displayColor: DEFAULT_PLAYER_APPEARANCE.displayColor,
+      displayColor,
     };
   }
   return out;
@@ -31,10 +36,16 @@ export function appearancesFromSync(
 export function toSyncAppearance(
   slotId: string,
   appearance: PlayerAppearance
-): { slotId: string; fighter: FighterSkinId; building: BuildingSkinId } {
+): {
+  slotId: string;
+  fighter: FighterSkinId;
+  building: BuildingSkinId;
+  displayColor: DisplayColorId;
+} {
   return {
     slotId,
     fighter: appearance.fighter,
     building: appearance.building,
+    displayColor: appearance.displayColor,
   };
 }
