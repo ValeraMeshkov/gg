@@ -28,11 +28,14 @@ jobs:
       - name: API URL for production
         run: |
           node -e "
-          const url = process.env.VITE_API_BASE_URL || '';
-          require('fs').writeFileSync(
-            'public/api-config.json',
-            JSON.stringify({ apiBaseUrl: url }, null, 2) + '\n'
-          );
+          const fs = require('fs');
+          const path = 'public/api-config.json';
+          const fromSecret = (process.env.VITE_API_BASE_URL || '').trim();
+          if (fromSecret) {
+            fs.writeFileSync(path, JSON.stringify({ apiBaseUrl: fromSecret }, null, 2) + '\n');
+          } else if (!fs.existsSync(path)) {
+            fs.writeFileSync(path, JSON.stringify({ apiBaseUrl: '' }, null, 2) + '\n');
+          }
           "
         env:
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
