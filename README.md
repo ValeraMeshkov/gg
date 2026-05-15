@@ -23,4 +23,4 @@ npm run dev:server   # localhost:3001
 
 Пошагово: **[DEPLOY.md](./DEPLOY.md)**.
 
-Кратко: задеплойте `server/` → секрет `VITE_API_BASE_URL` в GitHub → push в `main` → игра на `https://valerameshkov.github.io/gg/`.
+Кратко: **[КАК-ВЫЛОЖИТЬ-ОНЛАЙН.md](./КАК-ВЫЛОЖИТЬ-ОНЛАЙН.md)** — пошагово без жаргона (Render + GitHub Pages).

@@ -27,16 +27,6 @@ function send(ws: WebSocket, msg: WsServerMessage): void {
   }
 }
 
-function broadcast(roomCode: string, msg: WsServerMessage, except?: WebSocket): void {
-  const set = roomClients.get(roomCode.toUpperCase());
-  if (!set) return;
-  const raw = JSON.stringify(msg);
-  for (const ws of set) {
-    if (ws === except) continue;
-    if (ws.readyState === ws.OPEN) ws.send(raw);
-  }
-}
-
 function appearancesForRoom(room: Room): SyncAppearance[] {
   return room.players
     .filter((p): p is typeof p & { slotId: string } => Boolean(p.slotId))
