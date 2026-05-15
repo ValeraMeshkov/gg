@@ -66,14 +66,18 @@ function App() {
   return (
     <div className={styles.app}>
       <header className={styles.header}>
-        <MapCatalogSelect mapId={route.mapId} onMapIdChange={setMapId} />
+        <MapCatalogSelect
+          mapId={route.mapId}
+          onMapIdChange={setMapId}
+          hint={route.roomCode ? "Карта (новая партия)" : undefined}
+        />
         <a className={styles.roomLink} href={roomLobbyHref()}>
           Вдвоём
         </a>
       </header>
       <main className={styles.main}>
         <GameCanvas
-          key={`${route.mapId}-${route.roomCode ?? "solo"}`}
+          key={route.roomCode ? `room-${route.roomCode}` : `solo-${route.mapId}`}
           mapId={route.mapId}
           roomCode={route.roomCode}
         />

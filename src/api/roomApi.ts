@@ -76,13 +76,14 @@ export async function startRoom(code: string, hostUserId: string): Promise<Room>
 
 export async function restartRoom(
   code: string,
-  hostUserId: string
+  hostUserId: string,
+  mapId?: string
 ): Promise<Room> {
   return parseJson(
     await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/restart`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ hostUserId }),
+      body: JSON.stringify({ hostUserId, ...(mapId ? { mapId } : {}) }),
     })
   );
 }

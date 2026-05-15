@@ -4,15 +4,18 @@ import styles from "./MapCatalogSelect.module.scss";
 type MapCatalogSelectProps = {
   mapId: string;
   onMapIdChange: (mapId: string) => void;
+  /** Подсказка для хоста в комнате: карта следующей партии */
+  hint?: string;
 };
 
 export function MapCatalogSelect({
   mapId,
   onMapIdChange,
+  hint,
 }: MapCatalogSelectProps) {
   return (
     <label className={styles.field}>
-      <span className={styles.label}>Карта</span>
+      <span className={styles.label}>{hint ?? "Карта"}</span>
       <select
         className={styles.select}
         value={mapId}

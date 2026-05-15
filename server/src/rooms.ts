@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { isValidMapId } from "../../shared/mapPlayable.js";
 import { initGameForRoom } from "./gameState.js";
 
 const DEFAULT_MAP_ID = "south-america";
@@ -93,10 +94,18 @@ export function startRoom(code: string, hostUserId: string): Room | null {
   return room;
 }
 
-export function restartRoom(code: string, hostUserId: string): Room | null {
+export function restartRoom(
+  code: string,
+  hostUserId: string,
+  mapId?: string
+): Room | null {
   const room = getRoom(code);
   if (!room || room.status !== "playing") return null;
   if (room.hostUserId !== hostUserId) return null;
+
+  if (mapId && isValidMapId(mapId)) {
+    room.mapId = mapId;
+  }
 
   room.gameGeneration = (room.gameGeneration ?? 0) + 1;
   initGameForRoom(room);

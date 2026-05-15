@@ -33,4 +33,5 @@ export const startRoomBodySchema = z.object({
 
 export const restartRoomBodySchema = z.object({
   hostUserId: roomUserId,
+  mapId: z.string().min(1).max(64).optional(),
 });

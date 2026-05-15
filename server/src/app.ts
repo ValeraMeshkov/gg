@@ -230,7 +230,11 @@ export function createApp() {
         400
       );
     }
-    const room = restartRoom(c.req.param("code"), parsed.data.hostUserId);
+    const room = restartRoom(
+      c.req.param("code"),
+      parsed.data.hostUserId,
+      parsed.data.mapId
+    );
     if (!room) {
       return c.json(
         { error: "Только хост может начать новую игру в активной комнате" },

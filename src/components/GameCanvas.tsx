@@ -1094,7 +1094,7 @@ export function GameCanvas({
     setRoomBusy(true);
     setRoomActionError(null);
     try {
-      await restartRoom(roomCode, getOrCreateUserId());
+      await restartRoom(roomCode, getOrCreateUserId(), mapIdProp);
     } catch (e) {
       setRoomActionError(
         e instanceof Error ? e.message : "Не удалось начать новую игру"
@@ -1102,7 +1102,7 @@ export function GameCanvas({
     } finally {
       setRoomBusy(false);
     }
-  }, [roomCode, isHost]);
+  }, [roomCode, isHost, mapIdProp]);
 
   const handleCancelPendingFrom = useCallback(
     (cell: CellPos) => {
