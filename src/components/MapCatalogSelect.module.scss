@@ -1,0 +1,18 @@
+.field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label {
+  font-size: 0.9rem;
+  color: #5c6478;
+}
+
+.select {
+  font: inherit;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(20, 35, 60, 0.15);
+  background: #fff;
+}

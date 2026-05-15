@@ -1,0 +1,42 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.mapCatalog {
+  margin: 0;
+  width: min(100%, min(90vw, 640px));
+  padding: 8px 12px;
+  text-align: center;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  color: #1a2740;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(20, 35, 60, 0.08);
+}
+
+.mapCatalogTitle {
+  font-weight: 700;
+}
+
+.mapCatalogMeta {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #5a6b85;
+}
+
+.wrap {
+  width: min(100%, min(90vw, 640px));
+  /* aspect-ratio задаётся inline из liveMap.width / liveMap.height — 1 ед. карты по X и Y на экране одинаково */
+  max-height: min(85vh, 640px);
+  margin-inline: auto;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(20, 35, 60, 0.1),
+    0 16px 40px rgba(35, 55, 90, 0.12);
+  background: #fbfcfe;
+}

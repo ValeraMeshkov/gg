@@ -1,0 +1,63 @@
+.bar {
+  display: flex;
+  width: min(100%, min(90vw, 480px));
+  height: 32px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(20, 35, 60, 0.12),
+    0 4px 14px rgba(35, 55, 90, 0.1);
+}
+
+.segment {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0 6px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  transition: flex-grow 0.65s cubic-bezier(0.33, 1, 0.45, 1);
+  position: relative;
+}
+
+.segment[data-player='1'] {
+  background: #4db8ff;
+}
+
+.segment[data-player='2'] {
+  background: #ff9f80;
+}
+
+.segment[data-player='3'] {
+  background: #5cb87a;
+}
+
+.segment:hover {
+  filter: brightness(1.06);
+}
+
+.segment:focus-visible {
+  outline: 2px solid #1a3a5c;
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.segmentActive {
+  filter: brightness(1.08) saturate(1.05);
+  z-index: 1;
+}
+
+.segmentScore {
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(18, 22, 32, 0.82);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+  white-space: nowrap;
+  transition: opacity 0.25s ease;
+}

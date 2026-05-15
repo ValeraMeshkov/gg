@@ -1,0 +1,41 @@
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 20px 40px;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(1.4rem, 3vw, 1.85rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #121620;
+}
+
+.mapPicker {
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+}
+
+.sub {
+  margin: 10px 0 0;
+  font-size: 0.95rem;
+  color: #5c6478;
+  max-width: 42rem;
+  margin-inline: auto;
+  line-height: 1.45;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

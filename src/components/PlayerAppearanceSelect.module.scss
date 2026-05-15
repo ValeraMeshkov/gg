@@ -1,0 +1,20 @@
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 16px;
+  width: min(100%, min(90vw, 640px));
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 1px rgba(20, 35, 60, 0.08);
+}
+
+.playerTag {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #3a4a62;
+  white-space: nowrap;
+}
+

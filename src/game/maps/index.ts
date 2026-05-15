@@ -1,0 +1,27 @@
+export type { GameMap, MapCell, TerritoryGameMap } from './types'
+export { assertMapShape, isTerritoryMap } from './types'
+export {
+  cellCount,
+  cellIndex,
+  cellPosFromIndex,
+  getCell,
+  getCellAt,
+  mapDotCenter,
+  isMapSpotHidden,
+  isTerritoryIndexHidden,
+  mapSizeLabel,
+  mapViewBoxString,
+  mapAspectRatio,
+  type CellPos,
+} from './mapAccess'
+export { mapProjectileRadius, mapShotSpeedPerMs } from './mapScale'
+export { TERRITORY_MAPS, WORLD_CONTINENTS, SOUTH_AMERICA } from './world'
+export {
+  MAP_CATALOG,
+  getMapCatalogEntry,
+  getMapIdByCatalogNumber,
+  getTerritorySpotNumber,
+  type MapCatalogEntry,
+} from './mapCatalog'
+export { MAP_ID, DEFAULT_MAP_ID, type MapId } from './mapIds'
+export { MAPS, getMap, requireMap, RANDOM_MAP_POOL } from './registry'

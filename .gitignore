@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Build
+dist/
+server/dist/
+
+# Data & secrets
+server/data/
+.env
+.env.local
+*.local
+
+# Logs & OS
+logs/
+*.log
+.DS_Store
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Tooling cache
+node_modules/.vite/
+node_modules/.tmp/
