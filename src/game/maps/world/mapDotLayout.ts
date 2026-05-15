@@ -115,7 +115,14 @@ export function isMapSpotHidden(mapId: string, spot: number, map?: TerritoryGame
   return getHiddenSpotsSet(mapId, map).has(spot);
 }
 
-export function isTerritoryIndexHidden(map: TerritoryGameMap, index: number): boolean {
+export function isTerritoryIndexHidden(
+  map: TerritoryGameMap,
+  index: number,
+  options?: { syncMapLayout?: boolean }
+): boolean {
+  if (options?.syncMapLayout) {
+    return map.hiddenSpots.includes(index + 1);
+  }
   return isMapSpotHidden(map.id, index + 1, map);
 }
 

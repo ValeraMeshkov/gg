@@ -27,7 +27,7 @@ function isBuildingSkin(v: unknown): v is BuildingSkinId {
 const REMOVED_FIGHTER_SKINS = new Set(["bolt", "cat", "fish", "moon", "flame"]);
 
 /** Устаревшие id из localStorage → актуальный скин. */
-function normalizeFighterSkin(v: unknown): FighterSkinId | null {
+export function normalizeFighterSkin(v: unknown): FighterSkinId | null {
   if (typeof v === "string" && REMOVED_FIGHTER_SKINS.has(v)) {
     return DEFAULT_PLAYER_APPEARANCE.fighter;
   }
@@ -48,7 +48,7 @@ const REMOVED_BUILDING_SKINS = new Set([
   "campfire",
 ]);
 
-function normalizeBuildingSkin(v: unknown): BuildingSkinId | null {
+export function normalizeBuildingSkin(v: unknown): BuildingSkinId | null {
   if (typeof v === "string" && REMOVED_BUILDING_SKINS.has(v)) {
     return DEFAULT_PLAYER_APPEARANCE.building;
   }
@@ -63,7 +63,11 @@ function parseAppearance(raw: unknown): PlayerAppearance | null {
   const buildingNorm = normalizeBuildingSkin(building);
   const fighterNorm = normalizeFighterSkin(fighter);
   if (!fighterNorm || !buildingNorm) return null;
-  return { fighter: fighterNorm, building: buildingNorm };
+  return {
+    fighter: fighterNorm,
+    building: buildingNorm,
+    displayColor: DEFAULT_PLAYER_APPEARANCE.displayColor,
+  };
 }
 
 export function loadPlayerAppearances(): PlayerAppearancesMap {

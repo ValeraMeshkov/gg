@@ -1,0 +1,15 @@
+# https://render.com — бесплатный Web Service для API + WebSocket
+# После создания скопируйте URL (https://….onrender.com) в GitHub Secret VITE_API_BASE_URL
+services:
+  - type: web
+    name: gg-game-server
+    runtime: node
+    rootDir: server
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: CORS_ORIGINS
+        sync: false

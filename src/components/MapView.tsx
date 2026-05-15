@@ -1,13 +1,14 @@
 import type { MutableRefObject } from "react";
-import type { PlayerAppearancesMap } from "../game/appearance";
+import type { DisplayColorId, PlayerAppearancesMap } from "../game/appearance";
 import type { GameMap, MapCell } from "../game/maps";
 import { TerritoryMapView } from "./TerritoryMapView";
 import type { CellPos } from "../game/maps";
 
 export type MapViewProps = {
   map: GameMap;
+  localPlayerId: string;
+  localDisplayColor?: DisplayColorId;
   activePlayerRef: MutableRefObject<string>;
-  adoptPlayerForCell: (ownerId: string) => void;
   playerAppearances: PlayerAppearancesMap;
   projectiles: readonly {
     id: string;
@@ -23,6 +24,7 @@ export type MapViewProps = {
   explosions?: readonly { id: string; x: number; y: number; start: number }[];
   onCommitAttacks: (froms: readonly CellPos[], to: CellPos) => void;
   onCancelPendingFrom?: (cell: CellPos) => void;
+  syncMapLayout?: boolean;
 };
 
 export function MapView(props: MapViewProps) {

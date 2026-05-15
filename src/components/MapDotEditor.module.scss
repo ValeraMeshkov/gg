@@ -1,0 +1,284 @@
+.root {
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-bottom: 12px;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fieldLabel {
+  font-size: 0.9rem;
+  color: #5c6478;
+}
+
+.select {
+  font: inherit;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(20, 35, 60, 0.15);
+  background: #fff;
+}
+
+.linkBtn {
+  margin-left: auto;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #2a6bb8;
+  text-decoration: none;
+}
+
+.linkBtn:hover {
+  text-decoration: underline;
+}
+
+.btn {
+  font: inherit;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(20, 35, 60, 0.15);
+  background: #fff;
+  cursor: pointer;
+}
+
+.btnPrimary {
+  font: inherit;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #2a6bb8;
+  border: 1px solid #2a6bb8;
+  color: #fff;
+}
+
+.btnDanger {
+  font: inherit;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid #c62828;
+  color: #c62828;
+}
+
+.saveHint {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: #2e7d32;
+}
+
+.errorHint {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: #c62828;
+}
+
+.mapColumn {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.wrap {
+  --map-height: 700px;
+  --map-ar: 0.65;
+  width: min(100%, calc(var(--map-height) * var(--map-ar)));
+  max-height: var(--map-height);
+  height: auto;
+  margin-inline: auto;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(20, 35, 60, 0.1);
+  background: #fbfcfe;
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+}
+
+.territoryArea {
+  fill: rgba(77, 184, 255, 0.12);
+  stroke: rgba(40, 90, 160, 0.35);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+}
+
+.territoryArea:hover {
+  fill: rgba(77, 184, 255, 0.28);
+}
+
+.territoryAreaHidden {
+  fill: rgba(174, 179, 190, 0.15);
+  stroke: rgba(138, 146, 164, 0.45);
+  stroke-width: 1px;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+}
+
+.editorDotSelected {
+  stroke: #c62828 !important;
+  stroke-width: 2.5px !important;
+}
+
+.spotPanel {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 1px rgba(20, 35, 60, 0.08);
+  font-size: 0.9rem;
+}
+
+.spotPanel dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+}
+
+.hiddenBadge {
+  color: #c62828;
+  font-weight: 600;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 1px rgba(20, 35, 60, 0.08);
+}
+
+.panelTitle {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1a2740;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 0.88rem;
+  color: #1a2740;
+  cursor: pointer;
+}
+
+.hiddenItemBtn {
+  font: inherit;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(20, 35, 60, 0.12);
+  background: #fff;
+  cursor: pointer;
+  color: #2a6bb8;
+  white-space: nowrap;
+}
+
+.noSelection {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #5c6478;
+  line-height: 1.45;
+}
+
+.spotList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  height: 300px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid rgba(20, 35, 60, 0.08);
+  border-radius: 8px;
+}
+
+.spotListItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 4px;
+  border-bottom: 1px solid rgba(20, 35, 60, 0.06);
+  font-size: 0.85rem;
+}
+
+.spotListItemSelected {
+  background: rgba(42, 107, 184, 0.08);
+  border-radius: 6px;
+}
+
+.spotListItemHidden .spotListSelect {
+  color: #8a92a4;
+}
+
+.spotListItemHidden.spotListItemSelected {
+  background: rgba(138, 146, 164, 0.12);
+}
+
+.spotListSelect {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  color: #1a2740;
+  cursor: pointer;
+}
+
+.spotListSelect:hover {
+  color: #2a6bb8;
+}
+
+.spotListItemHidden .spotListSelect:hover {
+  color: #6b7385;
+}
+
+.spotActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.dotGhost {
+  opacity: 0.45;
+}

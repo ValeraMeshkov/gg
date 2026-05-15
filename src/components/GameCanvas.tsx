@@ -5,7 +5,6 @@ import {
   cellIndex,
   cellPosFromIndex,
   DEFAULT_MAP_ID,
-  getMapCatalogEntry,
   mapDotCenter,
   requireMap,
   type CellPos,
@@ -17,8 +16,26 @@ import {
   mapProjectileRadius,
   mapShotSpeedPerMs,
 } from "../game/maps";
-import { appearanceForPlayer } from "../game/appearance";
+import { fetchRoom, restartRoom } from "../api/roomApi";
+import {
+  useRoomGameSync,
+  type AttackLaunchEvent,
+} from "../hooks/useRoomGameSync";
+import { shareBarColorForView } from "../game/playerColors";
+import {
+  appearancesFromSync,
+  type MyAppearancePatch,
+  type PlayerAppearancesMap,
+} from "../game/appearance";
 import { createMockSession, MOCK_USER, MOCK_PLAYERS } from "../game/mock";
+import type { SyncAppearance } from "../../shared/wsProtocol";
+import {
+  projectileHitRadius2,
+  projectilesCollideDuringInterval,
+  type ProjectilePath,
+} from "../../shared/projectileMotion";
+import { fetchRemoteProfile } from "../api/profileApi";
+import { getOrCreateUserId } from "../lib/userId";
 import { useSyncedPlayerAppearances } from "../hooks/useSyncedPlayerAppearances";
 import { useMapDotLayoutRevision } from "../hooks/useMapDotLayoutRevision";
 import { MapView } from "./MapView";
@@ -28,6 +45,7 @@ import styles from "./GameCanvas.module.scss";
 
 type GameCanvasProps = {
   mapId?: string;
+  roomCode?: string | null;
 };
 
 type ProjectileSim = {
@@ -55,6 +73,7 @@ type ProjectileSim = {
 };
 
 type FlightPayload = {
+  attackId: string;
   sims: ProjectileSim[];
   fromIndex: number;
   toIndex: number;
@@ -62,6 +81,33 @@ type FlightPayload = {
   waveSpawnTids: Partial<Record<number, number>>;
   simLandTids: Partial<Record<string, number>>;
 };
+
+function simToPath(sim: ProjectileSim): ProjectilePath {
+  return {
+    spawnTime: sim.spawnTime,
+    flightDuration: sim.flightDuration,
+    sx: sim.sx,
+    sy: sim.sy,
+    tx: sim.tx,
+    ty: sim.ty,
+  };
+}
+
+function cancelProjectileSim(
+  flight: FlightPayload,
+  sim: ProjectileSim,
+  untrackTid: (tid: number) => void
+): void {
+  if (sim.landApplied || sim.destroyed) return;
+  sim.destroyed = true;
+  sim.landApplied = true;
+  const tid = flight.simLandTids[sim.id];
+  if (tid != null) {
+    window.clearTimeout(tid);
+    untrackTid(tid);
+    delete flight.simLandTids[sim.id];
+  }
+}
 
 type MapProjectile = {
   id: string;
@@ -86,6 +132,22 @@ function cloneCells(c: MapCell[]): MapCell[] {
   return c.map((x) => ({ ...x }));
 }
 
+type RoomGameOutcome = "won" | "lost" | "draw";
+
+/** Победа/поражение в комнате на 2 игроков: у кого-то из пары 0 очков. */
+function roomGameOutcomeForLocal(
+  roomSlotIds: readonly string[],
+  scores: ReadonlyMap<string, number>,
+  localPlayerId: string
+): RoomGameOutcome | null {
+  if (roomSlotIds.length < 2) return null;
+  const alive = roomSlotIds.filter((id) => (scores.get(id) ?? 0) > 0);
+  if (alive.length >= 2) return null;
+  if (alive.length === 0) return "draw";
+  const winnerId = alive[0]!;
+  return winnerId === localPlayerId ? "won" : "lost";
+}
+
 /** Сумма юнитов на всех клетках игрока. */
 function playerScoresFromCells(cells: readonly MapCell[]): Map<string, number> {
   const totals = new Map<string, number>();
@@ -98,17 +160,41 @@ function playerScoresFromCells(cells: readonly MapCell[]): Map<string, number> {
   return totals;
 }
 
-/** Очки для полосы: клетки + пули в полёте (после вылета, до приземления). */
-function playerScoresForShareBar(
+/**
+ * Комната: клетки + пули после вылета (ещё в воздухе). Пока летят — очки не «пропали».
+ */
+function playerScoresForRoom(
   cells: readonly MapCell[],
   flights: readonly FlightPayload[]
 ): Map<string, number> {
   const totals = playerScoresFromCells(cells);
   for (const flight of flights) {
     for (const sim of flight.sims) {
-      if (!sim.spawnApplied || sim.landApplied) continue;
+      if (!sim.spawnApplied || sim.landApplied || sim.destroyed) continue;
       const id = sim.hitAffiliationId;
       if (!totals.has(id)) continue;
+      totals.set(id, totals.get(id)! + 1);
+    }
+  }
+  return totals;
+}
+
+/**
+ * Очки для полосы: клетки + пули в полёте на **свою** клетку (подкрепление).
+ * Пули по чужой/нейтральной цели не считаем — иначе полоса «захватывает»
+ * территорию раньше, чем на карте уменьшается куча.
+ */
+function playerScoresForShareBar(
+  cells: readonly MapCell[],
+  flights: readonly FlightPayload[]
+): Map<string, number> {
+  const totals = playerScoresFromCells(cells);
+  for (const flight of flights) {
+    const targetOwner = cells[flight.toIndex]?.ownerId;
+    for (const sim of flight.sims) {
+      if (!sim.spawnApplied || sim.landApplied) continue;
+      const id = sim.hitAffiliationId;
+      if (!totals.has(id) || targetOwner !== id) continue;
       totals.set(id, totals.get(id)! + 1);
     }
   }
@@ -201,7 +287,9 @@ function buildFlightPayload(
   from: CellPos,
   to: CellPos,
   map: GameMap,
-  attackerId: string
+  attackerId: string,
+  baseTime: number = performance.now(),
+  attackId?: string
 ): FlightPayload {
   const { x: sx, y: sy } = mapDotCenter(map, from);
   const { x: tx, y: ty } = mapDotCenter(map, to);
@@ -218,8 +306,9 @@ function buildFlightPayload(
   const ux = dx / len;
   const uy = dy / len;
   const wedgeStep = ballD * SHOT.wedgeAlongBallDiametersPerRank;
-  const base = performance.now();
-  const fid = `${base}-${Math.random().toString(36).slice(2, 10)}`;
+  const base = baseTime;
+  const fid =
+    attackId ?? `${base}-${Math.random().toString(36).slice(2, 10)}`;
   const sims: ProjectileSim[] = Array.from({ length: amount }, (_, i) => {
     const releaseWave = Math.floor(i / SHOT.waveSize);
     const kInWave = i - releaseWave * SHOT.waveSize;
@@ -260,6 +349,7 @@ function buildFlightPayload(
     };
   });
   return {
+    attackId: fid,
     sims,
     fromIndex: cellIndex(map, from),
     toIndex: cellIndex(map, to),
@@ -340,26 +430,101 @@ function cancelPendingLaunchesFromSource(
   compactFlights(flights);
 }
 
-export function GameCanvas({ mapId: mapIdProp }: GameCanvasProps) {
-  const mapId = mapIdProp ?? DEFAULT_MAP_ID;
+export function GameCanvas({
+  mapId: mapIdProp,
+  roomCode = null,
+}: GameCanvasProps) {
+  const [roomMapId, setRoomMapId] = useState<string | null>(null);
+  const mapId = roomMapId ?? mapIdProp ?? DEFAULT_MAP_ID;
   const layoutRevision = useMapDotLayoutRevision(mapId);
-  const session = useMemo(() => createMockSession(requireMap(mapId)), [mapId]);
-  const [controlledPlayerId, setControlledPlayerId] = useState<string>(
-    MOCK_USER.id
+  const session = useMemo(() => {
+    const map = requireMap(mapId);
+    if (roomCode) {
+      return {
+        map: { ...map, cells: map.cells.map((c) => ({ ...c })) },
+        players: MOCK_PLAYERS.map((user) => ({
+          user,
+          score: user.initialScore,
+        })),
+      };
+    }
+    return createMockSession(map);
+  }, [mapId, roomCode]);
+  const [localPlayerId, setLocalPlayerId] = useState<string>(MOCK_USER.id);
+  const [syncReady, setSyncReady] = useState(!roomCode);
+  const [isHost, setIsHost] = useState(false);
+  const [roomBusy, setRoomBusy] = useState(false);
+  const [roomActionError, setRoomActionError] = useState<string | null>(null);
+  const [roomSlotIds, setRoomSlotIds] = useState<string[]>([]);
+  type MatchCountdownPhase = 3 | 2 | 1 | "go";
+  const [matchCountdown, setMatchCountdown] =
+    useState<MatchCountdownPhase | null>(null);
+  const countdownTimersRef = useRef<number[]>([]);
+  const { playerAppearances, controlledAppearance, patchMyAppearance } =
+    useSyncedPlayerAppearances(localPlayerId);
+  const [roomAppearances, setRoomAppearances] = useState<PlayerAppearancesMap>(
+    {}
   );
-  const { playerAppearances, patchPlayerAppearance } =
-    useSyncedPlayerAppearances();
-  const activePlayerRef = useRef(controlledPlayerId);
-  activePlayerRef.current = controlledPlayerId;
+  const activePlayerRef = useRef(localPlayerId);
+  activePlayerRef.current = localPlayerId;
 
-  const adoptPlayerForCell = useCallback((ownerId: string) => {
-    activePlayerRef.current = ownerId;
-    setControlledPlayerId(ownerId);
-  }, []);
   const cellsRef = useRef<MapCell[]>(cloneCells(session.map.cells));
   const [cells, setCells] = useState<MapCell[]>(() =>
     cloneCells(session.map.cells)
   );
+
+  useEffect(() => {
+    if (!roomCode) return;
+    let cancelled = false;
+    void fetchRoom(roomCode).then((room) => {
+      if (cancelled || !room) return;
+      setRoomMapId(room.mapId);
+      setIsHost(room.hostUserId === getOrCreateUserId());
+      setRoomSlotIds(
+        room.players
+          .map((p) => p.slotId)
+          .filter((id): id is string => Boolean(id))
+      );
+      const me = room.players.find((p) => p.userId === getOrCreateUserId());
+      if (me?.slotId) {
+        setLocalPlayerId(me.slotId);
+        activePlayerRef.current = me.slotId;
+      }
+      if (room.game?.cells) {
+        const next = room.game.cells.map((c) => ({ ...c }));
+        cellsRef.current = next;
+        setCells(cloneCells(next));
+        setSyncReady(true);
+      }
+      void Promise.all(
+        room.players.map(async (p) => {
+          if (!p.slotId) return null;
+          const profile = await fetchRemoteProfile(p.userId);
+          if (!profile) return null;
+          return {
+            slotId: p.slotId,
+            fighter: profile.fighter,
+            building: profile.building,
+          };
+        })
+      ).then((rows) => {
+        if (cancelled) return;
+        const valid: SyncAppearance[] = [];
+        for (const r of rows) {
+          if (r) valid.push(r);
+        }
+        if (valid.length > 0) {
+          setRoomAppearances((prev) => ({
+            ...prev,
+            ...appearancesFromSync(valid),
+          }));
+        }
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [roomCode]);
 
   const [projectiles, setProjectiles] = useState<readonly MapProjectile[]>([]);
   const [explosions, setExplosions] = useState<readonly ExplosionFx[]>([]);
@@ -370,10 +535,18 @@ export function GameCanvas({ mapId: mapIdProp }: GameCanvasProps) {
   const flightsRef = useRef<FlightPayload[]>([]);
   const timeoutIdsRef = useRef<number[]>([]);
   const rafRef = useRef<number | null>(null);
+  const lastCollisionFrameRef = useRef(0);
+  const roomCodeRef = useRef(roomCode);
+  roomCodeRef.current = roomCode;
 
   const pushCellsToReact = () => {
     setCells(cloneCells(cellsRef.current));
   };
+
+  const applyCellsFromServer = useCallback((next: MapCell[]) => {
+    cellsRef.current = cloneCells(next);
+    setCells(cloneCells(next));
+  }, []);
 
   const clearScheduledTimeouts = () => {
     for (const tid of timeoutIdsRef.current) {
@@ -391,53 +564,119 @@ export function GameCanvas({ mapId: mapIdProp }: GameCanvasProps) {
     setExplosions([]);
   };
 
+  const resetLocalCombat = useCallback(() => {
+    clearScheduledTimeouts();
+    flightsRef.current = [];
+    lastCollisionFrameRef.current = 0;
+    stopDrawLoop();
+  }, []);
+
+  const clearMatchCountdown = useCallback(() => {
+    for (const tid of countdownTimersRef.current) {
+      window.clearTimeout(tid);
+    }
+    countdownTimersRef.current = [];
+    setMatchCountdown(null);
+  }, []);
+
+  const startMatchCountdown = useCallback(() => {
+    clearMatchCountdown();
+    const steps: (MatchCountdownPhase | null)[] = [3, 2, 1, "go", null];
+    steps.forEach((phase, index) => {
+      const tid = window.setTimeout(() => {
+        setMatchCountdown(phase);
+      }, index * 1000);
+      countdownTimersRef.current.push(tid);
+    });
+  }, [clearMatchCountdown]);
+
+  const applyRemoteAppearances = useCallback((players: SyncAppearance[]) => {
+    if (players.length === 0) return;
+    setRoomAppearances((prev) => ({
+      ...prev,
+      ...appearancesFromSync(players),
+    }));
+  }, []);
+
+  const applyGameReset = useCallback(
+    (
+      snapMapId: string,
+      snapCells: MapCell[],
+      appearances: SyncAppearance[] = [],
+      startCountdown = false
+    ) => {
+      resetLocalCombat();
+      setRoomMapId(snapMapId);
+      applyCellsFromServer(snapCells);
+      applyRemoteAppearances(appearances);
+      setSyncReady(true);
+      if (startCountdown) startMatchCountdown();
+    },
+    [
+      applyCellsFromServer,
+      applyRemoteAppearances,
+      resetLocalCombat,
+      startMatchCountdown,
+    ]
+  );
+
   const ensureDrawLoop = () => {
     if (rafRef.current != null) return;
-    const hitR = mapProjectileRadius(session.map) * 2 * 0.92;
 
     const tick = () => {
       const now = performance.now();
       const active = flightsRef.current;
-      const hitR2 = hitR * hitR;
+      const t0 =
+        lastCollisionFrameRef.current > 0
+          ? lastCollisionFrameRef.current
+          : now - 32;
+      lastCollisionFrameRef.current = now;
 
-      type Live = {
-        flight: FlightPayload;
-        sim: ProjectileSim;
-        x: number;
-        y: number;
-      };
-      const live: Live[] = [];
+      type ActiveSim = { flight: FlightPayload; sim: ProjectileSim };
+      const inAir: ActiveSim[] = [];
       for (const data of active) {
         for (const sim of data.sims) {
-          if (sim.landApplied) continue;
-          const p = projectileDrawPosition(sim, now);
-          if (p) live.push({ flight: data, sim, x: p.x, y: p.y });
+          if (sim.landApplied || sim.destroyed) continue;
+          inAir.push({ flight: data, sim });
         }
       }
 
+      const hitR2 = projectileHitRadius2();
       const newBooms: ExplosionFx[] = [];
-      for (let i = 0; i < live.length; i++) {
-        const a = live[i]!;
-        if (a.sim.landApplied) continue;
-        for (let j = i + 1; j < live.length; j++) {
-          if (a.sim.landApplied) break;
-          const b = live[j]!;
-          if (b.sim.landApplied) continue;
+      for (let i = 0; i < inAir.length; i++) {
+        const a = inAir[i]!;
+        if (a.sim.destroyed) continue;
+        for (let j = i + 1; j < inAir.length; j++) {
+          if (a.sim.destroyed) break;
+          const b = inAir[j]!;
+          if (b.sim.destroyed) continue;
           if (a.sim.flightFid === b.sim.flightFid) continue;
           if (a.sim.hitAffiliationId === b.sim.hitAffiliationId) continue;
-          const dx = a.x - b.x;
-          const dy = a.y - b.y;
-          if (dx * dx + dy * dy >= hitR2) continue;
-          a.sim.destroyed = true;
-          b.sim.destroyed = true;
-          a.sim.landApplied = true;
-          b.sim.landApplied = true;
+          const pa = projectileDrawPosition(a.sim, now);
+          const pb = projectileDrawPosition(b.sim, now);
+          let collides =
+            pa != null &&
+            pb != null &&
+            (pa.x - pb.x) ** 2 + (pa.y - pb.y) ** 2 < hitR2;
+          if (!collides) {
+            collides = projectilesCollideDuringInterval(
+              simToPath(a.sim),
+              simToPath(b.sim),
+              t0,
+              now
+            );
+          }
+          if (!collides) continue;
+          const bx = pa && pb ? (pa.x + pb.x) / 2 : pa?.x ?? pb?.x ?? 0;
+          const by = pa && pb ? (pa.y + pb.y) / 2 : pa?.y ?? pb?.y ?? 0;
+          cancelProjectileSim(a.flight, a.sim, untrackTimeoutId);
+          cancelProjectileSim(b.flight, b.sim, untrackTimeoutId);
           newBooms.push({
             id: `boom-${now.toFixed(0)}-${i}-${j}-${Math.random()
               .toString(36)
               .slice(2, 7)}`,
-            x: (a.x + b.x) / 2,
-            y: (a.y + b.y) / 2,
+            x: bx,
+            y: by,
             start: now,
           });
           removeFlightIfComplete(a.flight);
@@ -449,7 +688,7 @@ export function GameCanvas({ mapId: mapIdProp }: GameCanvasProps) {
       const pts: MapProjectile[] = [];
       for (const data of active) {
         for (const sim of data.sims) {
-          if (sim.landApplied) continue;
+          if (sim.landApplied || sim.destroyed) continue;
           const p = projectileDrawPosition(sim, now);
           if (p) {
             pts.push({
@@ -531,6 +770,10 @@ export function GameCanvas({ mapId: mapIdProp }: GameCanvasProps) {
     const pending = row.filter((s) => !s.spawnApplied && !s.landApplied);
     if (pending.length === 0) return;
     for (const s of pending) s.spawnApplied = true;
+    if (roomCodeRef.current) {
+      bumpScoreDisplay();
+      return;
+    }
     const fromI = flight.fromIndex;
     const next = cloneCells(cellsRef.current);
     const u = next[fromI]?.units ?? 0;
@@ -543,7 +786,7 @@ export function GameCanvas({ mapId: mapIdProp }: GameCanvasProps) {
   };
 
   const applySimLand = (flight: FlightPayload, sim: ProjectileSim) => {
-    if (sim.landApplied) return;
+    if (sim.landApplied || sim.destroyed) return;
     sim.landApplied = true;
     const toI = flight.toIndex;
     const cell = cellsRef.current[toI]!;
@@ -553,10 +796,13 @@ export function GameCanvas({ mapId: mapIdProp }: GameCanvasProps) {
       session.map,
       cellPosFromIndex(session.map, toI)
     );
-    const next = cloneCells(cellsRef.current);
-    next[toI] = applyIncrementalLandHit(next[toI]!, attackerId);
-    cellsRef.current = next;
-    pushCellsToReact();
+    if (!roomCodeRef.current) {
+      const next = cloneCells(cellsRef.current);
+      next[toI] = applyIncrementalLandHit(next[toI]!, attackerId);
+      cellsRef.current = next;
+      pushCellsToReact();
+    }
+    // В комнате клетки меняет сервер, но взрыв на чужой/нейтральной точке — только визуал.
     if (!friendly) {
       const now = performance.now();
       setExplosions((prev) => {
@@ -575,6 +821,7 @@ export function GameCanvas({ mapId: mapIdProp }: GameCanvasProps) {
       });
     }
     removeFlightIfComplete(flight);
+    if (roomCodeRef.current) bumpScoreDisplay();
   };
 
   const scheduleFlightTimeouts = (flight: FlightPayload) => {
@@ -602,6 +849,7 @@ export function GameCanvas({ mapId: mapIdProp }: GameCanvasProps) {
   };
 
   useEffect(() => {
+    if (roomCode) return;
     const id = window.setInterval(() => {
       const busy = new Set<number>();
       const pendingLaunch = sourceCellsWithUnspawnedProjectiles(
@@ -614,31 +862,16 @@ export function GameCanvas({ mapId: mapIdProp }: GameCanvasProps) {
       }
     }, CELL.growthMs);
     return () => window.clearInterval(id);
-  }, []);
+  }, [roomCode]);
 
   useEffect(
     () => () => {
       clearScheduledTimeouts();
+      clearMatchCountdown();
       stopDrawLoop();
     },
-    []
+    [clearMatchCountdown]
   );
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      )
-        return;
-      for (let i = 0; i < MOCK_PLAYERS.length; i++) {
-        if (e.key === String(i + 1)) adoptPlayerForCell(MOCK_PLAYERS[i]!.id);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [adoptPlayerForCell]);
 
   const liveMap = useMemo(
     () => ({ ...session.map, cells }),
@@ -646,54 +879,59 @@ export function GameCanvas({ mapId: mapIdProp }: GameCanvasProps) {
   );
 
   const liveScores = useMemo(
-    () => playerScoresForShareBar(cells, flightsRef.current),
-    [cells, scoreEpoch]
+    () =>
+      roomCode
+        ? playerScoresForRoom(cells, flightsRef.current)
+        : playerScoresForShareBar(cells, flightsRef.current),
+    [cells, scoreEpoch, roomCode]
   );
 
-  const shareBarPlayers = useMemo(
-    () =>
-      session.players.map((slot, slotIndex) => ({
+  const shareBarPlayers = useMemo(() => {
+    const slots =
+      roomCode && roomSlotIds.length > 0
+        ? session.players.filter((s) => roomSlotIds.includes(s.user.id))
+        : session.players;
+    return slots.map((slot) => {
+      const bar = shareBarColorForView(
+        slot.user.id,
+        localPlayerId,
+        controlledAppearance.displayColor
+      );
+      return {
         id: slot.user.id,
         displayName: slot.user.displayName,
         score: liveScores.get(slot.user.id) ?? 0,
-        colorIndex: slotIndex + 1,
-      })),
-    [session.players, liveScores]
+        colorIndex: bar.colorIndex,
+        barBackground: bar.background,
+      };
+    });
+  }, [
+    session.players,
+    liveScores,
+    localPlayerId,
+    roomCode,
+    roomSlotIds,
+    controlledAppearance.displayColor,
+  ]);
+
+  const gameOutcome = useMemo(
+    (): RoomGameOutcome | null =>
+      roomCode
+        ? roomGameOutcomeForLocal(roomSlotIds, liveScores, localPlayerId)
+        : null,
+    [roomCode, roomSlotIds, liveScores, localPlayerId, scoreEpoch]
   );
 
-  const catalog = getMapCatalogEntry(mapId);
-  const mapTitle = catalog
-    ? `Карта №${catalog.number}: ${catalog.name}`
-    : requireMap(mapId).name;
+  const localSlot = session.players.find((s) => s.user.id === localPlayerId);
 
-  const controlledSlot = session.players.find(
-    (s) => s.user.id === controlledPlayerId
-  );
-  const controlledAppearance = appearanceForPlayer(
-    playerAppearances,
-    controlledPlayerId
-  );
-
-  const handleCancelPendingFrom = useCallback(
-    (cell: CellPos) => {
+  const runAttackLocally = useCallback(
+    (
+      froms: readonly CellPos[],
+      to: CellPos,
+      attackerId: string,
+      baseTime?: number
+    ) => {
       const mapBase = session.map;
-      const fromI = cellIndex(mapBase, cell);
-      queueMicrotask(() => {
-        cancelPendingLaunchesFromSource(
-          fromI,
-          flightsRef.current,
-          untrackTimeoutId
-        );
-        ensureDrawLoop();
-      });
-    },
-    [session.map]
-  );
-
-  const handleCommitAttacks = (froms: readonly CellPos[], to: CellPos) => {
-    if (froms.length === 0) return;
-    const mapBase = session.map;
-    queueMicrotask(() => {
       const mapForFlight: GameMap = { ...mapBase, cells: cellsRef.current };
       const toI = cellIndex(mapForFlight, to);
       const seenFrom = new Set<number>();
@@ -719,58 +957,344 @@ export function GameCanvas({ mapId: mapIdProp }: GameCanvasProps) {
           from,
           to,
           mapForFlight,
-          controlledPlayerId
+          attackerId,
+          baseTime
         );
         flightsRef.current = [...flightsRef.current, payload];
         scheduleFlightTimeouts(payload);
       }
       ensureDrawLoop();
+    },
+    [session.map, localPlayerId]
+  );
+
+  const handleProjectileCollision = useCallback(
+    (destroyed: readonly { attackId: string; simIndex: number }[]) => {
+      for (const d of destroyed) {
+        for (const flight of flightsRef.current) {
+          if (flight.attackId !== d.attackId) continue;
+          const sim = flight.sims[d.simIndex];
+          if (sim) cancelProjectileSim(flight, sim, untrackTimeoutId);
+        }
+      }
+      compactFlights(flightsRef.current);
+      ensureDrawLoop();
+    },
+    []
+  );
+
+  const runRemoteAttack = useCallback(
+    (launch: AttackLaunchEvent) => {
+      if (launch.amount <= 0) return;
+      const mapBase = session.map;
+      const from = cellPosFromIndex(mapBase, launch.fromIndex);
+      const to = cellPosFromIndex(mapBase, launch.toIndex);
+      const clockSkew = Date.now() - launch.issuedAt;
+      const baseTime = performance.now() - clockSkew;
+      queueMicrotask(() => {
+        const mapForFlight: GameMap = { ...mapBase, cells: cellsRef.current };
+        const toI = cellIndex(mapForFlight, to);
+        const fromI = cellIndex(mapForFlight, from);
+        stripPendingTailTowardsOtherTargets(
+          fromI,
+          toI,
+          flightsRef.current,
+          untrackTimeoutId
+        );
+        const payload = buildFlightPayload(
+          launch.amount,
+          from,
+          to,
+          mapForFlight,
+          launch.attackerId,
+          baseTime,
+          launch.attackId
+        );
+        flightsRef.current = [...flightsRef.current, payload];
+        scheduleFlightTimeouts(payload);
+        ensureDrawLoop();
+      });
+    },
+    [session.map]
+  );
+
+  const { connected: wsConnected, sendAttack, sendCancelPending, sendAppearance, reconnect } =
+    useRoomGameSync({
+      roomCode,
+      onSnapshot: (snapMapId, snapCells, appearances) => {
+        applyGameReset(snapMapId, snapCells, appearances);
+      },
+      onCells: (snapCells) => {
+        applyCellsFromServer(snapCells);
+      },
+      onAttackLaunch: runRemoteAttack,
+      onGameReset: (mapId, snapCells, appearances, countdown) => {
+        applyGameReset(mapId, snapCells, appearances, countdown);
+      },
+      onAppearances: applyRemoteAppearances,
+      onAppearance: (slotId, fighter, building) => {
+        applyRemoteAppearances([{ slotId, fighter, building }]);
+      },
+      onProjectileCollision: handleProjectileCollision,
+    });
+
+  const playerAppearancesMerged = useMemo((): PlayerAppearancesMap => {
+    return {
+      ...playerAppearances,
+      ...roomAppearances,
+      [localPlayerId]: controlledAppearance,
+    };
+  }, [
+    playerAppearances,
+    roomAppearances,
+    localPlayerId,
+    controlledAppearance,
+  ]);
+
+  const patchMyAppearanceRoom = useCallback(
+    (patch: MyAppearancePatch) => {
+      const next = { ...controlledAppearance, ...patch };
+      patchMyAppearance(patch);
+      if (roomCode && wsConnected) {
+        sendAppearance(next.fighter, next.building);
+      }
+    },
+    [
+      controlledAppearance,
+      patchMyAppearance,
+      roomCode,
+      wsConnected,
+      sendAppearance,
+    ]
+  );
+
+  const handleRefreshState = useCallback(async () => {
+    if (!roomCode) return;
+    setRoomBusy(true);
+    setRoomActionError(null);
+    try {
+      const room = await fetchRoom(roomCode);
+      if (!room?.game?.cells) {
+        setRoomActionError("Нет данных игры на сервере");
+        return;
+      }
+      applyGameReset(room.game.mapId, room.game.cells);
+      reconnect();
+    } catch (e) {
+      setRoomActionError(
+        e instanceof Error ? e.message : "Не удалось обновить"
+      );
+    } finally {
+      setRoomBusy(false);
+    }
+  }, [roomCode, applyGameReset, reconnect]);
+
+  const handleNewGame = useCallback(async () => {
+    if (!roomCode || !isHost) return;
+    setRoomBusy(true);
+    setRoomActionError(null);
+    try {
+      await restartRoom(roomCode, getOrCreateUserId());
+    } catch (e) {
+      setRoomActionError(
+        e instanceof Error ? e.message : "Не удалось начать новую игру"
+      );
+    } finally {
+      setRoomBusy(false);
+    }
+  }, [roomCode, isHost]);
+
+  const handleCancelPendingFrom = useCallback(
+    (cell: CellPos) => {
+      if (roomCode && (gameOutcome || matchCountdown !== null)) return;
+      const mapBase = session.map;
+      const fromI = cellIndex(mapBase, cell);
+      if (roomCode && wsConnected) {
+        sendCancelPending(fromI);
+      }
+      queueMicrotask(() => {
+        cancelPendingLaunchesFromSource(
+          fromI,
+          flightsRef.current,
+          untrackTimeoutId
+        );
+        ensureDrawLoop();
+      });
+    },
+    [
+      session.map,
+      roomCode,
+      wsConnected,
+      sendCancelPending,
+      gameOutcome,
+      matchCountdown,
+    ]
+  );
+
+  const handleCommitAttacks = (froms: readonly CellPos[], to: CellPos) => {
+    if (froms.length === 0) return;
+    if (roomCode && (gameOutcome || matchCountdown !== null)) return;
+    if (roomCode) {
+      if (wsConnected) {
+        const mapBase = session.map;
+        const toI = cellIndex({ ...mapBase, cells: cellsRef.current }, to);
+        const fromIndices: number[] = [];
+        const seen = new Set<number>();
+        for (const from of froms) {
+          const fromI = cellIndex(
+            { ...mapBase, cells: cellsRef.current },
+            from
+          );
+          if (seen.has(fromI)) continue;
+          seen.add(fromI);
+          fromIndices.push(fromI);
+          stripPendingTailTowardsOtherTargets(
+            fromI,
+            toI,
+            flightsRef.current,
+            untrackTimeoutId
+          );
+        }
+        sendAttack(fromIndices, toI);
+        ensureDrawLoop();
+        return;
+      }
+      setRoomActionError("Нет связи с сервером — переподключение…");
+      reconnect();
+      return;
+    }
+    queueMicrotask(() => {
+      runAttackLocally(froms, to, localPlayerId);
     });
   };
 
   return (
     <div className={styles.root}>
+      {roomCode ? (
+        <div className={styles.roomBanner}>
+          <p className={styles.roomBannerText}>
+            Комната {roomCode}
+            {wsConnected ? " — онлайн" : " — подключение…"}
+            {!syncReady ? " — загрузка поля…" : null}
+          </p>
+          {isHost ? (
+            <div className={styles.roomBannerActions}>
+              <button
+                type="button"
+                className={styles.roomBtn}
+                disabled={roomBusy}
+                onClick={() => void handleRefreshState()}
+              >
+                Обновить
+              </button>
+              <button
+                type="button"
+                className={styles.roomBtnPrimary}
+                disabled={roomBusy}
+                onClick={() => void handleNewGame()}
+              >
+                Новая игра
+              </button>
+            </div>
+          ) : null}
+          {roomActionError ? (
+            <p className={styles.roomBannerError}>{roomActionError}</p>
+          ) : null}
+        </div>
+      ) : null}
       <PlayerShareBar
         players={shareBarPlayers}
-        activePlayerId={controlledPlayerId}
-        onSelectPlayer={adoptPlayerForCell}
+        activePlayerId={localPlayerId}
+        readOnly
       />
       <PlayerAppearanceSelect
-        playerName={controlledSlot?.user.displayName ?? "Игрок"}
+        playerName={
+          localSlot ? `${localSlot.user.displayName} (вы)` : "Ваш игрок"
+        }
         fighter={controlledAppearance.fighter}
         building={controlledAppearance.building}
-        onFighterChange={(fighter) =>
-          patchPlayerAppearance(controlledPlayerId, { fighter })
-        }
-        onBuildingChange={(building) =>
-          patchPlayerAppearance(controlledPlayerId, { building })
+        displayColor={controlledAppearance.displayColor}
+        onFighterChange={(fighter) => patchMyAppearanceRoom({ fighter })}
+        onBuildingChange={(building) => patchMyAppearanceRoom({ building })}
+        onDisplayColorChange={(displayColor) =>
+          patchMyAppearance({ displayColor })
         }
       />
-      <p className={styles.mapCatalog} aria-live="polite">
-        <span className={styles.mapCatalogTitle}>{mapTitle}</span>
-        {catalog ? (
-          <span className={styles.mapCatalogMeta}>
-            {" "}
-            (id: {catalog.id}, точек: {liveMap.cells.length})
-          </span>
+      <div className={styles.wrap} aria-label="Игровое поле">
+        {matchCountdown !== null && roomCode ? (
+          <div
+            className={`${styles.mapToast} ${styles.mapToastCountdown}`}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {matchCountdown === "go" ? (
+              <p className={styles.mapToastCountdownGo}>Поехали!</p>
+            ) : (
+              <>
+                <p className={styles.mapToastCountdownLabel}>Старт через</p>
+                <p className={styles.mapToastCountdownNumber}>
+                  {matchCountdown}
+                </p>
+              </>
+            )}
+          </div>
         ) : null}
-      </p>
-      <div
-        className={styles.wrap}
-        style={{ aspectRatio: mapAspectRatio(liveMap) }}
-        aria-label="Игровое поле"
-      >
+        {gameOutcome && roomCode && matchCountdown === null ? (
+          <div
+            className={styles.mapToast}
+            role="status"
+            aria-live="polite"
+            aria-labelledby="game-over-title"
+          >
+            <p
+              id="game-over-title"
+              className={
+                gameOutcome === "won"
+                  ? styles.mapToastTitleWin
+                  : gameOutcome === "lost"
+                    ? styles.mapToastTitleLose
+                    : styles.mapToastTitleDraw
+              }
+            >
+              {gameOutcome === "won"
+                ? "Ура, победа!"
+                : gameOutcome === "lost"
+                  ? "Вы проиграли"
+                  : "Ничья"}
+            </p>
+            {isHost ? (
+              <button
+                type="button"
+                className={styles.mapToastBtn}
+                disabled={roomBusy}
+                onClick={() => void handleNewGame()}
+              >
+                Новая игра
+              </button>
+            ) : (
+              <p className={styles.mapToastHint}>Ждём хоста…</p>
+            )}
+          </div>
+        ) : null}
+        <div
+          className={styles.mapSurface}
+          style={{ aspectRatio: mapAspectRatio(liveMap) }}
+        >
         <MapView
           key={layoutRevision}
           map={liveMap}
+          localPlayerId={localPlayerId}
+          localDisplayColor={controlledAppearance.displayColor}
           activePlayerRef={activePlayerRef}
-          adoptPlayerForCell={adoptPlayerForCell}
-          playerAppearances={playerAppearances}
+          playerAppearances={playerAppearancesMerged}
           projectiles={projectiles}
           explosions={explosions}
+          syncMapLayout={Boolean(roomCode)}
           onCommitAttacks={handleCommitAttacks}
           onCancelPendingFrom={handleCancelPendingFrom}
         />
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 .bar {
   display: flex;
-  width: min(100%, min(90vw, 480px));
+  width: 100%;
   height: 32px;
   border-radius: 16px;
   overflow: hidden;
@@ -29,11 +29,23 @@
 }
 
 .segment[data-player='2'] {
-  background: #ff9f80;
+  background: #eb5353;
 }
 
 .segment[data-player='3'] {
+  background: #ff9f70;
+}
+
+.segment[data-player='4'] {
   background: #5cb87a;
+}
+
+.segment[data-player='5'] {
+  background: #a978e6;
+}
+
+.segment[data-player='6'] {
+  background: #e8b830;
 }
 
 .segment:hover {
@@ -49,6 +61,12 @@
 .segmentActive {
   filter: brightness(1.08) saturate(1.05);
   z-index: 1;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.65);
+}
+
+.segmentReadOnly {
+  cursor: default;
+  pointer-events: none;
 }
 
 .segmentScore {

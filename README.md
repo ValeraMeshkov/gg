@@ -17,8 +17,10 @@ npm run dev:server   # localhost:3001
 
 Сборка: `npm run build` → папка `dist/`.
 
-## GitHub Pages
+## Онлайн с двух компьютеров
 
-Фронт — статика из `dist/`. Бэкенд деплоится отдельно; см. `server/README.md` и `.env.example`.
+**GitHub Pages** — только сайт. **Сервер** (комнаты + WebSocket) — отдельно, например **Render**.
 
-Для Pages из репозитория `gg` укажите в `vite.config.ts` при необходимости `base: '/gg/'`.
+Пошагово: **[DEPLOY.md](./DEPLOY.md)**.
+
+Кратко: задеплойте `server/` → секрет `VITE_API_BASE_URL` в GitHub → push в `main` → игра на `https://valerameshkov.github.io/gg/`.

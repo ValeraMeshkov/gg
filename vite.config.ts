@@ -55,12 +55,20 @@ function dotLayoutApiPlugin(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
+  /** GitHub Pages из репо `gg`: VITE_BASE_PATH=/gg/ */
+  base: process.env.VITE_BASE_PATH || "/",
   plugins: [react(), dotLayoutApiPlugin()],
   server: {
+    port: 5174,
+    strictPort: false,
     proxy: {
       "/api": {
         target: "http://127.0.0.1:3001",
         changeOrigin: true,
+      },
+      "/ws": {
+        target: "ws://127.0.0.1:3001",
+        ws: true,
       },
     },
   },

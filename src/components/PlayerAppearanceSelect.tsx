@@ -1,9 +1,12 @@
 import {
   BUILDING_SKIN_OPTIONS,
+  DISPLAY_COLOR_OPTIONS,
   FIGHTER_SKIN_OPTIONS,
   type BuildingSkinId,
+  type DisplayColorId,
   type FighterSkinId,
 } from "../game/appearance";
+import { DisplayColorSelect } from "./DisplayColorSelect";
 import { VisualSkinSelect } from "./VisualSkinSelect";
 import styles from "./PlayerAppearanceSelect.module.scss";
 
@@ -11,16 +14,20 @@ type PlayerAppearanceSelectProps = {
   playerName: string;
   fighter: FighterSkinId;
   building: BuildingSkinId;
+  displayColor: DisplayColorId;
   onFighterChange: (skin: FighterSkinId) => void;
   onBuildingChange: (skin: BuildingSkinId) => void;
+  onDisplayColorChange: (color: DisplayColorId) => void;
 };
 
 export function PlayerAppearanceSelect({
   playerName,
   fighter,
   building,
+  displayColor,
   onFighterChange,
   onBuildingChange,
+  onDisplayColorChange,
 }: PlayerAppearanceSelectProps) {
   return (
     <div
@@ -42,6 +49,11 @@ export function PlayerAppearanceSelect({
         value={building}
         options={BUILDING_SKIN_OPTIONS}
         onChange={onBuildingChange}
+      />
+      <DisplayColorSelect
+        value={displayColor}
+        options={DISPLAY_COLOR_OPTIONS}
+        onChange={onDisplayColorChange}
       />
     </div>
   );

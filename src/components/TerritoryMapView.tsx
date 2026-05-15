@@ -23,13 +23,14 @@ import {
   mapTargetGlowRadius,
 } from "../game/maps/mapScale";
 import { appearanceForPlayer, type PlayerAppearancesMap } from "../game/appearance";
-import { MOCK_USER, MOCK_USER_2, MOCK_USER_3 } from "../game/mock";
+import type { DisplayColorId } from "../game/appearance";
 import {
-  aimColorsForPlayer,
+  aimColorsForLocalPlayer,
+  dotVariantForOwner,
   ownedDotFill,
-  ownedTerritoryColors,
-} from "../game/ownedTerritoryStyle";
-import { projectileColors } from "../game/projectileColors";
+  ownedTerritoryColorsForView,
+  projectileColorsForView,
+} from "../game/playerColors";
 import { AimArrowGroup } from "./map/AimArrowGroup";
 import { BuildingMarker } from "./map/BuildingMarker";
 import { FighterShape } from "./map/FighterShape";
@@ -65,8 +66,10 @@ function trimmedAimSegment(
 
 type TerritoryMapViewProps = {
   map: TerritoryGameMap;
+  localPlayerId: string;
+  /** Личный цвет территории и пуль — только на этом экране. */
+  localDisplayColor?: DisplayColorId;
   activePlayerRef: MutableRefObject<string>;
-  adoptPlayerForCell: (ownerId: string) => void;
   playerAppearances: PlayerAppearancesMap;
   projectiles: readonly {
     id: string;
@@ -78,31 +81,42 @@ type TerritoryMapViewProps = {
   explosions?: readonly { id: string; x: number; y: number; start: number }[];
   onCommitAttacks: (froms: readonly CellPos[], to: CellPos) => void;
   onCancelPendingFrom?: (cell: CellPos) => void;
+  /** В комнате — только канонические скрытые точки карты (без localStorage). */
+  syncMapLayout?: boolean;
 };
 
-function dotVariantForOwner(ownerId?: string): UnitDotVariant {
-  if (!ownerId) return "neutral";
-  if (ownerId === MOCK_USER.id) return "p1";
-  if (ownerId === MOCK_USER_2.id) return "p2";
-  if (ownerId === MOCK_USER_3.id) return "p3";
-  return "neutral";
-}
-
-function cellStyles(cell: ReturnType<typeof getCell>): {
+function cellStyles(
+  cell: ReturnType<typeof getCell>,
+  localPlayerId: string,
+  localDisplayColor?: DisplayColorId
+): {
   fillClass: string;
   fillStyle?: CSSProperties;
   dotVariant: UnitDotVariant;
   dotMidFillStyle?: CSSProperties;
 } {
   const units = cell.units ?? 0;
-  const owned = cell.ownerId ? ownedTerritoryColors(cell.ownerId, units) : null;
+  const owned = cell.ownerId
+    ? ownedTerritoryColorsForView(
+        cell.ownerId,
+        localPlayerId,
+        units,
+        localDisplayColor
+      )
+    : null;
   if (owned) {
     return {
       fillClass: styles.territoryOwned,
       fillStyle: { fill: owned.fill, stroke: owned.stroke },
-      dotVariant: dotVariantForOwner(cell.ownerId),
+      dotVariant: dotVariantForOwner(
+        cell.ownerId,
+        localPlayerId,
+        localDisplayColor
+      ),
       dotMidFillStyle: {
-        fill: ownedDotFill(cell.ownerId ?? "") ?? owned.fill,
+        fill:
+          ownedDotFill(cell.ownerId ?? "", localPlayerId, localDisplayColor) ??
+          owned.fill,
       },
     };
   }
@@ -133,13 +147,14 @@ function isOwnWithUnits(
 function cellUnderCursorDot(
   map: TerritoryGameMap,
   mapX: number,
-  mapY: number
+  mapY: number,
+  hiddenOpts?: { syncMapLayout?: boolean }
 ): CellPos | null {
   const hitR = TERRITORY_DOT_RADIUS + DOT_HIT_EXTRA;
   let bestIndex: number | null = null;
   let bestD = Infinity;
   for (let index = 0; index < map.territories.length; index++) {
-    if (isTerritoryIndexHidden(map, index)) continue;
+    if (isTerritoryIndexHidden(map, index, hiddenOpts)) continue;
     const c = mapDotCenter(map, cellPos(index));
     const d = Math.hypot(mapX - c.x, mapY - c.y);
     if (d <= hitR && d < bestD) {
@@ -176,18 +191,22 @@ type DragState = {
 
 export function TerritoryMapView({
   map,
+  localPlayerId,
+  localDisplayColor,
   activePlayerRef,
-  adoptPlayerForCell,
   playerAppearances,
   projectiles,
   explosions = [],
   onCommitAttacks,
   onCancelPendingFrom,
+  syncMapLayout = false,
 }: TerritoryMapViewProps) {
+  const hiddenOpts = syncMapLayout ? { syncMapLayout: true as const } : undefined;
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
-  const { stroke: aimStroke, head: aimHead } = aimColorsForPlayer(
-    activePlayerRef.current
+  const { stroke: aimStroke, head: aimHead } = aimColorsForLocalPlayer(
+    localPlayerId,
+    localDisplayColor
   );
   const projR = mapProjectileRadius(map);
   const glowR = mapTargetGlowRadius(map);
@@ -199,14 +218,17 @@ export function TerritoryMapView({
   const territoryDots: ReactElement[] = [];
 
   map.territories.forEach((territory, index) => {
-    const hidden = isTerritoryIndexHidden(map, index);
+    const hidden = isTerritoryIndexHidden(map, index, hiddenOpts);
     const pos = cellPos(index);
     const cell = getCell(map, index);
-    const { fillClass, fillStyle, dotVariant, dotMidFillStyle } =
-      cellStyles(cell);
+    const { fillClass, fillStyle, dotVariant, dotMidFillStyle } = cellStyles(
+      cell,
+      localPlayerId,
+      localDisplayColor
+    );
     const units = cell.units ?? 0;
     const owner = cell.ownerId;
-    const canDragFrom = !!owner && units > 0;
+    const canDragFrom = owner === localPlayerId && units > 0;
     const inMulti = activeSources.some((s) => s.x === index);
 
     territoryBacks.push(
@@ -257,7 +279,6 @@ export function TerritoryMapView({
             cy={dotCenter.y}
             r={TERRITORY_DOT_RADIUS + DOT_HIT_EXTRA}
             onPointerDown={(e) => {
-              adoptPlayerForCell(owner!);
               e.preventDefault();
               e.stopPropagation();
               svgRef.current?.setPointerCapture(e.pointerId);
@@ -268,7 +289,7 @@ export function TerritoryMapView({
               const aim = pt ?? dotCenter;
               setDrag({
                 sources: [pos],
-                hoverCell: cellUnderCursorDot(map, aim.x, aim.y),
+                hoverCell: cellUnderCursorDot(map, aim.x, aim.y, hiddenOpts),
                 aimEnd: aim,
               });
             }}
@@ -334,7 +355,7 @@ export function TerritoryMapView({
         if (!drag || !svgRef.current) return;
         const pt = clientPointToMapSpace(svgRef.current, e.clientX, e.clientY);
         if (!pt) return;
-        const hoverCell = cellUnderCursorDot(map, pt.x, pt.y);
+        const hoverCell = cellUnderCursorDot(map, pt.x, pt.y, hiddenOpts);
         setDrag((d) => {
           if (!d) return d;
           let sources = d.sources;
@@ -357,7 +378,7 @@ export function TerritoryMapView({
         }
         const pt = clientPointToMapSpace(svgRef.current, e.clientX, e.clientY);
         const targetCell = pt
-          ? cellUnderCursorDot(map, pt.x, pt.y)
+          ? cellUnderCursorDot(map, pt.x, pt.y, hiddenOpts)
           : drag.hoverCell;
         const sourcesFinal = drag.sources;
         setDrag(null);
@@ -400,7 +421,11 @@ export function TerritoryMapView({
       ) : null}
       <g aria-hidden>
         {projectiles.map((p) => {
-          const { fill } = projectileColors(p.attackerId);
+          const { fill } = projectileColorsForView(
+            p.attackerId,
+            localPlayerId,
+            localDisplayColor
+          );
           const fighterSkin = appearanceForPlayer(
             playerAppearances,
             p.attackerId

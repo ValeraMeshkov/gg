@@ -1,63 +1,63 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   appearanceForPlayer,
   loadPlayerAppearances,
-  savePlayerAppearances,
+  type PlayerAppearance,
   type PlayerAppearancesMap,
 } from "../game/appearance";
+import {
+  loadMyAppearance,
+  saveMyAppearance,
+  type MyAppearancePatch,
+} from "../game/appearance/myAppearance";
 import {
   fetchRemoteProfile,
   saveRemoteProfile,
   ensureRemoteUser,
-  type AppearancePatch,
 } from "../api/profileApi";
-import { getOrCreateUserId, setUserId } from "../lib/userId";
+import { getOrCreateUserId } from "../lib/userId";
 
 const SAVE_DEBOUNCE_MS = 400;
 
-function mergeAppearances(
-  local: PlayerAppearancesMap,
-  remote: PlayerAppearancesMap | undefined
-): PlayerAppearancesMap {
-  if (!remote) return local;
-  return { ...local, ...remote };
-}
-
 /**
- * Внешний вид игроков: localStorage + синхронизация с API (если доступен).
+ * Скины текущего браузерного пользователя (fighter + building) → localStorage + API.
+ * На карте применяются к выбранному слоту; mock-user-2/3 пока с дефолтами.
  */
-export function useSyncedPlayerAppearances() {
-  const [playerAppearances, setPlayerAppearances] =
-    useState<PlayerAppearancesMap>(loadPlayerAppearances);
+export function useSyncedPlayerAppearances(controlledPlayerId: string) {
+  const [myAppearance, setMyAppearance] = useState<PlayerAppearance>(loadMyAppearance);
   const [syncReady, setSyncReady] = useState(false);
   const userIdRef = useRef(getOrCreateUserId());
   const saveTimerRef = useRef<number | null>(null);
-  const latestRef = useRef(playerAppearances);
-  latestRef.current = playerAppearances;
+  const latestRef = useRef(myAppearance);
+  latestRef.current = myAppearance;
+
+  const playerAppearances = useMemo((): PlayerAppearancesMap => {
+    const sessionDefaults = loadPlayerAppearances();
+    return { ...sessionDefaults, [controlledPlayerId]: myAppearance };
+  }, [controlledPlayerId, myAppearance]);
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
-        let userId = userIdRef.current;
-        userId = await ensureRemoteUser(userId);
+        const userId = await ensureRemoteUser(userIdRef.current);
         if (cancelled) return;
-        if (userId !== userIdRef.current) {
-          userIdRef.current = userId;
-          setUserId(userId);
-        }
+        userIdRef.current = userId;
 
         const remote = await fetchRemoteProfile(userId);
         if (cancelled) return;
 
-        if (remote?.appearances) {
-          const merged = mergeAppearances(
-            loadPlayerAppearances(),
-            remote.appearances
-          );
-          setPlayerAppearances(merged);
-          savePlayerAppearances(merged);
+        if (remote) {
+          setMyAppearance((prev) => {
+            const next: PlayerAppearance = {
+              fighter: remote.fighter,
+              building: remote.building,
+              displayColor: prev.displayColor,
+            };
+            saveMyAppearance(next);
+            return next;
+          });
         }
       } catch (err) {
         console.warn("[profile] синхронизация с сервером не удалась", err);
@@ -71,21 +71,22 @@ export function useSyncedPlayerAppearances() {
     };
   }, []);
 
-  const flushToServer = useCallback((map: PlayerAppearancesMap) => {
-    savePlayerAppearances(map);
-    void saveRemoteProfile(userIdRef.current, { appearances: map }).catch(
-      (err) => console.warn("[profile] сохранение на сервер", err)
-    );
+  const flushToServer = useCallback((appearance: PlayerAppearance) => {
+    saveMyAppearance(appearance);
+    void saveRemoteProfile(userIdRef.current, {
+      fighter: appearance.fighter,
+      building: appearance.building,
+    }).catch((err) => console.warn("[profile] сохранение на сервер", err));
   }, []);
 
   const scheduleSave = useCallback(
-    (map: PlayerAppearancesMap) => {
+    (appearance: PlayerAppearance) => {
       if (saveTimerRef.current != null) {
         window.clearTimeout(saveTimerRef.current);
       }
       saveTimerRef.current = window.setTimeout(() => {
         saveTimerRef.current = null;
-        flushToServer(map);
+        flushToServer(appearance);
       }, SAVE_DEBOUNCE_MS);
     },
     [flushToServer]
@@ -101,16 +102,10 @@ export function useSyncedPlayerAppearances() {
     [flushToServer]
   );
 
-  const patchPlayerAppearance = useCallback(
-    (playerId: string, patch: AppearancePatch) => {
-      setPlayerAppearances((prev) => {
-        const next = {
-          ...prev,
-          [playerId]: {
-            ...appearanceForPlayer(prev, playerId),
-            ...patch,
-          },
-        };
+  const patchMyAppearance = useCallback(
+    (patch: MyAppearancePatch) => {
+      setMyAppearance((prev) => {
+        const next = { ...prev, ...patch };
         scheduleSave(next);
         return next;
       });
@@ -118,9 +113,15 @@ export function useSyncedPlayerAppearances() {
     [scheduleSave]
   );
 
+  const controlledAppearance = appearanceForPlayer(
+    playerAppearances,
+    controlledPlayerId
+  );
+
   return {
     playerAppearances,
-    patchPlayerAppearance,
+    controlledAppearance,
+    patchMyAppearance,
     syncReady,
   };
 }

@@ -7,28 +7,23 @@ import {
   DEFAULT_FIGHTER,
   FIGHTER_SKINS,
 } from "./skins.js";
-import type {
-  PlayerAppearance,
-  PlayerAppearancesMap,
-  UserPreferences,
-  UserProfile,
-} from "./types.js";
+import type { UserProfile } from "./types.js";
+import type { BuildingSkinId, FighterSkinId } from "./skins.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.DATA_DIR ?? path.join(__dirname, "..", "data");
-const storePath =
+export const storePath =
   process.env.STORE_PATH ?? path.join(dataDir, "profiles.json");
 
+type UserRow = {
+  createdAt: string;
+  updatedAt: string;
+  fighter: FighterSkinId;
+  building: BuildingSkinId;
+};
+
 type StoreFile = {
-  users: Record<
-    string,
-    {
-      createdAt: string;
-      updatedAt: string;
-      appearances: PlayerAppearancesMap;
-      preferences: UserPreferences;
-    }
-  >;
+  users: Record<string, UserRow>;
 };
 
 function fighterSet(): Set<string> {
@@ -39,44 +34,53 @@ function buildingSet(): Set<string> {
   return new Set(BUILDING_SKINS);
 }
 
-function normalizeAppearance(raw: unknown): PlayerAppearance | null {
-  if (!raw || typeof raw !== "object") return null;
-  const o = raw as Record<string, unknown>;
-  const fighter = o.fighter;
-  const building = o.building;
-  if (
-    typeof fighter !== "string" ||
-    typeof building !== "string" ||
-    !fighterSet().has(fighter) ||
-    !buildingSet().has(building)
-  ) {
-    return null;
+function normalizeSkin(
+  value: unknown,
+  allowed: Set<string>,
+  fallback: string
+): string {
+  return typeof value === "string" && allowed.has(value) ? value : fallback;
+}
+
+/** Старый формат: appearances.mock-user или первый слот. */
+function migrateLegacyRow(raw: Record<string, unknown>): {
+  fighter: FighterSkinId;
+  building: BuildingSkinId;
+} {
+  const fighter = normalizeSkin(raw.fighter, fighterSet(), DEFAULT_FIGHTER);
+  const building = normalizeSkin(raw.building, buildingSet(), DEFAULT_BUILDING);
+
+  if (raw.appearances && typeof raw.appearances === "object") {
+    const apps = raw.appearances as Record<string, unknown>;
+    const slot =
+      apps["mock-user"] ??
+      Object.values(apps).find((v) => v && typeof v === "object");
+    if (slot && typeof slot === "object") {
+      const o = slot as Record<string, unknown>;
+      return {
+        fighter: normalizeSkin(o.fighter, fighterSet(), fighter) as FighterSkinId,
+        building: normalizeSkin(o.building, buildingSet(), building) as BuildingSkinId,
+      };
+    }
   }
+
   return {
-    fighter: fighter as PlayerAppearance["fighter"],
-    building: building as PlayerAppearance["building"],
+    fighter: fighter as FighterSkinId,
+    building: building as BuildingSkinId,
   };
 }
 
-function normalizeAppearances(raw: unknown): PlayerAppearancesMap {
-  if (!raw || typeof raw !== "object") return {};
-  const out: PlayerAppearancesMap = {};
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    const appearance = normalizeAppearance(value);
-    if (appearance) out[key] = appearance;
+function normalizeRow(raw: Record<string, unknown>): UserRow | null {
+  if (typeof raw.createdAt !== "string" || typeof raw.updatedAt !== "string") {
+    return null;
   }
-  return out;
-}
-
-function normalizePreferences(raw: unknown): UserPreferences {
-  if (!raw || typeof raw !== "object") return {};
-  const o = raw as Record<string, unknown>;
-  const prefs: UserPreferences = {};
-  if (typeof o.lastMapId === "string") prefs.lastMapId = o.lastMapId;
-  if (typeof o.controlledPlayerId === "string") {
-    prefs.controlledPlayerId = o.controlledPlayerId;
-  }
-  return prefs;
+  const { fighter, building } = migrateLegacyRow(raw);
+  return {
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+    fighter,
+    building,
+  };
 }
 
 function emptyStore(): StoreFile {
@@ -95,7 +99,14 @@ function readStore(): StoreFile {
     if (!raw || typeof raw !== "object") return emptyStore();
     const users = (raw as StoreFile).users;
     if (!users || typeof users !== "object") return emptyStore();
-    return { users };
+
+    const out: StoreFile["users"] = {};
+    for (const [userId, row] of Object.entries(users)) {
+      if (!row || typeof row !== "object") continue;
+      const normalized = normalizeRow(row as Record<string, unknown>);
+      if (normalized) out[userId] = normalized;
+    }
+    return { users: out };
   } catch {
     return emptyStore();
   }
@@ -108,11 +119,11 @@ function writeStore(store: StoreFile): void {
   fs.renameSync(tmp, storePath);
 }
 
-function toProfile(userId: string, row: StoreFile["users"][string]): UserProfile {
+function toProfile(userId: string, row: UserRow): UserProfile {
   return {
     userId,
-    appearances: normalizeAppearances(row.appearances),
-    preferences: normalizePreferences(row.preferences),
+    fighter: row.fighter,
+    building: row.building,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -124,8 +135,8 @@ export function createUser(id: string): UserProfile {
   store.users[id] = {
     createdAt: now,
     updatedAt: now,
-    appearances: {},
-    preferences: {},
+    fighter: DEFAULT_FIGHTER as FighterSkinId,
+    building: DEFAULT_BUILDING as BuildingSkinId,
   };
   writeStore(store);
   return toProfile(id, store.users[id]!);
@@ -138,6 +149,16 @@ export function getProfile(userId: string): UserProfile | null {
   return toProfile(userId, row);
 }
 
+export function listProfiles(): UserProfile[] {
+  const store = readStore();
+  return Object.entries(store.users)
+    .map(([userId, row]) => toProfile(userId, row))
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+}
+
 export function userExists(userId: string): boolean {
   const store = readStore();
   return userId in store.users;
@@ -145,35 +166,17 @@ export function userExists(userId: string): boolean {
 
 export function updateProfile(
   userId: string,
-  patch: {
-    appearances?: PlayerAppearancesMap;
-    preferences?: UserPreferences;
-  }
+  patch: { fighter?: FighterSkinId; building?: BuildingSkinId }
 ): UserProfile | null {
   const store = readStore();
   const row = store.users[userId];
   if (!row) return null;
 
-  const appearances = patch.appearances
-    ? { ...normalizeAppearances(row.appearances), ...patch.appearances }
-    : normalizeAppearances(row.appearances);
-  const preferences = patch.preferences
-    ? { ...normalizePreferences(row.preferences), ...patch.preferences }
-    : normalizePreferences(row.preferences);
-  const now = new Date().toISOString();
-
-  row.appearances = appearances;
-  row.preferences = preferences;
-  row.updatedAt = now;
+  if (patch.fighter) row.fighter = patch.fighter;
+  if (patch.building) row.building = patch.building;
+  row.updatedAt = new Date().toISOString();
   store.users[userId] = row;
   writeStore(store);
 
   return getProfile(userId);
-}
-
-export function defaultAppearance(): PlayerAppearance {
-  return {
-    fighter: DEFAULT_FIGHTER as PlayerAppearance["fighter"],
-    building: DEFAULT_BUILDING as PlayerAppearance["building"],
-  };
 }

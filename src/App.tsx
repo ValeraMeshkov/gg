@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { GameCanvas } from "./components/GameCanvas";
 import { MapCatalogSelect } from "./components/MapCatalogSelect";
+import { MapDotEditor } from "./components/MapDotEditor";
+import { RoomLobby } from "./components/RoomLobby";
+import { RoomWaiting } from "./components/RoomWaiting";
 import { readAppRoute, writeAppRoute } from "./appUrl";
-import { getMapCatalogEntry } from "./game/maps";
 import styles from "./App.module.scss";
 
 function App() {
@@ -23,23 +25,58 @@ function App() {
     [route],
   );
 
-  const catalog = getMapCatalogEntry(route.mapId);
+  const setEditorMapId = useCallback((mapId: string) => {
+    setRoute((prev) => {
+      const next = { ...prev, mapId };
+      writeAppRoute(next);
+      return next;
+    });
+  }, []);
+
+  if (route.edit) {
+    return (
+      <div className={styles.app}>
+        <main className={styles.main}>
+          <MapDotEditor mapId={route.mapId} onMapIdChange={setEditorMapId} />
+        </main>
+      </div>
+    );
+  }
+
+  if (route.roomLobby) {
+    return (
+      <div className={styles.app}>
+        <main className={styles.main}>
+          <RoomLobby mapId={route.mapId} />
+        </main>
+      </div>
+    );
+  }
+
+  if (route.roomWaiting && route.roomCode) {
+    return (
+      <div className={styles.app}>
+        <main className={styles.main}>
+          <RoomWaiting roomCode={route.roomCode} />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.app}>
       <header className={styles.header}>
-        <h1 className={styles.title}>Territory</h1>
-        <div className={styles.mapPicker}>
-          <MapCatalogSelect mapId={route.mapId} onMapIdChange={setMapId} />
-        </div>
-        {catalog ? (
-          <p className={styles.sub}>
-            Карта №{catalog.number}: {catalog.name}
-          </p>
-        ) : null}
+        <MapCatalogSelect mapId={route.mapId} onMapIdChange={setMapId} />
+        <a className={styles.roomLink} href="/room">
+          Вдвоём
+        </a>
       </header>
       <main className={styles.main}>
-        <GameCanvas key={route.mapId} mapId={route.mapId} />
+        <GameCanvas
+          key={`${route.mapId}-${route.roomCode ?? "solo"}`}
+          mapId={route.mapId}
+          roomCode={route.roomCode}
+        />
       </main>
     </div>
   );

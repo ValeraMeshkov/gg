@@ -1,16 +1,10 @@
-import type { PlayerAppearancesMap } from "../game/appearance";
 import type { BuildingSkinId, FighterSkinId } from "../game/appearance";
 import { apiUrl, isApiEnabled } from "./config";
 
-export type UserPreferences = {
-  lastMapId?: string;
-  controlledPlayerId?: string;
-};
-
 export type RemoteUserProfile = {
   userId: string;
-  appearances: PlayerAppearancesMap;
-  preferences: UserPreferences;
+  fighter: FighterSkinId;
+  building: BuildingSkinId;
   createdAt: string;
   updatedAt: string;
 };
@@ -34,7 +28,11 @@ export async function ensureRemoteUser(userId: string): Promise<string> {
   }
 
   const created = await parseJson<RemoteUserProfile>(
-    await fetch(apiUrl("/api/users"), { method: "POST" })
+    await fetch(apiUrl("/api/users"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    })
   );
   return created.userId;
 }
@@ -51,10 +49,7 @@ export async function fetchRemoteProfile(
 
 export async function saveRemoteProfile(
   userId: string,
-  patch: {
-    appearances?: PlayerAppearancesMap;
-    preferences?: UserPreferences;
-  }
+  patch: { fighter?: FighterSkinId; building?: BuildingSkinId }
 ): Promise<RemoteUserProfile | null> {
   if (!isApiEnabled()) return null;
 
