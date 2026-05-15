@@ -4,7 +4,7 @@ import { MapCatalogSelect } from "./components/MapCatalogSelect";
 import { MapDotEditor } from "./components/MapDotEditor";
 import { RoomLobby } from "./components/RoomLobby";
 import { RoomWaiting } from "./components/RoomWaiting";
-import { readAppRoute, writeAppRoute } from "./appUrl";
+import { readAppRoute, roomLobbyHref, writeAppRoute } from "./appUrl";
 import styles from "./App.module.scss";
 
 function App() {
@@ -67,7 +67,7 @@ function App() {
     <div className={styles.app}>
       <header className={styles.header}>
         <MapCatalogSelect mapId={route.mapId} onMapIdChange={setMapId} />
-        <a className={styles.roomLink} href="/room">
+        <a className={styles.roomLink} href={roomLobbyHref()}>
           Вдвоём
         </a>
       </header>

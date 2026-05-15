@@ -5,7 +5,7 @@ import {
   startRoom,
   type Room,
 } from "../api/roomApi";
-import { gameHref, roomLobbyHref } from "../appUrl";
+import { gameHref, roomHref, roomLobbyHref } from "../appUrl";
 import { getOrCreateUserId } from "../lib/userId";
 import styles from "./RoomPage.module.scss";
 
@@ -48,7 +48,7 @@ export function RoomWaiting({ roomCode }: RoomWaitingProps) {
 
   const inviteUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}${roomLobbyHref().replace("/room", `/room/${roomCode}`)}`
+      ? `${window.location.origin}${roomHref(roomCode)}`
       : "";
 
   const isHost = room?.hostUserId === userId;

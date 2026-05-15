@@ -18,7 +18,7 @@ export function RoomLobby({ mapId }: RoomLobbyProps) {
       setError(
         import.meta.env.DEV
           ? "Запустите сервер: npm run dev:server"
-          : "Сервер не настроен: при сборке нужен VITE_API_BASE_URL (см. DEPLOY.md)"
+          : "Сервер не настроен: укажите URL в public/api-config.json или секрет VITE_API_BASE_URL (см. DEPLOY.md)"
       );
       return;
     }

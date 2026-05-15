@@ -49,7 +49,12 @@
 2. **Settings → Secrets and variables → Actions → New repository secret**:
    - Имя: `VITE_API_BASE_URL`
    - Значение: `https://gg-game-server.onrender.com` (ваш URL с шага 1, **без** слэша в конце)
-3. **Actions** — дождитесь зелёного «Deploy frontend to GitHub Pages» (1–2 мин).
+   
+   Либо без секрета: в репозитории отредактируйте `public/api-config.json`:
+   ```json
+   { "apiBaseUrl": "https://ваш-сервер.onrender.com" }
+   ```
+3. **Actions** → Re-run workflow (или push в `main`), подождите 1–2 мин.
 4. Игра: **https://valerameshkov.github.io/gg/**
 
 Если видите «There isn't a GitHub Pages site here» — Pages ещё не включены (п.1) или workflow не отработал.
