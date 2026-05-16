@@ -1,6 +1,6 @@
 /**
  * Базовый URL API.
- * - dev: пусто → `/api` через прокси Vite
+ * - dev: пусто → `/api` через прокси Vite (без запроса api-config.json)
  * - production: VITE_API_BASE_URL при сборке или public/api-config.json
  */
 let runtimeApiBase = "";
@@ -8,6 +8,9 @@ let runtimeApiBase = "";
 export async function initApiConfig(): Promise<void> {
   const fromEnv = import.meta.env.VITE_API_BASE_URL as string | undefined;
   if (fromEnv && fromEnv.length > 0) return;
+
+  /* В dev база API — пустая строка + прокси `/api`; запрос к json только засоряет консоль 404. */
+  if (import.meta.env.DEV) return;
 
   try {
     const base = import.meta.env.BASE_URL || "/";

@@ -1,7 +1,7 @@
 /** Клетки: стартовые юниты, потолок пассивного роста. */
 export const CELL = {
   neutralStart: 20,
-  playerStart: 100,
+  playerStart: 35,
   ownedCap: 100,
   growthMs: 650,
 } as const;

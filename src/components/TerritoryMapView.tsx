@@ -1,48 +1,52 @@
-import type { CSSProperties, MutableRefObject, ReactElement } from "react";
-import { useRef, useState } from "react";
+import type {
+  CSSProperties,
+  MutableRefObject,
+  ReactElement,
+  RefObject,
+} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  cellUnderCursorTerritoryDot,
   getCell,
   isTerritoryIndexHidden,
   mapDotCenter,
   mapSizeLabel,
   mapViewBoxString,
+  territoryCellPos,
   type CellPos,
 } from "../game/maps";
 import type { TerritoryGameMap } from "../game/maps";
-import {
-  TERRITORY_DOT_RADIUS,
-  TERRITORY_LABEL_FONT,
-  TERRITORY_LABEL_OFFSET_Y,
-} from "../game/mapLayout";
+import { TERRITORY_DOT_RADIUS, TERRITORY_DOT_RING_PADDING } from "../game/mapLayout";
 import { mapProjectileRadius } from "../game/maps/mapScale";
 import type { LandHitFx } from "../game/hitEffects";
+import { FirstMoveHintLayer } from "./map/FirstMoveHintLayer";
 import { LandHitFxLayer } from "./map/LandHitFxLayer";
-import { appearanceForPlayer, type PlayerAppearancesMap } from "../game/appearance";
+import type { PlayerAppearancesMap } from "../game/appearance";
 import type { DisplayColorId } from "../game/appearance";
 import {
   aimColorsForLocalPlayer,
   dotVariantForOwner,
   ownedDotFill,
   ownedTerritoryColorsForView,
-  projectileColorsForPlayer,
 } from "../game/playerColors";
 import { AimArrowGroup } from "./map/AimArrowGroup";
-import { BuildingMarker } from "./map/BuildingMarker";
-import { FighterShape } from "./map/FighterShape";
+import {
+  MapProjectilesCanvas,
+  type MapProjectilesCanvasHandle,
+} from "./map/MapProjectilesCanvas";
+import { TerritoryClipDefs } from "./map/TerritoryClipDefs";
+import {
+  TerritorySpotInteractive,
+  TerritorySpotStatic,
+  type DragState,
+} from "./map/TerritoryMapSpotLayers";
 import { TerritoryPaths } from "./map/TerritoryPaths";
 import { type UnitDotVariant } from "./map/UnitDot";
 import { clientPointToMapSpace } from "./map/svgCoords";
 import styles from "./MapView.module.scss";
 
-/** Кольцо вокруг точки (своя — белое, враг — красное) */
-const DOT_RING_PADDING = 8;
-/** Зона наведения / прицеливания — одинаковая для всех точек */
-const DOT_HIT_PADDING = 14;
+/** Обрезка стрелки прицела у точки отправления. */
 const ARROW_TRIM = TERRITORY_DOT_RADIUS + 3;
-
-function dotHitRadius(): number {
-  return TERRITORY_DOT_RADIUS + DOT_HIT_PADDING;
-}
 
 function trimmedAimSegment(
   x1: number,
@@ -73,24 +77,23 @@ type TerritoryMapViewProps = {
   localDisplayColor?: DisplayColorId;
   activePlayerRef: MutableRefObject<string>;
   playerAppearances: PlayerAppearancesMap;
-  projectiles: readonly {
-    id: string;
-    x: number;
-    y: number;
-    angle: number;
-    attackerId: string;
-  }[];
+  projectileCanvasRef: RefObject<MapProjectilesCanvasHandle | null>;
+  playerAppearancesRef: MutableRefObject<PlayerAppearancesMap>;
   landHitFx?: readonly LandHitFx[];
   onCommitAttacks: (froms: readonly CellPos[], to: CellPos) => void;
   onCancelPendingFrom?: (cell: CellPos) => void;
   /** В комнате — только канонические скрытые точки карты (без localStorage). */
   syncMapLayout?: boolean;
+  showFirstMoveHint?: boolean;
+  firstMovePulseFromIndex?: number | null;
+  mapInteractionLocked?: boolean;
 };
 
 function cellStyles(
   cell: ReturnType<typeof getCell>,
   localPlayerId: string,
-  localDisplayColor?: DisplayColorId
+  localDisplayColor?: DisplayColorId,
+  playerAppearances?: PlayerAppearancesMap
 ): {
   fillClass: string;
   fillStyle?: CSSProperties;
@@ -103,7 +106,9 @@ function cellStyles(
         cell.ownerId,
         localPlayerId,
         units,
-        localDisplayColor
+        localDisplayColor,
+        undefined,
+        playerAppearances
       )
     : null;
   if (owned) {
@@ -117,16 +122,16 @@ function cellStyles(
       ),
       dotMidFillStyle: {
         fill:
-          ownedDotFill(cell.ownerId ?? "", localPlayerId, localDisplayColor) ??
-          owned.fill,
+          ownedDotFill(
+            cell.ownerId ?? "",
+            localPlayerId,
+            localDisplayColor,
+            playerAppearances
+          ) ?? owned.fill,
       },
     };
   }
   return { fillClass: styles.territoryNeutral, dotVariant: "neutral" };
-}
-
-function cellPos(index: number): CellPos {
-  return { x: index, y: 0 };
 }
 
 function cellKey(c: CellPos): string {
@@ -144,27 +149,6 @@ function isOwnWithUnits(
 ): boolean {
   const cell = getCell(map, c.x);
   return cell.ownerId === localId && (cell.units ?? 0) > 0;
-}
-
-function cellUnderCursorDot(
-  map: TerritoryGameMap,
-  mapX: number,
-  mapY: number,
-  hiddenOpts?: { syncMapLayout?: boolean }
-): CellPos | null {
-  let bestIndex: number | null = null;
-  let bestD = Infinity;
-  for (let index = 0; index < map.territories.length; index++) {
-    if (isTerritoryIndexHidden(map, index, hiddenOpts)) continue;
-    const c = mapDotCenter(map, cellPos(index));
-    const hitR = dotHitRadius();
-    const d = Math.hypot(mapX - c.x, mapY - c.y);
-    if (d <= hitR && d < bestD) {
-      bestD = d;
-      bestIndex = index;
-    }
-  }
-  return bestIndex !== null ? cellPos(bestIndex) : null;
 }
 
 function sourcesExcludingTarget(
@@ -185,6 +169,35 @@ function multiAttackAllowed(
   return shooters.every((s) => canAttackTarget(s, target));
 }
 
+/** Начальная точка прицела при выборе всех своих (A): чуть в сторону центра карты от центроида сил. */
+function defaultAimEndForSelectAll(
+  map: TerritoryGameMap,
+  sources: CellPos[]
+): { x: number; y: number } {
+  const vb = map.viewBox;
+  const mapCx = vb.x + vb.width / 2;
+  const mapCy = vb.y + vb.height / 2;
+  if (sources.length === 0) {
+    return { x: mapCx, y: mapCy };
+  }
+  let sx = 0;
+  let sy = 0;
+  for (const s of sources) {
+    const p = mapDotCenter(map, s);
+    sx += p.x;
+    sy += p.y;
+  }
+  const n = sources.length;
+  const mx = sx / n;
+  const my = sy / n;
+  const span = Math.min(vb.width, vb.height);
+  const dx = mapCx - mx;
+  const dy = mapCy - my;
+  const len = Math.hypot(dx, dy) || 1;
+  const step = span * 0.13;
+  return { x: mx + (dx / len) * step, y: my + (dy / len) * step };
+}
+
 /** Красный прицел только на чужой/нейтральной клетке, не на своей. */
 function isEnemyAimTarget(
   map: TerritoryGameMap,
@@ -195,37 +208,80 @@ function isEnemyAimTarget(
   return cell.ownerId !== localId;
 }
 
-type DragState = {
-  sources: CellPos[];
-  hoverCell: CellPos | null;
-  aimEnd: { x: number; y: number };
-};
-
 export function TerritoryMapView({
   map,
   localPlayerId,
   localDisplayColor,
   activePlayerRef,
   playerAppearances,
-  projectiles,
+  projectileCanvasRef,
+  playerAppearancesRef,
   landHitFx = [],
   onCommitAttacks,
   onCancelPendingFrom,
   syncMapLayout = false,
+  showFirstMoveHint = false,
+  firstMovePulseFromIndex = null,
+  mapInteractionLocked = false,
 }: TerritoryMapViewProps) {
-  const hiddenOpts = syncMapLayout ? { syncMapLayout: true as const } : undefined;
+  const hiddenOpts = useMemo(
+    () => (syncMapLayout ? { syncMapLayout: true as const } : undefined),
+    [syncMapLayout]
+  );
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [hoveredOwnIndex, setHoveredOwnIndex] = useState<number | null>(null);
+  const multiSourceIndices = useMemo(
+    () => new Set(drag?.sources.map((s) => s.x) ?? []),
+    [drag]
+  );
   const { stroke: aimStroke, head: aimHead } = aimColorsForLocalPlayer(
     localPlayerId,
     localDisplayColor
   );
   const projR = mapProjectileRadius(map);
-  const enemyAimRingR = TERRITORY_DOT_RADIUS + DOT_RING_PADDING;
+  const enemyAimRingR = TERRITORY_DOT_RADIUS + TERRITORY_DOT_RING_PADDING;
 
-  const activeSources = drag?.sources ?? [];
   const aimEnd = drag?.aimEnd ?? null;
+
+  useEffect(() => {
+    if (mapInteractionLocked) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.repeat) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.code !== "KeyA") return;
+      const el = e.target;
+      if (el instanceof HTMLElement) {
+        const tag = el.tagName;
+        if (
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          tag === "SELECT" ||
+          tag === "BUTTON" ||
+          el.isContentEditable
+        ) {
+          return;
+        }
+      }
+      const allOwn: CellPos[] = [];
+      for (let index = 0; index < map.territories.length; index++) {
+        if (isTerritoryIndexHidden(map, index, hiddenOpts)) continue;
+        const pos = territoryCellPos(index);
+        if (isOwnWithUnits(map, localPlayerId, pos)) allOwn.push(pos);
+      }
+      if (allOwn.length === 0) return;
+      e.preventDefault();
+      const aim = defaultAimEndForSelectAll(map, allOwn);
+      setDrag({
+        sources: allOwn,
+        hoverCell: cellUnderCursorTerritoryDot(map, aim.x, aim.y, hiddenOpts),
+        aimEnd: aim,
+      });
+    };
+    window.addEventListener("keydown", onKey, { capture: false });
+    return () => window.removeEventListener("keydown", onKey);
+  }, [map, localPlayerId, hiddenOpts, mapInteractionLocked]);
 
   const hoverTargetValid = Boolean(
     drag &&
@@ -241,114 +297,74 @@ export function TerritoryMapView({
   const aimTargetIndex =
     hoverTargetValid && drag?.hoverCell ? drag.hoverCell.x : null;
 
-  const territoryBacks: ReactElement[] = [];
-  const territoryDots: ReactElement[] = [];
-
-  map.territories.forEach((territory, index) => {
-    const hidden = isTerritoryIndexHidden(map, index, hiddenOpts);
-    const pos = cellPos(index);
-    const cell = getCell(map, index);
-    const { fillClass, fillStyle, dotVariant, dotMidFillStyle } = cellStyles(
-      cell,
-      localPlayerId,
-      localDisplayColor
-    );
-    const units = cell.units ?? 0;
-    const owner = cell.ownerId;
-    const canDragFrom = owner === localPlayerId && units > 0;
-    const inMulti = activeSources.some((s) => s.x === index);
-    const ownHighlighted =
-      canDragFrom && (hoveredOwnIndex === index || inMulti);
-    const ownRingR = TERRITORY_DOT_RADIUS + DOT_RING_PADDING;
-    const ownHitR = TERRITORY_DOT_RADIUS + DOT_HIT_PADDING;
-    territoryBacks.push(
-      <g key={`${territory.id}-back`} data-x={index} data-y={0}>
-        <TerritoryPaths
-          clipIdPrefix={`map-${map.id}`}
-          territoryId={territory.id}
-          paths={territory.paths}
-          clip={territory.clip}
-          className={fillClass}
-          style={fillStyle}
-        />
-      </g>
-    );
-
-    if (hidden) return;
-
-    const dotCenter = mapDotCenter(map, pos);
-    const buildingSkin = owner
-      ? appearanceForPlayer(playerAppearances, owner).building
-      : "circle";
-    territoryDots.push(
-      <g key={`${territory.id}-dots`} data-spot={index + 1}>
-        {ownHighlighted ? (
-          <circle
-            className={`${styles.ownDotRing}${
-              inMulti ? ` ${styles.ownDotRingSelected}` : ""
-            }`}
-            cx={dotCenter.x}
-            cy={dotCenter.y}
-            r={ownRingR}
+  const territoryBacks = useMemo(() => {
+    const backs: ReactElement[] = [];
+    map.territories.forEach((territory, index) => {
+      const cell = getCell(map, index);
+      const { fillClass, fillStyle } = cellStyles(
+        cell,
+        localPlayerId,
+        localDisplayColor,
+        playerAppearances
+      );
+      backs.push(
+        <g key={`${territory.id}-back`} data-x={index} data-y={0}>
+          <TerritoryPaths
+            paths={territory.paths}
+            clipPathId={
+              territory.clip ? `map-${map.id}-${territory.id}` : undefined
+            }
+            className={fillClass}
+            style={fillStyle}
           />
-        ) : null}
-        <g
-          className={
-            ownHighlighted ? styles.ownDotMarkerEmphasis : undefined
-          }
-        >
-          <BuildingMarker
-            skin={buildingSkin}
-            cx={dotCenter.x}
-            cy={dotCenter.y}
-            size={TERRITORY_DOT_RADIUS}
-            variant={dotVariant}
-            fillStyle={dotMidFillStyle}
-          />
-          <text
-            className={styles.territoryLabel}
-            x={dotCenter.x}
-            y={dotCenter.y + TERRITORY_LABEL_OFFSET_Y}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fontSize={TERRITORY_LABEL_FONT}
-          >
-            {units}
-          </text>
         </g>
-        {canDragFrom ? (
-          <circle
-            className={styles.ownDotHit}
-            cx={dotCenter.x}
-            cy={dotCenter.y}
-            r={ownHitR}
-            onPointerEnter={() => setHoveredOwnIndex(index)}
-            onPointerLeave={() => setHoveredOwnIndex(null)}
-            onPointerDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setHoveredOwnIndex(index);
-              svgRef.current?.setPointerCapture(e.pointerId);
-              const svg = svgRef.current;
-              const pt = svg
-                ? clientPointToMapSpace(svg, e.clientX, e.clientY)
-                : null;
-              const aim = pt ?? dotCenter;
-              setDrag({
-                sources: [pos],
-                hoverCell: cellUnderCursorDot(map, aim.x, aim.y, hiddenOpts),
-                aimEnd: aim,
-              });
-            }}
-          />
-        ) : null}
-      </g>
-    );
-  });
+      );
+    });
+    return backs;
+  }, [map, localPlayerId, localDisplayColor, playerAppearances]);
 
-  const aimLines: ReactElement[] = [];
-  if (drag && aimEnd) {
-    for (const src of activeSources) {
+  const territoryDots = useMemo(
+    () =>
+      map.territories.map((territory, index) => (
+        <g key={`${territory.id}-dots`} data-spot={index + 1}>
+          <TerritorySpotStatic
+            map={map}
+            index={index}
+            hiddenOpts={hiddenOpts}
+            localPlayerId={localPlayerId}
+            localDisplayColor={localDisplayColor}
+            playerAppearances={playerAppearances}
+            firstMovePulseFromIndex={firstMovePulseFromIndex}
+          />
+          <TerritorySpotInteractive
+            map={map}
+            index={index}
+            hiddenOpts={hiddenOpts}
+            localPlayerId={localPlayerId}
+            hoveredOwnIndex={hoveredOwnIndex}
+            inMulti={multiSourceIndices.has(index)}
+            svgRef={svgRef}
+            setHoveredOwnIndex={setHoveredOwnIndex}
+            setDrag={setDrag}
+          />
+        </g>
+      )),
+    [
+      map,
+      hiddenOpts,
+      localPlayerId,
+      localDisplayColor,
+      playerAppearances,
+      firstMovePulseFromIndex,
+      hoveredOwnIndex,
+      multiSourceIndices,
+    ]
+  );
+
+  const aimLines = useMemo(() => {
+    if (!drag || !aimEnd) return [];
+    const lines: ReactElement[] = [];
+    for (const src of drag.sources) {
       const start = mapDotCenter(map, src);
       const seg = trimmedAimSegment(
         start.x,
@@ -359,7 +375,7 @@ export function TerritoryMapView({
         0
       );
       if (!seg) continue;
-      aimLines.push(
+      lines.push(
         <AimArrowGroup
           key={`aim-${cellKey(src)}`}
           seg={seg}
@@ -372,15 +388,19 @@ export function TerritoryMapView({
         />
       );
     }
-  }
+    return lines;
+  }, [drag, aimEnd, map, aimStroke, aimHead]);
 
   const enemyAimCenter =
-    aimTargetIndex !== null ? mapDotCenter(map, cellPos(aimTargetIndex)) : null;
+    aimTargetIndex !== null
+      ? mapDotCenter(map, territoryCellPos(aimTargetIndex))
+      : null;
 
   return (
-    <svg
-      ref={svgRef}
-      className={styles.svg}
+    <div className={styles.mapStack}>
+      <svg
+        ref={svgRef}
+        className={styles.svg}
       viewBox={mapViewBoxString(map)}
       preserveAspectRatio="xMidYMid meet"
       role="img"
@@ -390,7 +410,12 @@ export function TerritoryMapView({
         if (!drag || !svgRef.current) return;
         const pt = clientPointToMapSpace(svgRef.current, e.clientX, e.clientY);
         if (!pt) return;
-        const hoverCell = cellUnderCursorDot(map, pt.x, pt.y, hiddenOpts);
+        const hoverCell = cellUnderCursorTerritoryDot(
+          map,
+          pt.x,
+          pt.y,
+          hiddenOpts
+        );
         setDrag((d) => {
           if (!d) return d;
           let sources = d.sources;
@@ -413,7 +438,7 @@ export function TerritoryMapView({
         }
         const pt = clientPointToMapSpace(svgRef.current, e.clientX, e.clientY);
         const targetCell = pt
-          ? cellUnderCursorDot(map, pt.x, pt.y, hiddenOpts)
+          ? cellUnderCursorTerritoryDot(map, pt.x, pt.y, hiddenOpts)
           : drag.hoverCell;
         const sourcesFinal = drag.sources;
         setDrag(null);
@@ -449,6 +474,10 @@ export function TerritoryMapView({
         setHoveredOwnIndex(null);
       }}
     >
+      <TerritoryClipDefs
+        prefix={`map-${map.id}`}
+        territories={map.territories}
+      />
       {territoryBacks}
       {enemyAimCenter ? (
         <circle
@@ -458,35 +487,23 @@ export function TerritoryMapView({
           r={enemyAimRingR}
         />
       ) : null}
-      <g aria-hidden>
-        {projectiles.map((p) => {
-          const { fill } = projectileColorsForPlayer(
-            p.attackerId,
-            localPlayerId,
-            playerAppearances,
-            localDisplayColor
-          );
-          const fighterSkin = appearanceForPlayer(
-            playerAppearances,
-            p.attackerId
-          ).fighter;
-          return (
-            <FighterShape
-              key={p.id}
-              className={styles.projectile}
-              skin={fighterSkin}
-              x={p.x}
-              y={p.y}
-              angle={p.angle}
-              size={projR}
-              fill={fill}
-            />
-          );
-        })}
-      </g>
       {territoryDots}
       {aimLines}
       <LandHitFxLayer map={map} effects={landHitFx} projR={projR} />
+      <FirstMoveHintLayer
+        map={map}
+        localPlayerId={localPlayerId}
+        show={showFirstMoveHint}
+        syncMapLayout={syncMapLayout}
+      />
     </svg>
+      <MapProjectilesCanvas
+        ref={projectileCanvasRef}
+        map={map}
+        localPlayerId={localPlayerId}
+        localDisplayColor={localDisplayColor}
+        appearancesRef={playerAppearancesRef}
+      />
+    </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { memo, type ReactElement } from "react";
 import type { FighterSkinId } from "../../game/appearance";
 import {
   fighterFlightRotation,
@@ -17,7 +17,7 @@ type FighterShapeProps = {
 };
 
 /** Иконка бойца в полёте (пуля). */
-export function FighterShape({
+export const FighterShape = memo(function FighterShape({
   skin,
   x,
   y,
@@ -51,4 +51,4 @@ export function FighterShape({
       {glyph}
     </g>
   );
-}
+});

@@ -40,7 +40,22 @@ type UseRoomGameSyncOptions = {
     displayColor?: string
   ) => void;
   onProjectileCollision: (
-    destroyed: readonly { attackId: string; simIndex: number }[]
+    destroyed: readonly { attackId: string; simIndex: number }[],
+    explosions?: readonly { x: number; y: number }[]
+  ) => void;
+  onChatMessage?: (msg: {
+    slotId: string;
+    name: string;
+    text: string;
+    sentAt: number;
+  }) => void;
+  onChatHistory?: (
+    messages: {
+      slotId: string;
+      name: string;
+      text: string;
+      sentAt: number;
+    }[]
   ) => void;
 };
 
@@ -53,6 +68,8 @@ export function useRoomGameSync({
   onAppearances,
   onAppearance,
   onProjectileCollision,
+  onChatMessage,
+  onChatHistory,
 }: UseRoomGameSyncOptions) {
   const [connected, setConnected] = useState(false);
   const [wsKey, setWsKey] = useState(0);
@@ -65,6 +82,8 @@ export function useRoomGameSync({
     onAppearances,
     onAppearance,
     onProjectileCollision,
+    onChatMessage,
+    onChatHistory,
   });
   handlersRef.current = {
     onSnapshot,
@@ -74,6 +93,8 @@ export function useRoomGameSync({
     onAppearances,
     onAppearance,
     onProjectileCollision,
+    onChatMessage,
+    onChatHistory,
   };
 
   useEffect(() => {
@@ -133,7 +154,19 @@ export function useRoomGameSync({
           msg.countdown === true
         );
       } else if (msg.type === "projectile_collision") {
-        handlersRef.current.onProjectileCollision(msg.destroyed);
+        handlersRef.current.onProjectileCollision(
+          msg.destroyed,
+          msg.explosions
+        );
+      } else if (msg.type === "chat") {
+        handlersRef.current.onChatMessage?.({
+          slotId: msg.slotId,
+          name: msg.name,
+          text: msg.text,
+          sentAt: msg.sentAt,
+        });
+      } else if (msg.type === "chat_history") {
+        handlersRef.current.onChatHistory?.(msg.messages);
       }
     };
 
@@ -188,11 +221,20 @@ export function useRoomGameSync({
     []
   );
 
+  const sendChat = useCallback((text: string) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const t = text.trim().slice(0, 200);
+    if (!t) return;
+    ws.send(JSON.stringify({ type: "chat", text: t }));
+  }, []);
+
   return {
     connected,
     sendAttack,
     sendCancelPending,
     sendAppearance,
+    sendChat,
     reconnect,
   };
 }

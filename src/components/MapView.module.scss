@@ -1,4 +1,25 @@
+.mapStack {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
 .svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.projectilesCanvasHost {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.projectilesCanvas {
   display: block;
   width: 100%;
   height: 100%;
@@ -166,4 +187,80 @@
 
 .landHitWave {
   vector-effect: non-scaling-stroke;
+}
+
+.firstMoveHint {
+  pointer-events: none;
+}
+
+.firstMoveHintHandWrap {
+  pointer-events: none;
+  filter: drop-shadow(0 0.06em 0.1em rgba(0, 0, 0, 0.28));
+}
+
+/* Подсказка первого хода: заметная пульсация стартовой точки */
+$first-move-pulse-ease: cubic-bezier(0.35, 0, 0.2, 1);
+$first-move-pulse-period: 2.35s;
+
+.firstMoveSpotPulseWrap {
+  pointer-events: none;
+}
+
+.firstMoveSpotPulseRingA,
+.firstMoveSpotPulseRingB {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.firstMoveSpotPulseRingA {
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 3px;
+  animation: firstMoveSpotPulseRingA $first-move-pulse-period $first-move-pulse-ease infinite;
+}
+
+.firstMoveSpotPulseRingB {
+  stroke: rgba(255, 230, 140, 0.62);
+  stroke-width: 2.25px;
+  animation: firstMoveSpotPulseRingB $first-move-pulse-period $first-move-pulse-ease infinite;
+  animation-delay: calc(#{$first-move-pulse-period} / 2);
+}
+
+@keyframes firstMoveSpotPulseRingA {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.92;
+  }
+  50% {
+    transform: scale(1.28);
+    opacity: 0.38;
+  }
+}
+
+@keyframes firstMoveSpotPulseRingB {
+  0%,
+  100% {
+    transform: scale(1.04);
+    opacity: 0.72;
+  }
+  50% {
+    transform: scale(1.38);
+    opacity: 0.32;
+  }
+}
+
+.firstMoveSpotMarkerPulse {
+  animation: firstMoveSpotMarkerPulse $first-move-pulse-period $first-move-pulse-ease infinite;
+}
+
+@keyframes firstMoveSpotMarkerPulse {
+  0%,
+  100% {
+    filter: brightness(1) drop-shadow(0 0 0 transparent);
+  }
+  50% {
+    filter: brightness(1.22) drop-shadow(0 0 8px rgba(255, 220, 100, 0.55));
+  }
 }

@@ -1,9 +1,9 @@
 export type { GameMap, MapCell, TerritoryGameMap } from './types'
 export { assertMapShape, isTerritoryMap } from './types'
 export {
+  cellPosFromIndex,
   cellCount,
   cellIndex,
-  cellPosFromIndex,
   getCell,
   getCellAt,
   mapDotCenter,
@@ -14,6 +14,7 @@ export {
   mapAspectRatio,
   type CellPos,
 } from './mapAccess'
+export { cellUnderCursorTerritoryDot, territoryCellPos } from './territoryDotPick'
 export { mapProjectileRadius, mapShotSpeedPerMs } from './mapScale'
 export { TERRITORY_MAPS, WORLD_CONTINENTS, SOUTH_AMERICA } from './world'
 export {
@@ -21,6 +22,7 @@ export {
   getMapCatalogEntry,
   getMapIdByCatalogNumber,
   getTerritorySpotNumber,
+  pickRandomCatalogMapId,
   type MapCatalogEntry,
 } from './mapCatalog'
 export { MAP_ID, DEFAULT_MAP_ID, type MapId } from './mapIds'

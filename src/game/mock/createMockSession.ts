@@ -1,3 +1,4 @@
+import { normalizeOfflineBotCount } from "../../../shared/offlineBotCount.js";
 import { isTerritoryIndexHidden } from "../maps/world/mapDotLayout";
 import type { GameMap } from "../maps/types";
 import { MOCK_PLAYERS } from "./user";
@@ -28,29 +29,37 @@ function playableCellIndices(map: GameMap): number[] {
   return indices;
 }
 
-/** Три разных индекса из играбельных клеток (без скрытых точек). */
-function pickThreeDistinctIndices(playable: readonly number[]): [number, number, number] {
-  if (playable.length < 3) {
-    throw new Error("Для трёх игроков на карте нужно минимум 3 играбельные клетки");
+/** N разных индексов из играбельных клеток (без скрытых точек). */
+function pickDistinctIndices(
+  playable: readonly number[],
+  count: number
+): number[] {
+  if (playable.length < count) {
+    throw new Error(
+      `Для ${count} игроков на карте нужно минимум ${count} играбельных клеток`
+    );
   }
   const picked = new Set<number>();
-  while (picked.size < 3) {
+  while (picked.size < count) {
     picked.add(playable[Math.floor(Math.random() * playable.length)]!);
   }
-  const [a, b, c] = [...picked];
-  return [a!, b!, c!];
+  return [...picked];
 }
 
 /**
- * Старт партии: у каждого игрока initialScore очков, каждый захватывает свою случайную клетку.
+ * Старт партии: локальный игрок + `botCount` ботов (1–5), у каждого своя случайная клетка.
  */
-export function createMockSession(baseMap: GameMap): MockGameSession {
+export function createMockSession(
+  baseMap: GameMap,
+  botCount = 2
+): MockGameSession {
+  const bots = normalizeOfflineBotCount(botCount);
+  const playerCount = 1 + bots;
   const map = cloneMapWithCells(baseMap);
   const playable = playableCellIndices(map);
-  const [idx1, idx2, idx3] = pickThreeDistinctIndices(playable);
-  const indices = [idx1, idx2, idx3] as const;
+  const indices = pickDistinctIndices(playable, playerCount);
 
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < playerCount; i++) {
     const user = MOCK_PLAYERS[i]!;
     map.cells[indices[i]!] = {
       ...map.cells[indices[i]!],
@@ -61,7 +70,7 @@ export function createMockSession(baseMap: GameMap): MockGameSession {
 
   return {
     map,
-    players: MOCK_PLAYERS.map((user) => ({
+    players: MOCK_PLAYERS.slice(0, playerCount).map((user) => ({
       user,
       score: user.initialScore,
     })),

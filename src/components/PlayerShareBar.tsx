@@ -58,7 +58,22 @@ export function PlayerShareBar({
         }${readOnly ? ` ${styles.segmentReadOnly}` : ""}`;
 
         const inner = showScore ? (
-          <span className={styles.segmentScore}>{player.score}</span>
+          <span className={styles.segmentInner}>
+            <span className={styles.segmentLine}>
+              <span className={styles.segmentScorePart}>{player.score}</span>
+              <span className={styles.segmentDash} aria-hidden>
+                -
+              </span>
+              <span className={styles.segmentParen} aria-hidden></span>
+              <span
+                className={styles.segmentNameLarge}
+                title={player.displayName}
+              >
+                {player.displayName}
+              </span>
+              <span className={styles.segmentParen} aria-hidden></span>
+            </span>
+          </span>
         ) : null;
 
         const segmentStyle: CSSProperties = {
@@ -76,10 +91,10 @@ export function PlayerShareBar({
               className={className}
               style={segmentStyle}
               data-player={dataPlayer}
-              aria-label={`${player.displayName}, ${player.score} очков${
+              aria-label={`${player.score} очков, ${player.displayName}${
                 total > 0 ? `, ${sharePct}%` : ""
               }${isActive ? ", ваш игрок" : ""}`}
-              title={`${player.displayName}: ${player.score}`}
+              title={`${player.score} - (${player.displayName})`}
             >
               {inner}
             </div>
@@ -94,10 +109,10 @@ export function PlayerShareBar({
             style={segmentStyle}
             data-player={dataPlayer}
             aria-pressed={isActive}
-            aria-label={`${player.displayName}, ${player.score} очков${
+            aria-label={`${player.score} очков, ${player.displayName}${
               total > 0 ? `, ${sharePct}%` : ""
             }`}
-            title={`${player.displayName}: ${player.score}`}
+            title={`${player.score} - (${player.displayName})`}
             onClick={() => onSelectPlayer?.(player.id)}
           >
             {inner}

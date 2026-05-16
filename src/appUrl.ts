@@ -94,7 +94,7 @@ export function readAppRoute(): AppRoute {
   if (pathRoomCode) {
     return {
       edit: false,
-      mapId: params.get("map") ?? DEFAULT_MAP_ID,
+      mapId: DEFAULT_MAP_ID,
       roomLobby: false,
       roomWaiting: true,
       roomCode: pathRoomCode,
@@ -115,7 +115,7 @@ export function readAppRoute(): AppRoute {
 
   return {
     edit: false,
-    mapId: params.get("map") ?? DEFAULT_MAP_ID,
+    mapId: DEFAULT_MAP_ID,
     roomLobby: false,
     roomWaiting: false,
     roomCode: queryRoom,
@@ -145,22 +145,13 @@ export function writeAppRoute(next: AppRoute): void {
     return;
   }
 
-  const urlParams = new URLSearchParams();
-  if (next.mapId !== DEFAULT_MAP_ID) {
-    urlParams.set("map", next.mapId);
-  }
-  const query = urlParams.toString();
   const path = base || "/";
-  const url = query ? `${path}?${query}` : path;
-  window.history.replaceState(null, "", url);
+  window.history.replaceState(null, "", path);
 }
 
-export function gameHref(mapId: string, roomCode?: string | null): string {
+export function gameHref(_mapId: string, roomCode?: string | null): string {
   const base = appBasePath();
   const params = new URLSearchParams();
-  if (mapId !== DEFAULT_MAP_ID) {
-    params.set("map", mapId);
-  }
   if (roomCode) {
     params.set("room", roomCode);
   }

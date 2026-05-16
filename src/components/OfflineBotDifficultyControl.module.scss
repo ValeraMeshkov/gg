@@ -1,0 +1,51 @@
+.root {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  max-width: min(320px, 42vw);
+  margin: 0 auto;
+  padding: 4px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(26, 58, 92, 0.14);
+  background: rgba(255, 255, 255, 0.88);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5a6578;
+  flex-shrink: 0;
+}
+
+.range {
+  flex: 1;
+  min-width: 48px;
+  accent-color: #2a6bb8;
+  cursor: pointer;
+}
+
+.value {
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #1a2740;
+  min-width: 1.6rem;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .root {
+    order: 10;
+    flex-basis: 100%;
+    max-width: none;
+    margin: 0;
+  }
+}

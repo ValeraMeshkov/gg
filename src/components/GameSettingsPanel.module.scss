@@ -1,0 +1,93 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+}
+
+.appearanceBlock {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #6a758c;
+}
+
+.nameField {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin: 0;
+}
+
+.nameInput {
+  font: inherit;
+  font-size: 0.95rem;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(20, 35, 60, 0.15);
+  background: #fff;
+  color: #1a2740;
+}
+
+.nameInput::placeholder {
+  color: #8a92a4;
+}
+
+.nameInput:focus {
+  outline: none;
+  border-color: rgba(42, 107, 184, 0.55);
+  box-shadow: 0 0 0 2px rgba(42, 107, 184, 0.15);
+}
+
+.nameHint {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: #6a758c;
+}
+
+.mapCatalogWrap {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.mapRandomStartRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 4px 0 0;
+  cursor: pointer;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #4a5568;
+}
+
+.mapRandomStartRowDisabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.mapRandomStartCheck {
+  margin: 2px 0 0;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  accent-color: #2a6bb8;
+  cursor: inherit;
+}
+
+.mapRandomStartLabel {
+  flex: 1;
+  min-width: 0;
+}

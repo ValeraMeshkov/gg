@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactElement } from "react";
+import { memo, type CSSProperties, type ReactElement } from "react";
 import type { BuildingSkinId } from "../../game/appearance";
 import { renderBuildingGlyph } from "./buildingSkinGlyphs";
 import { UnitDot, type UnitDotVariant } from "./UnitDot";
@@ -12,11 +12,31 @@ type BuildingMarkerProps = {
   fillStyle?: CSSProperties;
 };
 
+function buildingMarkerEqual(
+  p: BuildingMarkerProps,
+  n: BuildingMarkerProps
+): boolean {
+  if (
+    p.skin !== n.skin ||
+    p.cx !== n.cx ||
+    p.cy !== n.cy ||
+    p.size !== n.size ||
+    p.variant !== n.variant
+  )
+    return false;
+  const a = p.fillStyle;
+  const b = n.fillStyle;
+  if (a === b) return true;
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.fill === b.fill && a.stroke === b.stroke;
+}
+
 /**
  * Маркер «здания» на точке территории.
  * `circle` — прежний кружок; остальные — SVG-иконки того же размера.
  */
-export function BuildingMarker({
+export const BuildingMarker = memo(function BuildingMarker({
   skin,
   cx,
   cy,
@@ -46,4 +66,4 @@ export function BuildingMarker({
       {glyph}
     </g>
   );
-}
+}, buildingMarkerEqual);

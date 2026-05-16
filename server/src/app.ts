@@ -13,7 +13,7 @@ import {
 import { ensureGameForRoom } from "./gameState.js";
 import { clearCellUpdateQueue } from "./cellUpdateQueue.js";
 import { clearRoomCombat } from "./roomAttack.js";
-import { broadcastGameReset } from "./wsHub.js";
+import { broadcastGameReset, clearRoomChatHistory } from "./wsHub.js";
 import { createRoom, getRoom, joinRoom, restartRoom, startRoom } from "./rooms.js";
 import {
   createRoomBodySchema,
@@ -256,6 +256,7 @@ export function createApp() {
     clearCellUpdateQueue(room.code);
     const game = ensureGameForRoom(room);
     if (game) {
+      clearRoomChatHistory(room.code);
       broadcastGameReset(room.code, game, room, { countdown: true });
     }
     return c.json({

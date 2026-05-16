@@ -12,9 +12,19 @@ export type LandHitFx = {
   color: string;
 };
 
-/** 70% без эффекта, 30% — взрывная волна (детерминировано по seed). */
-export function rollLandHitFx(seed: string): boolean {
-  return seededRandom(`land-hit:${seed}`)() >= 0.7;
+/** Смещение центра взрыва в координатах карты (детерминированно по seed). */
+export function jitterExplosionPosition(
+  seed: string,
+  x: number,
+  y: number,
+  spread: number
+): { x: number; y: number } {
+  if (spread <= 0) return { x, y };
+  const rnd = seededRandom(`explode-jitter:${seed}`);
+  const u = rnd() * Math.PI * 2;
+  const v = 0.22 + rnd() * 0.78;
+  const r = spread * v;
+  return { x: x + Math.cos(u) * r, y: y + Math.sin(u) * r };
 }
 
 /** Стабильный seed для столкновения двух пуль. */

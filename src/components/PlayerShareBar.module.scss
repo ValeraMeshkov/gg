@@ -1,8 +1,8 @@
 .bar {
   display: flex;
   width: 100%;
-  height: 32px;
-  border-radius: 16px;
+  height: 38px;
+  border-radius: 19px;
   overflow: hidden;
   box-shadow:
     0 0 0 1px rgba(20, 35, 60, 0.12),
@@ -81,7 +81,6 @@
 .segmentActive {
   filter: brightness(1.08) saturate(1.05);
   z-index: 1;
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.65);
 }
 
 .segmentReadOnly {
@@ -89,13 +88,59 @@
   pointer-events: none;
 }
 
-.segmentScore {
-  font-size: 0.8rem;
-  font-weight: 700;
+.segmentInner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 4px;
+  pointer-events: none;
+}
+
+.segmentLine {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  column-gap: 0.32em;
+}
+
+.segmentScorePart {
+  font-size: 0.78rem;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: rgba(18, 22, 32, 0.82);
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
-  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.segmentDash {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(18, 22, 32, 0.74);
+  flex-shrink: 0;
+}
+
+.segmentParen {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(18, 22, 32, 0.74);
+  flex-shrink: 0;
+}
+
+.segmentNameLarge {
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1.15;
+  color: rgba(18, 22, 32, 0.9);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  transition: opacity 0.25s ease;
+  min-width: 0;
+  max-width: min(58%, 11rem);
 }

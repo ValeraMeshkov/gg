@@ -20,7 +20,7 @@ export function SkinPreviewIcon({
   size = 28,
 }: SkinPreviewIconProps): ReactElement {
   const half = size / 2;
-  const glyphSize = size * 0.2;
+  const glyphSize = size * 0.27;
 
   return (
     <svg

@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { memo, type ReactElement } from "react";
 import styles from "../MapView.module.scss";
 
 export type AimSeg = { x1: number; y1: number; x2: number; y2: number };
@@ -15,8 +15,24 @@ type AimArrowGroupProps = {
   headHalf: number;
 };
 
+function aimSegEqual(a: AimSeg, b: AimSeg): boolean {
+  return a.x1 === b.x1 && a.y1 === b.y1 && a.x2 === b.x2 && a.y2 === b.y2;
+}
+
+function aimArrowGroupEqual(p: AimArrowGroupProps, n: AimArrowGroupProps): boolean {
+  return (
+    aimSegEqual(p.seg, n.seg) &&
+    p.stroke === n.stroke &&
+    p.head === n.head &&
+    p.shaftWidth === n.shaftWidth &&
+    p.tipLead === n.tipLead &&
+    p.headDepth === n.headDepth &&
+    p.headHalf === n.headHalf
+  );
+}
+
 /** Шток + наконечник; белая обводка 1px, чтобы стрелка не сливалась с границей территории. */
-export function AimArrowGroup({
+export const AimArrowGroup = memo(function AimArrowGroup({
   seg,
   stroke,
   head,
@@ -83,4 +99,4 @@ export function AimArrowGroup({
       />
     </g>
   );
-}
+}, aimArrowGroupEqual);

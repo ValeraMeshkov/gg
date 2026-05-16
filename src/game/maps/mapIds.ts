@@ -1,4 +1,4 @@
-/** Стабильные id карт (URL `?map=`, реестр, extract). */
+/** Стабильные id карт (реестр, extract). */
 export const MAP_ID = {
   SOUTH_AMERICA: "south-america",
   NORTH_AMERICA: "north-america",

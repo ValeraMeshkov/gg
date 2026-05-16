@@ -7,42 +7,6 @@
   overflow: hidden;
 }
 
-.header {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  margin-bottom: 6px;
-}
-
-.createRoomBtn {
-  font-size: 0.88rem;
-  font-weight: 600;
-  padding: 8px 14px;
-  border-radius: 10px;
-  border: none;
-  background: #2a6bb8;
-  color: #fff;
-  cursor: pointer;
-}
-
-.createRoomBtn:hover:not(:disabled) {
-  background: #1f5594;
-}
-
-.createRoomBtn:disabled {
-  opacity: 0.65;
-  cursor: wait;
-}
-
-.createRoomError {
-  margin: 0 0 4px;
-  text-align: center;
-  font-size: 0.82rem;
-  color: #b42318;
-}
-
 .main {
   flex: 1;
   min-height: 0;

@@ -18,6 +18,7 @@ export const storePath =
 type UserRow = {
   createdAt: string;
   updatedAt: string;
+  displayName: string;
   fighter: FighterSkinId;
   building: BuildingSkinId;
 };
@@ -75,9 +76,14 @@ function normalizeRow(raw: Record<string, unknown>): UserRow | null {
     return null;
   }
   const { fighter, building } = migrateLegacyRow(raw);
+  let displayName = "";
+  if (typeof raw.displayName === "string") {
+    displayName = raw.displayName.trim().slice(0, 32);
+  }
   return {
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
+    displayName,
     fighter,
     building,
   };
@@ -122,6 +128,7 @@ function writeStore(store: StoreFile): void {
 function toProfile(userId: string, row: UserRow): UserProfile {
   return {
     userId,
+    displayName: row.displayName ?? "",
     fighter: row.fighter,
     building: row.building,
     createdAt: row.createdAt,
@@ -135,6 +142,7 @@ export function createUser(id: string): UserProfile {
   store.users[id] = {
     createdAt: now,
     updatedAt: now,
+    displayName: "",
     fighter: DEFAULT_FIGHTER as FighterSkinId,
     building: DEFAULT_BUILDING as BuildingSkinId,
   };
@@ -166,7 +174,11 @@ export function userExists(userId: string): boolean {
 
 export function updateProfile(
   userId: string,
-  patch: { fighter?: FighterSkinId; building?: BuildingSkinId }
+  patch: {
+    fighter?: FighterSkinId;
+    building?: BuildingSkinId;
+    displayName?: string;
+  }
 ): UserProfile | null {
   const store = readStore();
   const row = store.users[userId];
@@ -174,6 +186,9 @@ export function updateProfile(
 
   if (patch.fighter) row.fighter = patch.fighter;
   if (patch.building) row.building = patch.building;
+  if (patch.displayName !== undefined) {
+    row.displayName = patch.displayName.trim().slice(0, 32);
+  }
   row.updatedAt = new Date().toISOString();
   store.users[userId] = row;
   writeStore(store);

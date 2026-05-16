@@ -8,9 +8,10 @@ import {
   projectilesCollideDuringInterval,
   type ProjectilePath,
 } from "../../shared/projectileMotion.js";
+import { projectileCollisionShowsExplosion } from "../../shared/collisionFx.js";
 import type { SyncCell } from "../../shared/wsProtocol.js";
 import { enqueueRoomCellUpdate } from "./cellUpdateQueue.js";
-import { cloneCells, updateRoomCells, type RoomGameState } from "./gameState.js";
+import { cloneCells, getGameForRoom, updateRoomCells, type RoomGameState } from "./gameState.js";
 import { dotCenter } from "./mapDots.js";
 
 type PendingSim = {
@@ -36,18 +37,28 @@ export type ProjectileCollisionDestroy = {
   simIndex: number;
 };
 
+export type ProjectileCollisionExplosion = { x: number; y: number };
+
 const pendingByRoom = new Map<string, PendingFlight[]>();
 const collisionLoops = new Map<string, NodeJS.Timeout>();
 const lastCollisionTickAt = new Map<string, number>();
 
 let onProjectileCollision:
-  | ((roomCode: string, destroyed: ProjectileCollisionDestroy[]) => void)
+  | ((
+      roomCode: string,
+      destroyed: ProjectileCollisionDestroy[],
+      explosions: ProjectileCollisionExplosion[]
+    ) => void)
   | null = null;
 
 const COLLISION_TICK_MS = 16;
 
 export function setProjectileCollisionHandler(
-  handler: (roomCode: string, destroyed: ProjectileCollisionDestroy[]) => void
+  handler: (
+    roomCode: string,
+    destroyed: ProjectileCollisionDestroy[],
+    explosions: ProjectileCollisionExplosion[]
+  ) => void
 ): void {
   onProjectileCollision = handler;
 }
@@ -73,14 +84,16 @@ function targetCell(cells: SyncCell[], toIndex: number): SyncCell {
 
 function commitCells(
   roomCode: string,
-  state: RoomGameState,
   next: SyncCell[],
   onCells: (cells: SyncCell[]) => void
 ): void {
   const key = roomCode.toUpperCase();
-  state.cells = next;
-  updateRoomCells(key, next);
-  onCells(cloneCells(next));
+  const g = getGameForRoom(key);
+  if (!g) return;
+  const cloned = cloneCells(next);
+  g.cells = cloned;
+  updateRoomCells(key, cloned);
+  onCells(cloneCells(cloned));
 }
 
 function clearFlightTimers(flight: PendingFlight): void {
@@ -134,6 +147,7 @@ function tickProjectileCollisions(key: string): void {
   lastCollisionTickAt.set(key, now);
   const t0 = Math.max(prev, now - COLLISION_TICK_MS * 2);
   const destroyedBroadcast: ProjectileCollisionDestroy[] = [];
+  const explosionsBroadcast: ProjectileCollisionExplosion[] = [];
 
   const hitR2 = projectileHitRadius2();
 
@@ -169,6 +183,29 @@ function tickProjectileCollisions(key: string): void {
         );
       }
       if (!collides) continue;
+      let bx = pa && pb ? (pa.x + pb.x) / 2 : pa?.x ?? pb?.x ?? 0;
+      let by = pa && pb ? (pa.y + pb.y) / 2 : pa?.y ?? pb?.y ?? 0;
+      if (!pa || !pb) {
+        const ts = (t0 + now) / 2;
+        const qa = projectilePositionAt(a.flight.sims[a.idx]!.path, ts);
+        const qb = projectilePositionAt(b.flight.sims[b.idx]!.path, ts);
+        if (qa && qb) {
+          bx = (qa.x + qb.x) / 2;
+          by = (qa.y + qb.y) / 2;
+        } else if (qa) {
+          bx = qa.x;
+          by = qa.y;
+        } else if (qb) {
+          bx = qb.x;
+          by = qb.y;
+        }
+      }
+      const idA = `proj-${a.flight.attackId}-${a.idx}`;
+      const idB = `proj-${b.flight.attackId}-${b.idx}`;
+      if (projectileCollisionShowsExplosion(idA, idB)) {
+        explosionsBroadcast.push({ x: bx, y: by });
+      }
+
       if (!a.flight.sims[a.idx]!.destroyed) {
         destroySim(a.flight, a.idx);
         destroyedBroadcast.push({
@@ -187,7 +224,7 @@ function tickProjectileCollisions(key: string): void {
   }
 
   if (destroyedBroadcast.length > 0 && onProjectileCollision) {
-    onProjectileCollision(key, destroyedBroadcast);
+    onProjectileCollision(key, destroyedBroadcast, explosionsBroadcast);
   }
 
   compactFlights(flights);
@@ -389,6 +426,10 @@ export function processAttack(
       const spawnTimer = setTimeout(() => {
         pending.waveSpawnTimers.delete(wave);
         enqueueRoomCellUpdate(key, () => {
+          const flightsLive = pendingByRoom.get(key);
+          if (!flightsLive?.includes(pending)) return;
+          const g = getGameForRoom(key);
+          if (!g) return;
           const pendingIndices = indices.filter(
             (idx) =>
               !pending.sims[idx]!.spawnApplied &&
@@ -398,13 +439,13 @@ export function processAttack(
           for (const idx of pendingIndices) {
             pending.sims[idx]!.spawnApplied = true;
           }
-          const cur = cloneCells(state.cells);
+          const cur = cloneCells(g.cells);
           const u0 = cur[fromIndex]?.units ?? 0;
           cur[fromIndex] = {
             ...cur[fromIndex]!,
             units: Math.max(0, u0 - pendingIndices.length),
           };
-          commitCells(key, state, cur, onCells);
+          commitCells(key, cur, onCells);
         });
       }, delay);
       pending.waveSpawnTimers.set(wave, spawnTimer);
@@ -414,16 +455,20 @@ export function processAttack(
       const landTimer = setTimeout(() => {
         pending.simLandTimers.delete(idx);
         enqueueRoomCellUpdate(key, () => {
+          const flightsLive = pendingByRoom.get(key);
+          if (!flightsLive?.includes(pending)) return;
+          const g = getGameForRoom(key);
+          if (!g) return;
           const slot = pending.sims[idx]!;
           if (slot.landApplied || slot.destroyed) return;
           slot.landApplied = true;
-          const cur = cloneCells(state.cells);
+          const cur = cloneCells(g.cells);
           cur[toIndex] = applyIncrementalLandHit(
             targetCell(cur, toIndex),
             attackerId
           );
-          commitCells(key, state, cur, onCells);
-          compactFlights(flights);
+          commitCells(key, cur, onCells);
+          compactFlights(flightsLive);
           stopCollisionLoopIfIdle(key);
         });
       }, Math.max(0, sim.landDelayMs));

@@ -4,7 +4,12 @@ import { PLAYER_SLOT_IDS } from "../../../shared/playerSlots";
 /** Мок-игроки для слотов карты (до 10 в комнате). */
 export const MOCK_PLAYERS = PLAYER_SLOT_IDS.map((id, i) => ({
   id,
-  displayName: `Игрок ${i + 1}`,
+  displayName:
+    i === 1
+      ? "Сапёр"
+      : i === 2
+        ? "Щит"
+        : `Игрок ${i + 1}`,
   initialScore: CELL.playerStart,
 })) as readonly {
   id: string;

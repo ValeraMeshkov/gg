@@ -1,36 +1,15 @@
-export const FIGHTER_SKINS = [
-  "triangle",
-  "heart",
-  "skull",
-  "bear",
-  "smile",
-  "star",
-  "diamond",
-  "ghost",
-  "rocket",
-  "clover",
-  "bomb",
-  "ufo",
-  "shield",
-] as const;
-
-export type FighterSkinId = (typeof FIGHTER_SKINS)[number];
-
-export const BUILDING_SKINS = [
-  "circle",
-  "fortress",
-  "flower",
-  "crown",
-  "barn",
-  "temple",
-  "lighthouse",
-  "house",
-  "castle",
-] as const;
-
-export type BuildingSkinId = (typeof BUILDING_SKINS)[number];
-
+import type {
+  BuildingSkinId,
+  FighterSkinId,
+} from "../../../shared/skinIds";
 import type { DisplayColorId } from "../../../shared/displayColors";
+
+export {
+  FIGHTER_SKINS,
+  BUILDING_SKINS,
+  type FighterSkinId,
+  type BuildingSkinId,
+} from "../../../shared/skinIds";
 
 export { DISPLAY_COLORS, type DisplayColorId } from "../../../shared/displayColors";
 

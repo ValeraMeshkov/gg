@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactElement } from "react";
+import { memo, type CSSProperties, type ReactElement } from "react";
 import styles from "../MapView.module.scss";
 
 export type UnitDotVariant =
@@ -37,7 +37,25 @@ function fillClassForVariant(variant: UnitDotVariant): string {
   }
 }
 
-export function UnitDot({
+function unitDotEqual(p: UnitDotProps, n: UnitDotProps): boolean {
+  if (
+    p.cx !== n.cx ||
+    p.cy !== n.cy ||
+    p.r !== n.r ||
+    p.variant !== n.variant ||
+    p.selected !== n.selected ||
+    p.interactive !== n.interactive
+  )
+    return false;
+  const a = p.fillStyle;
+  const b = n.fillStyle;
+  if (a === b) return true;
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.fill === b.fill && a.stroke === b.stroke;
+}
+
+export const UnitDot = memo(function UnitDot({
   cx,
   cy,
   r,
@@ -62,4 +80,4 @@ export function UnitDot({
       aria-hidden
     />
   );
-}
+}, unitDotEqual);

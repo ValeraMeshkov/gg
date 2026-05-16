@@ -3,6 +3,8 @@ import { apiUrl, isApiEnabled } from "./config";
 
 export type RemoteUserProfile = {
   userId: string;
+  /** Пустая строка — показываем «Игрок N» по слоту. */
+  displayName: string;
   fighter: FighterSkinId;
   building: BuildingSkinId;
   createdAt: string;
@@ -49,7 +51,11 @@ export async function fetchRemoteProfile(
 
 export async function saveRemoteProfile(
   userId: string,
-  patch: { fighter?: FighterSkinId; building?: BuildingSkinId }
+  patch: {
+    fighter?: FighterSkinId;
+    building?: BuildingSkinId;
+    displayName?: string;
+  }
 ): Promise<RemoteUserProfile | null> {
   if (!isApiEnabled()) return null;
 

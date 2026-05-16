@@ -14,7 +14,7 @@
   position: absolute;
   top: 10px;
   left: 50%;
-  z-index: 40;
+  z-index: 50;
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
@@ -111,62 +111,34 @@
   cursor: not-allowed;
 }
 
-.roomBanner {
-  flex-shrink: 0;
-  margin: 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(42, 107, 184, 0.1);
-  font-size: 0.82rem;
-  color: #1a2740;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.roomBannerText {
-  margin: 0;
-  text-align: center;
-}
-
-.roomBannerActions {
-  display: flex;
+.mapToastError {
+  flex-direction: row;
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
+  align-items: center;
+  z-index: 55;
+  border-color: rgba(180, 35, 24, 0.28);
 }
 
-.roomBtn,
-.roomBtnPrimary {
-  font: inherit;
-  font-size: 0.8rem;
-  padding: 6px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  border: 1px solid rgba(42, 107, 184, 0.35);
-  background: #fff;
-  color: #1a2740;
-}
-
-.roomBtn:disabled,
-.roomBtnPrimary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.roomBtnPrimary {
-  background: #2a6bb8;
-  border-color: #1e5a9e;
-  color: #fff;
-  font-weight: 600;
-}
-
-.roomBannerError {
+.mapToastErrorText {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   color: #b42318;
+  line-height: 1.35;
   text-align: center;
+}
+
+.mapToastErrorDismiss {
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(180, 35, 24, 0.12);
+  color: #8f1f1f;
+  cursor: pointer;
 }
 
 .wrap {
@@ -178,7 +150,20 @@
   place-items: center;
   margin: 0;
   overflow: hidden;
-  background: #fbfcfe;
+  /* Мягкий фон под картой: не «больница», белые/серые маркеры и герои остаются читаемыми */
+  background: #e5ecf6;
+}
+
+/** На время 3–2–1 и «Поехали!»: перехват касаний/кликов по игровому полю */
+.countdownInputBlocker {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: default;
+  background: rgba(229, 236, 246, 0.34);
+  backdrop-filter: blur(1px);
 }
 
 .mapSurface {

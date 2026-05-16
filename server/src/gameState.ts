@@ -44,6 +44,7 @@ export function initGameForRoom(room: Room): RoomGameState {
   return state;
 }
 
+/** Текущая партия в комнате (после restart — новый объект состояния). */
 export function getGameForRoom(code: string): RoomGameState | null {
   return games.get(code.toUpperCase()) ?? null;
 }

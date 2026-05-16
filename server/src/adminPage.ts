@@ -11,12 +11,13 @@ function escapeHtml(s: string): string {
 export function renderAdminPage(profiles: UserProfile[], storePath: string): string {
   const rows =
     profiles.length === 0
-      ? `<tr><td colspan="5" class="muted">Пока нет пользователей. Откройте игру и выберите скины.</td></tr>`
+      ? `<tr><td colspan="6" class="muted">Пока нет пользователей. Откройте игру и выберите скины.</td></tr>`
       : profiles
           .map(
             (p) => `
         <tr>
           <td><code class="id">${escapeHtml(p.userId)}</code></td>
+          <td>${escapeHtml(p.displayName || "—")}</td>
           <td>${escapeHtml(p.fighter)}</td>
           <td>${escapeHtml(p.building)}</td>
           <td>${escapeHtml(p.updatedAt.slice(0, 19).replace("T", " "))}</td>
@@ -98,6 +99,7 @@ export function renderAdminPage(profiles: UserProfile[], storePath: string): str
     <thead>
       <tr>
         <th>User ID</th>
+        <th>Имя</th>
         <th>Fighter</th>
         <th>Building</th>
         <th>Обновлён</th>

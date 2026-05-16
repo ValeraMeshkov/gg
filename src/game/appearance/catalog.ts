@@ -8,9 +8,7 @@ export type SkinOption<T extends string> = {
 export const FIGHTER_SKIN_OPTIONS: readonly SkinOption<FighterSkinId>[] = [
   { id: "triangle", label: "Треугольник" },
   { id: "heart", label: "Сердце" },
-  { id: "skull", label: "Череп" },
   { id: "bear", label: "Мишка" },
-  { id: "smile", label: "Смайл" },
   { id: "star", label: "Звезда" },
   { id: "diamond", label: "Ромб" },
   { id: "ghost", label: "Призрак" },
@@ -31,4 +29,5 @@ export const BUILDING_SKIN_OPTIONS: readonly SkinOption<BuildingSkinId>[] = [
   { id: "lighthouse", label: "Маяк" },
   { id: "house", label: "Домик" },
   { id: "castle", label: "Замок" },
+  { id: "skull", label: "Череп" },
 ];

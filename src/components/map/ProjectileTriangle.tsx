@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { projectileTrianglePoints } from "./projectileShape";
 
 type ProjectileTriangleProps = {
@@ -9,7 +10,7 @@ type ProjectileTriangleProps = {
   className?: string;
 };
 
-export function ProjectileTriangle({
+export const ProjectileTriangle = memo(function ProjectileTriangle({
   x,
   y,
   angle,
@@ -25,4 +26,4 @@ export function ProjectileTriangle({
       stroke="none"
     />
   );
-}
+});

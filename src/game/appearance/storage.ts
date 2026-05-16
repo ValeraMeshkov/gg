@@ -24,7 +24,15 @@ function isBuildingSkin(v: unknown): v is BuildingSkinId {
   );
 }
 
-const REMOVED_FIGHTER_SKINS = new Set(["bolt", "cat", "fish", "moon", "flame"]);
+const REMOVED_FIGHTER_SKINS = new Set([
+  "bolt",
+  "cat",
+  "fish",
+  "moon",
+  "flame",
+  "skull",
+  "smile",
+]);
 
 /** Устаревшие id из localStorage → актуальный скин. */
 export function normalizeFighterSkin(v: unknown): FighterSkinId | null {

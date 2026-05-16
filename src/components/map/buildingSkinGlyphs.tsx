@@ -101,6 +101,38 @@ export function renderBuildingGlyph(
           <rect x={-s * 0.18} y={s * 0.15} width={s * 0.36} height={s * 0.45} fill="#fff" opacity={0.28} stroke="none" />
         </>
       );
+    case "skull":
+      return g(
+        <>
+          <ellipse cx={0} cy={s * 0.02} rx={s * 0.55} ry={s * 0.48} />
+          <circle cx={-s * 0.2} cy={-s * 0.08} r={s * 0.12} fill="#fff" opacity={0.9} stroke="none" />
+          <circle cx={s * 0.2} cy={-s * 0.08} r={s * 0.12} fill="#fff" opacity={0.9} stroke="none" />
+          <path
+            d={`M${-s * 0.28} ${s * 0.22} Q0 ${s * 0.48} ${s * 0.28} ${s * 0.22}`}
+            fill="none"
+            strokeWidth={sw * 1.1}
+            strokeLinecap="round"
+          />
+          <rect
+            x={-s * 0.1}
+            y={s * 0.38}
+            width={s * 0.08}
+            height={s * 0.14}
+            rx={s * 0.02}
+            fill={stroke}
+            stroke="none"
+          />
+          <rect
+            x={s * 0.02}
+            y={s * 0.38}
+            width={s * 0.08}
+            height={s * 0.14}
+            rx={s * 0.02}
+            fill={stroke}
+            stroke="none"
+          />
+        </>
+      );
     default: {
       const _exhaustive: never = skin;
       return _exhaustive;

@@ -10,10 +10,17 @@ export const profilePatchSchema = z
   .object({
     fighter: z.enum(FIGHTER_SKINS).optional(),
     building: z.enum(BUILDING_SKINS).optional(),
+    displayName: z.string().trim().max(32).optional(),
   })
-  .refine((v) => v.fighter !== undefined || v.building !== undefined, {
-    message: "Нужно передать fighter и/или building",
-  });
+  .refine(
+    (v) =>
+      v.fighter !== undefined ||
+      v.building !== undefined ||
+      v.displayName !== undefined,
+    {
+      message: "Нужно передать fighter, building и/или displayName",
+    }
+  );
 
 export type ProfilePatch = z.infer<typeof profilePatchSchema>;
 

@@ -20,7 +20,8 @@ export type WsClientMessage =
       fighter: string;
       building: string;
       displayColor?: string;
-    };
+    }
+  | { type: "chat"; text: string };
 
 export type WsServerMessage =
   | {
@@ -52,6 +53,8 @@ export type WsServerMessage =
   | {
       type: "projectile_collision";
       destroyed: readonly { attackId: string; simIndex: number }[];
+      /** Точки взрыва (середина между пулями), по одной на каждую пару столкновений. */
+      explosions?: readonly { x: number; y: number }[];
     }
   | {
       type: "game_reset";
@@ -61,6 +64,22 @@ export type WsServerMessage =
       serverTime: number;
       /** Перед стартом раунда — обратный отсчёт 3-2-1 на клиентах. */
       countdown: boolean;
+    }
+  | {
+      type: "chat";
+      slotId: string;
+      name: string;
+      text: string;
+      sentAt: number;
+    }
+  | {
+      type: "chat_history";
+      messages: {
+        slotId: string;
+        name: string;
+        text: string;
+        sentAt: number;
+      }[];
     }
   | { type: "error"; message: string };
 

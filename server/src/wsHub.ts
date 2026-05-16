@@ -11,6 +11,7 @@ import {
 } from "./roomAttack.js";
 import { getRoom, type Room } from "./rooms.js";
 import { defaultDisplayColorForSlot } from "../../shared/displayColors.js";
+import { slotIndexFromId } from "../../shared/playerSlots.js";
 import {
   DEFAULT_BUILDING,
   DEFAULT_FIGHTER,
@@ -29,6 +30,50 @@ type ClientCtx = {
 
 const roomClients = new Map<string, Set<WebSocket>>();
 const clientCtx = new WeakMap<WebSocket, ClientCtx>();
+
+const CHAT_MAX_LEN = 200;
+const CHAT_HISTORY_MAX = 10;
+
+type ChatHistoryEntry = {
+  slotId: string;
+  name: string;
+  text: string;
+  sentAt: number;
+};
+
+const roomChatHistory = new Map<string, ChatHistoryEntry[]>();
+
+export function clearRoomChatHistory(roomCode: string): void {
+  roomChatHistory.delete(roomCode.toUpperCase());
+}
+
+function appendRoomChatHistory(
+  roomCode: string,
+  entry: ChatHistoryEntry
+): void {
+  const key = roomCode.toUpperCase();
+  let arr = roomChatHistory.get(key);
+  if (!arr) {
+    arr = [];
+    roomChatHistory.set(key, arr);
+  }
+  arr.push(entry);
+  if (arr.length > CHAT_HISTORY_MAX) {
+    arr.splice(0, arr.length - CHAT_HISTORY_MAX);
+  }
+}
+
+function roomChatHistorySnapshot(roomCode: string): ChatHistoryEntry[] {
+  const arr = roomChatHistory.get(roomCode.toUpperCase());
+  return arr ? [...arr] : [];
+}
+
+function chatAuthorLabel(userId: string, slotId: string): string {
+  const profile = getProfile(userId);
+  const raw = profile?.displayName?.trim();
+  if (raw) return raw.slice(0, 32);
+  return `Игрок ${slotIndexFromId(slotId) + 1}`;
+}
 
 function send(ws: WebSocket, msg: WsServerMessage): void {
   if (ws.readyState === ws.OPEN) {
@@ -103,8 +148,12 @@ let collisionHandlerRegistered = false;
 export function attachRoomWebSocket(server: HttpServer): void {
   if (!collisionHandlerRegistered) {
     collisionHandlerRegistered = true;
-    setProjectileCollisionHandler((roomCode, destroyed) => {
-      broadcastAll(roomCode, { type: "projectile_collision", destroyed });
+    setProjectileCollisionHandler((roomCode, destroyed, explosions) => {
+      broadcastAll(roomCode, {
+        type: "projectile_collision",
+        destroyed,
+        explosions,
+      });
     });
   }
 
@@ -190,6 +239,27 @@ export function attachRoomWebSocket(server: HttpServer): void {
         });
         return;
       }
+
+      if (msg.type === "chat") {
+        const text =
+          typeof msg.text === "string"
+            ? msg.text.trim().slice(0, CHAT_MAX_LEN)
+            : "";
+        if (!text) return;
+        const sentAt = Date.now();
+        const chatPayload = {
+          slotId: ctx.slotId,
+          name: chatAuthorLabel(ctx.userId, ctx.slotId),
+          text,
+          sentAt,
+        };
+        appendRoomChatHistory(ctx.roomCode, chatPayload);
+        broadcastAll(ctx.roomCode, {
+          type: "chat",
+          ...chatPayload,
+        });
+        return;
+      }
     });
 
     ws.on("close", () => {
@@ -248,5 +318,9 @@ function handleJoin(ws: WebSocket, roomCode: string, userId: string): void {
     appearances,
     serverTime: Date.now(),
   });
+  const hist = roomChatHistorySnapshot(code);
+  if (hist.length > 0) {
+    send(ws, { type: "chat_history", messages: hist });
+  }
   broadcastAll(code, { type: "appearances", players: appearances });
 }

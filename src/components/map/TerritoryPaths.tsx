@@ -1,48 +1,56 @@
-import type { CSSProperties, ReactElement } from "react";
-import type { TerritoryClipRect } from "../../game/maps/world/types";
+import { memo, type CSSProperties, type ReactElement } from "react";
 
 type TerritoryPathsProps = {
-  clipIdPrefix: string;
-  territoryId: string;
   paths: readonly string[];
-  clip?: TerritoryClipRect;
   className?: string;
   style?: CSSProperties;
+  /** id clipPath из `<TerritoryClipDefs>` (без `url(#)`). */
+  clipPathId?: string;
 };
 
-export function TerritoryPaths({
-  clipIdPrefix,
-  territoryId,
+function pathsEq(a: readonly string[], b: readonly string[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function territoryPathsPropsEqual(
+  prev: TerritoryPathsProps,
+  next: TerritoryPathsProps
+): boolean {
+  if (prev.className !== next.className) return false;
+  if (prev.clipPathId !== next.clipPathId) return false;
+  if (!pathsEq(prev.paths, next.paths)) return false;
+  const ps = prev.style;
+  const ns = next.style;
+  if (ps === ns) return true;
+  if (!ps && !ns) return true;
+  if (!ps || !ns) return false;
+  return ps.fill === ns.fill && ps.stroke === ns.stroke;
+}
+
+/** Только path; clipPath задаётся один раз в `<TerritoryClipDefs>`. */
+export const TerritoryPaths = memo(function TerritoryPaths({
   paths,
-  clip,
+  clipPathId,
   className,
   style,
 }: TerritoryPathsProps): ReactElement {
-  const clipId = clip ? `${clipIdPrefix}-${territoryId}` : undefined;
-
+  const url = clipPathId ? `url(#${clipPathId})` : undefined;
   return (
     <>
-      {clip ? (
-        <defs>
-          <clipPath id={clipId}>
-            <rect
-              x={clip.x}
-              y={clip.y}
-              width={clip.width}
-              height={clip.height}
-            />
-          </clipPath>
-        </defs>
-      ) : null}
       {paths.map((d, pi) => (
         <path
           key={pi}
           d={d}
           className={className}
           style={style}
-          clipPath={clipId ? `url(#${clipId})` : undefined}
+          clipPath={url}
         />
       ))}
     </>
   );
-}
+}, territoryPathsPropsEqual);

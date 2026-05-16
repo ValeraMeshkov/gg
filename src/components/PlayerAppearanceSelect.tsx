@@ -6,12 +6,10 @@ import {
   type DisplayColorId,
   type FighterSkinId,
 } from "../game/appearance";
-import { DisplayColorSelect } from "./DisplayColorSelect";
-import { VisualSkinSelect } from "./VisualSkinSelect";
+import { SkinPreviewIcon } from "./map/SkinPreviewIcon";
 import styles from "./PlayerAppearanceSelect.module.scss";
 
 type PlayerAppearanceSelectProps = {
-  playerName: string;
   fighter: FighterSkinId;
   building: BuildingSkinId;
   displayColor: DisplayColorId;
@@ -21,7 +19,6 @@ type PlayerAppearanceSelectProps = {
 };
 
 export function PlayerAppearanceSelect({
-  playerName,
   fighter,
   building,
   displayColor,
@@ -30,31 +27,81 @@ export function PlayerAppearanceSelect({
   onDisplayColorChange,
 }: PlayerAppearanceSelectProps) {
   return (
-    <div
-      className={styles.row}
-      role="group"
-      aria-label={`Внешний вид: ${playerName}`}
-    >
-      <span className={styles.playerTag}>{playerName}</span>
-      <VisualSkinSelect
-        label="Бойцы"
-        kind="fighter"
-        value={fighter}
-        options={FIGHTER_SKIN_OPTIONS}
-        onChange={onFighterChange}
-      />
-      <VisualSkinSelect
-        label="Здание"
-        kind="building"
-        value={building}
-        options={BUILDING_SKIN_OPTIONS}
-        onChange={onBuildingChange}
-      />
-      <DisplayColorSelect
-        value={displayColor}
-        options={DISPLAY_COLOR_OPTIONS}
-        onChange={onDisplayColorChange}
-      />
+    <div className={styles.root}>
+      <div className={styles.rowBlock}>
+        <p className={styles.rowLabel}>Ваш цвет</p>
+        <div
+          className={styles.cubeRow}
+          role="radiogroup"
+          aria-label="Ваш цвет"
+        >
+          {DISPLAY_COLOR_OPTIONS.map((opt) => {
+            const selected = displayColor === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                className={`${styles.cube} ${styles.cubeColor}${
+                  selected ? ` ${styles.cubeSelected}` : ""
+                }`}
+                style={{ backgroundColor: opt.swatch }}
+                onClick={() => onDisplayColorChange(opt.id)}
+                aria-label={opt.label}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      <div className={styles.rowBlock}>
+        <p className={styles.rowLabel}>Здания</p>
+        <div className={styles.cubeRow} role="radiogroup" aria-label="Здания">
+          {BUILDING_SKIN_OPTIONS.map((opt) => {
+            const selected = building === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                className={`${styles.cube} ${styles.cubeSkin}${
+                  selected ? ` ${styles.cubeSelected}` : ""
+                }`}
+                onClick={() => onBuildingChange(opt.id)}
+                aria-label={opt.label}
+              >
+                <SkinPreviewIcon kind="building" skin={opt.id} size={42} />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className={styles.rowBlock}>
+        <p className={styles.rowLabel}>Бойцы</p>
+        <div className={styles.cubeRow} role="radiogroup" aria-label="Бойцы">
+          {FIGHTER_SKIN_OPTIONS.map((opt) => {
+            const selected = fighter === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                className={`${styles.cube} ${styles.cubeSkin}${
+                  selected ? ` ${styles.cubeSelected}` : ""
+                }`}
+                onClick={() => onFighterChange(opt.id)}
+                aria-label={opt.label}
+              >
+                <SkinPreviewIcon kind="fighter" skin={opt.id} size={42} />
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

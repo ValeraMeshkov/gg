@@ -1,18 +1,50 @@
 import { useCallback, useEffect, useState } from "react";
 import { createRoom, isRoomApiEnabled } from "./api/roomApi";
+import { AppGameChrome } from "./components/AppGameChrome";
 import { GameCanvas } from "./components/GameCanvas";
-import { MapCatalogSelect } from "./components/MapCatalogSelect";
 import { MapDotEditor } from "./components/MapDotEditor";
 import { RoomJoinRedirect } from "./components/RoomJoinRedirect";
 import { RoomLobby } from "./components/RoomLobby";
-import { readAppRoute, writeAppRoute, gameHref } from "./appUrl";
+import { GameShellProvider } from "./context/GameShellContext";
+import { readAppRoute, writeAppRoute, gameHref, type AppRoute } from "./appUrl";
+import { pickRandomCatalogMapId } from "./game/maps";
+import {
+  readOfflineBotCount,
+  writeOfflineBotCount,
+} from "./lib/offlineBotCountStorage";
+import {
+  readOfflineBotDifficulty,
+  writeOfflineBotDifficulty,
+} from "./lib/offlineBotDifficultyStorage";
+import {
+  readRandomMapOnStart,
+  writeRandomMapOnStart,
+} from "./lib/randomMapOnStart";
 import { getOrCreateUserId } from "./lib/userId";
 import styles from "./App.module.scss";
 
+function isSoloPlayRoute(r: AppRoute): boolean {
+  return !r.edit && !r.roomLobby && !r.roomWaiting && !r.roomCode;
+}
+
+function initialRoute(): AppRoute {
+  const base = readAppRoute();
+  if (isSoloPlayRoute(base) && readRandomMapOnStart()) {
+    return { ...base, mapId: pickRandomCatalogMapId(base.mapId) };
+  }
+  return base;
+}
+
 function App() {
-  const [route, setRoute] = useState(readAppRoute);
+  const [route, setRoute] = useState<AppRoute>(initialRoute);
   const [createBusy, setCreateBusy] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [soloSessionKey, setSoloSessionKey] = useState(0);
+  const [randomMapOnStart, setRandomMapOnStart] = useState(readRandomMapOnStart);
+  const [offlineBotDifficulty, setOfflineBotDifficulty] = useState(
+    readOfflineBotDifficulty
+  );
+  const [offlineBotCount, setOfflineBotCount] = useState(readOfflineBotCount);
 
   useEffect(() => {
     const onPopState = () => setRoute(readAppRoute());
@@ -37,6 +69,35 @@ function App() {
     });
   }, []);
 
+  const bumpSoloSession = useCallback(() => {
+    setRoute((prev) => {
+      if (!isSoloPlayRoute(prev) || !readRandomMapOnStart()) {
+        return prev;
+      }
+      const mapId = pickRandomCatalogMapId(prev.mapId);
+      const next = { ...prev, mapId };
+      writeAppRoute(next);
+      return next;
+    });
+    setSoloSessionKey((k) => k + 1);
+  }, []);
+
+  const handleRandomMapOnStartChange = useCallback((v: boolean) => {
+    setRandomMapOnStart(v);
+    writeRandomMapOnStart(v);
+  }, []);
+
+  const handleOfflineBotDifficultyChange = useCallback((v: number) => {
+    setOfflineBotDifficulty(v);
+    writeOfflineBotDifficulty(v);
+  }, []);
+
+  const handleOfflineBotCountChange = useCallback((v: number) => {
+    setOfflineBotCount(v);
+    writeOfflineBotCount(v);
+    setSoloSessionKey((k) => k + 1);
+  }, []);
+
   const handleCreateRoom = useCallback(async () => {
     if (!isRoomApiEnabled()) {
       setCreateError(
@@ -52,7 +113,9 @@ function App() {
       const room = await createRoom(getOrCreateUserId(), route.mapId);
       window.location.assign(gameHref(room.mapId, room.code));
     } catch (e) {
-      setCreateError(e instanceof Error ? e.message : "Не удалось создать комнату");
+      setCreateError(
+        e instanceof Error ? e.message : "Не удалось создать комнату"
+      );
     } finally {
       setCreateBusy(false);
     }
@@ -89,35 +152,54 @@ function App() {
   }
 
   return (
-    <div className={styles.app}>
-      <header className={styles.header}>
-        <MapCatalogSelect
-          mapId={route.mapId}
-          onMapIdChange={setMapId}
-          hint={route.roomCode ? "Карта (новая партия)" : undefined}
+    <GameShellProvider>
+      <div className={styles.app}>
+        <AppGameChrome
+          route={route}
+          setRoute={setRoute}
+          createBusy={createBusy}
+          createError={createError}
+          onCreateRoom={handleCreateRoom}
+          onNewSoloGame={route.roomCode ? undefined : bumpSoloSession}
+          offlineBotDifficulty={
+            route.roomCode ? undefined : offlineBotDifficulty
+          }
+          onOfflineBotDifficultyChange={
+            route.roomCode ? undefined : handleOfflineBotDifficultyChange
+          }
+          offlineBotCount={route.roomCode ? undefined : offlineBotCount}
+          onOfflineBotCountChange={
+            route.roomCode ? undefined : handleOfflineBotCountChange
+          }
         />
-        {!route.roomCode ? (
-          <button
-            type="button"
-            className={styles.createRoomBtn}
-            disabled={createBusy}
-            onClick={() => void handleCreateRoom()}
-          >
-            {createBusy ? "Создаём…" : "Создать комнату"}
-          </button>
-        ) : null}
-      </header>
-      {createError ? (
-        <p className={styles.createRoomError}>{createError}</p>
-      ) : null}
-      <main className={styles.main}>
-        <GameCanvas
-          key={route.roomCode ? `room-${route.roomCode}` : `solo-${route.mapId}`}
-          mapId={route.mapId}
-          roomCode={route.roomCode}
-        />
-      </main>
-    </div>
+        <main className={styles.main}>
+          <GameCanvas
+            key={
+              route.roomCode
+                ? `room-${route.roomCode}`
+                : `solo-${route.mapId}-${soloSessionKey}-${offlineBotCount}`
+            }
+            mapId={route.mapId}
+            roomCode={route.roomCode}
+            onMapIdChange={setMapId}
+            mapSelectHint={
+              route.roomCode ? "Карта (новая партия)" : undefined
+            }
+            randomMapOnStart={
+              route.roomCode ? undefined : randomMapOnStart
+            }
+            onRandomMapOnStartChange={
+              route.roomCode ? undefined : handleRandomMapOnStartChange
+            }
+            offlineBotDifficulty={
+              route.roomCode ? undefined : offlineBotDifficulty
+            }
+            offlineBotCount={route.roomCode ? undefined : offlineBotCount}
+            onOfflineNewGame={route.roomCode ? undefined : bumpSoloSession}
+          />
+        </main>
+      </div>
+    </GameShellProvider>
   );
 }
 

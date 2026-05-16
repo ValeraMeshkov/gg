@@ -18,6 +18,7 @@ import {
 import { TERRITORY_DOT_RADIUS, TERRITORY_LABEL_FONT } from "../game/mapLayout";
 import { gameHref } from "../appUrl";
 import { clientPointToMapSpace } from "./map/svgCoords";
+import { TerritoryClipDefs } from "./map/TerritoryClipDefs";
 import { TerritoryPaths } from "./map/TerritoryPaths";
 import { UnitDot } from "./map/UnitDot";
 import mapStyles from "./MapView.module.scss";
@@ -262,6 +263,10 @@ export function MapDotEditor({ mapId, onMapIdChange }: MapDotEditorProps) {
           onPointerUp={() => setDraggingSpot(null)}
           onPointerCancel={() => setDraggingSpot(null)}
         >
+          <TerritoryClipDefs
+            prefix={`editor-${mapId}`}
+            territories={territoryMap.territories}
+          />
           {territoryMap.territories.map((territory, index) => {
             const spot = index + 1;
             const hidden = hiddenSpots.has(spot);
@@ -273,10 +278,12 @@ export function MapDotEditor({ mapId, onMapIdChange }: MapDotEditorProps) {
                 onClick={() => setSelectedSpot(spot)}
               >
                 <TerritoryPaths
-                  clipIdPrefix={`editor-${mapId}`}
-                  territoryId={territory.id}
                   paths={territory.paths}
-                  clip={territory.clip}
+                  clipPathId={
+                    territory.clip
+                      ? `editor-${mapId}-${territory.id}`
+                      : undefined
+                  }
                   className={
                     hidden ? styles.territoryAreaHidden : styles.territoryArea
                   }

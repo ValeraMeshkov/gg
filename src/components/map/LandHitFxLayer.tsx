@@ -1,4 +1,10 @@
-import type { ReactElement } from "react";
+import {
+  memo,
+  useEffect,
+  useRef,
+  useState,
+  type ReactElement,
+} from "react";
 import { SHOT } from "../../game/constants";
 import type { LandHitFx } from "../../game/hitEffects";
 import { LAND_HIT_FX_COLOR } from "../../game/hitEffects";
@@ -6,8 +12,13 @@ import type { GameMap } from "../../game/maps";
 import { mapExplosionRingGrow } from "../../game/maps/mapScale";
 import styles from "../MapView.module.scss";
 
-const WAVE_COUNT = 4;
-const WAVE_STAGGER = 0.14;
+/** Меньше колец — меньше узлов SVG и проще композитинг. */
+const WAVE_COUNT = 2;
+const WAVE_STAGGER = 0.18;
+
+function landFxSignature(effects: readonly LandHitFx[]): string {
+  return effects.map((e) => e.id).join(",");
+}
 
 type LandHitFxLayerProps = {
   map: GameMap;
@@ -38,7 +49,7 @@ function WaveBurst({
     const denom = Math.max(0.05, 1 - start);
     const local = Math.min(1, (phase - start) / denom);
     const r = baseR + local * grow;
-    const strokeOp = (1 - local) * 0.82;
+    const strokeOp = (1 - local) * 0.75;
     rings.push(
       <circle
         key={k}
@@ -48,9 +59,8 @@ function WaveBurst({
         r={r}
         fill="none"
         stroke={LAND_HIT_FX_COLOR}
-        strokeWidth={1.55}
+        strokeWidth={2}
         opacity={strokeOp}
-        filter="url(#landHitFxGlow)"
       />
     );
   }
@@ -58,30 +68,39 @@ function WaveBurst({
   return <g className={styles.landHitWaveBurst}>{rings}</g>;
 }
 
-export function LandHitFxLayer({
+export const LandHitFxLayer = memo(function LandHitFxLayer({
   map,
   effects,
   projR,
 }: LandHitFxLayerProps): ReactElement {
+  const effRef = useRef(effects);
+  effRef.current = effects;
+  const [, setFrame] = useState(0);
+  const sig = landFxSignature(effects);
+
+  useEffect(() => {
+    if (sig === "") return;
+    let raf = 0;
+    let stopped = false;
+    const step = () => {
+      if (stopped) return;
+      const list = effRef.current;
+      const t = performance.now();
+      if (!list.some((e) => t - e.start < SHOT.explosionDurationMs)) return;
+      setFrame((n) => n + 1);
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => {
+      stopped = true;
+      cancelAnimationFrame(raf);
+    };
+  }, [sig]);
+
   const now = performance.now();
 
   return (
     <g aria-hidden>
-      <defs>
-        <filter
-          id="landHitFxGlow"
-          x="-80%"
-          y="-80%"
-          width="260%"
-          height="260%"
-        >
-          <feGaussianBlur stdDeviation="1.6" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
       {effects.map((e) => {
         const phase = Math.min(
           1,
@@ -99,4 +118,4 @@ export function LandHitFxLayer({
       })}
     </g>
   );
-}
+});

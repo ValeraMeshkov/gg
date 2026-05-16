@@ -256,14 +256,37 @@ function paletteForOwner(
   return PALETTES[idx] ?? PALETTES[1]!;
 }
 
+function displayColorForOwner(
+  ownerId: string,
+  localPlayerId: string,
+  localDisplayColor?: DisplayColorId,
+  appearances?: PlayerAppearancesMap
+): DisplayColorId | undefined {
+  const fromAppearance = appearances?.[ownerId]?.displayColor;
+  if (ownerId === localPlayerId) {
+    return localDisplayColor ?? fromAppearance;
+  }
+  return fromAppearance;
+}
+
 /** Полоска долей: слот соперника; для себя — личный цвет, если задан. */
 export function shareBarColorForView(
   playerId: string,
   localPlayerId: string,
-  localDisplayColor?: DisplayColorId
+  localDisplayColor?: DisplayColorId,
+  appearances?: PlayerAppearancesMap
 ): ShareBarColorView {
-  if (playerId === localPlayerId && localDisplayColor) {
-    return { colorIndex: 1, background: displayColorSwatch(localDisplayColor) };
+  const dc = displayColorForOwner(
+    playerId,
+    localPlayerId,
+    localDisplayColor,
+    appearances
+  );
+  if (dc) {
+    return {
+      colorIndex: shareBarColorIndex(playerId),
+      background: displayColorSwatch(dc),
+    };
   }
   const paletteIdx = effectivePaletteIndexForOwner(
     playerId,
@@ -295,10 +318,17 @@ export function ownedTerritoryColorsForView(
   units: number,
   localDisplayColor?: DisplayColorId,
   /** 1 — «полный» цвет палитры (бойцы, снаряды); по умолчанию — приглушённая территория. */
-  blendPeak: number = TERRITORY_FILL_BLEND_PEAK
+  blendPeak: number = TERRITORY_FILL_BLEND_PEAK,
+  appearances?: PlayerAppearancesMap
 ): OwnedTerritoryColors | null {
-  if (ownerId === localPlayerId && localDisplayColor) {
-    return colorsFromPalette(DISPLAY_COLOR_PALETTES[localDisplayColor], units, blendPeak);
+  const dc = displayColorForOwner(
+    ownerId,
+    localPlayerId,
+    localDisplayColor,
+    appearances
+  );
+  if (dc) {
+    return colorsFromPalette(DISPLAY_COLOR_PALETTES[dc], units, blendPeak);
   }
   const palette = paletteForOwner(ownerId, localPlayerId, localDisplayColor);
   if (!palette) return null;
@@ -316,14 +346,16 @@ export function ownedTerritoryColors(
 export function ownedDotFill(
   ownerId: string,
   localPlayerId: string,
-  localDisplayColor?: DisplayColorId
+  localDisplayColor?: DisplayColorId,
+  appearances?: PlayerAppearancesMap
 ): string | null {
   const maxed = ownedTerritoryColorsForView(
     ownerId,
     localPlayerId,
     CELL.ownedCap,
     localDisplayColor,
-    1
+    1,
+    appearances
   );
   return maxed?.fill ?? null;
 }
@@ -410,6 +442,21 @@ export function projectileColors(
   localPlayerId: string
 ): { fill: string; stroke: string } {
   return projectileColorsForView(attackerId, localPlayerId);
+}
+
+/** Цвет подписи автора в чате — как цвет его юнитов на вашем экране. */
+export function chatAuthorColor(
+  authorSlotId: string,
+  localPlayerId: string,
+  appearances: PlayerAppearancesMap,
+  localDisplayColor?: DisplayColorId
+): string {
+  return projectileColorsForPlayer(
+    authorSlotId,
+    localPlayerId,
+    appearances,
+    localDisplayColor
+  ).fill;
 }
 
 const RGB_RE = /^rgb\((\d+),(\d+),(\d+)\)$/;
