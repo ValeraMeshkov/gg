@@ -1,4 +1,4 @@
-import type { MapCell } from "../types";
+import type { MapCell } from "@/game/maps/types";
 
 /** Одна страна / регион на SVG-карте. */
 export type TerritoryClipRect = {

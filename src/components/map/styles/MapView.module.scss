@@ -1,0 +1,339 @@
+.mapStack {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.mapActionBar {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 12;
+  display: flex;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.mapActionBtn {
+  box-sizing: border-box;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border: 2px solid rgba(20, 35, 60, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1a2a44;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(20, 35, 60, 0.12);
+  backdrop-filter: blur(4px);
+
+  &:hover:not(:disabled) {
+    background: #fff;
+    border-color: rgba(26, 58, 92, 0.28);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.projectilesCanvasHost {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* 3D-здания на карте — клики проходят к SVG-точкам под оверлеем */
+.mapGlbPinTrack {
+  overflow: visible;
+  pointer-events: none !important;
+}
+
+.mapGlbPinTrack * {
+  pointer-events: none !important;
+}
+
+.mapGlbSharedCanvas,
+.mapGlbSharedCanvas canvas {
+  pointer-events: none !important;
+}
+
+.projectilesCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.unitDot {
+  stroke: #e4e7ee;
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.unitDotSelected {
+  stroke: #c62828;
+  stroke-width: 2.5px;
+}
+
+.unitDot.unitDotInteractive {
+  pointer-events: all;
+  cursor: inherit;
+}
+
+.unitDotOwned {
+  stroke: #eef0f4;
+  stroke-width: 2px;
+}
+
+.dotActive {
+  fill: #1a3a5c;
+  pointer-events: none;
+}
+
+.dot {
+  fill: #ffffff;
+  pointer-events: none;
+}
+
+.dotHit {
+  fill: transparent;
+  stroke: none;
+  pointer-events: all;
+  cursor: inherit;
+}
+
+/* Своя точка: кольцо и расширенная зона нажатия */
+.ownDotRing {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2.5px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.35));
+  transition: stroke-width 0.15s ease;
+}
+
+.ownDotRingSelected {
+  stroke: #ffffff;
+  stroke-width: 3px;
+}
+
+.ownDotMarkerEmphasis {
+  filter: brightness(1.14) saturate(1.06);
+  transition: filter 0.15s ease;
+}
+
+.ownDotHit {
+  fill: transparent;
+  stroke: none;
+  pointer-events: all;
+  cursor: inherit;
+}
+
+.dotP1 {
+  fill: #1a3a5c;
+  pointer-events: none;
+}
+
+.dotP2 {
+  fill: #4a2618;
+  pointer-events: none;
+}
+
+.dotP3 {
+  fill: #143d24;
+  pointer-events: none;
+}
+
+.spotIndex {
+  fill: #c62828;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
+}
+
+.aimArrow {
+  fill: none;
+  stroke-linecap: butt;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.aimArrowHead {
+  pointer-events: none;
+}
+
+.territoryNeutral {
+  fill: #c2cee4;
+  stroke: #eef4fc;
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.territoryLabelNeutral {
+  fill: #4a5668;
+}
+
+.territoryOwned {
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.territoryLabel {
+  fill: #0d0d0d;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.spotColorShadow,
+.spotInnerShadow {
+  pointer-events: none;
+}
+
+.spotIndicatorRing {
+  fill: none;
+  stroke-width: 2.5px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.spotIndicatorRingHalo {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 4px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+/* Незавоёванная точка — белый диск, тонкая светло-серая кайма */
+.neutralSpotDot {
+  fill: #fff;
+  stroke: #ebeef3;
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+/* Прицел на врага / нейтральную точку */
+.aimTargetFill {
+  fill: rgba(229, 57, 53, 0.28);
+  stroke: none;
+  pointer-events: none;
+}
+
+.aimTargetRing {
+  fill: none;
+  stroke: #e53935;
+  stroke-width: 3px;
+}
+
+.projectile {
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.explosion {
+  pointer-events: none;
+}
+
+.explosionFlash {
+  fill: #ffe082;
+  vector-effect: non-scaling-stroke;
+}
+
+.explosionRing {
+  vector-effect: non-scaling-stroke;
+}
+
+.landHitWaveBurst {
+  pointer-events: none;
+}
+
+.landHitWave {
+  vector-effect: non-scaling-stroke;
+}
+
+.firstMoveHint {
+  pointer-events: none;
+}
+
+.firstMoveHintHandWrap {
+  pointer-events: none;
+  filter: drop-shadow(0 0.06em 0.1em rgba(0, 0, 0, 0.28));
+}
+
+/* Белый пульс на всех своих точках на всю партию */
+$own-spot-pulse-period: 3.4s;
+$own-spot-pulse-ease: cubic-bezier(0.42, 0, 0.58, 1);
+
+.ownSpotPulseWrap {
+  pointer-events: none;
+}
+
+.ownSpotPulseRingA,
+.ownSpotPulseRingB {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.ownSpotPulseRingA {
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 2.5px;
+  animation: ownSpotPulseRing $own-spot-pulse-period $own-spot-pulse-ease infinite;
+}
+
+.ownSpotPulseRingB {
+  stroke: rgba(255, 255, 255, 0.48);
+  stroke-width: 2px;
+  animation: ownSpotPulseRing $own-spot-pulse-period $own-spot-pulse-ease infinite;
+  animation-delay: calc(#{$own-spot-pulse-period} / 2);
+}
+
+@keyframes ownSpotPulseRing {
+  0% {
+    transform: scale(0.96);
+    opacity: 0.82;
+  }
+  35% {
+    transform: scale(1.14);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.38;
+  }
+  65% {
+    transform: scale(1.14);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(0.96);
+    opacity: 0.82;
+  }
+}

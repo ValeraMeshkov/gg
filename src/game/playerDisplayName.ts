@@ -1,9 +1,10 @@
-import { PLAYER_SLOT_IDS } from "../../shared/playerSlots";
+import { PLAYER_SLOT_IDS } from "@/shared/playerSlots";
+import { UI } from "@/constants/uiStrings";
 
 export function defaultDisplayNameForSlot(slotId: string): string {
   const i = PLAYER_SLOT_IDS.indexOf(slotId);
-  if (i < 0) return "Игрок";
-  return `Игрок ${i + 1}`;
+  if (i < 0) return UI.playerDefault;
+  return UI.playerSlot(i + 1);
 }
 
 /** stored — сырое имя из профиля; пусто → слот по умолчанию. */

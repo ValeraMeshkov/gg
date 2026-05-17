@@ -7,7 +7,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import type { PlayerShareBarEntry } from "../components/PlayerShareBar";
+import type { PlayerShareBarEntry } from "@/components/settings/PlayerShareBar";
 
 export type GameShareBarPayload = {
   players: readonly PlayerShareBarEntry[];
@@ -66,4 +66,9 @@ export function useGameShell(): GameShellContextValue {
     throw new Error("useGameShell: нет GameShellProvider");
   }
   return v;
+}
+
+/** Без ошибки вне провайдера (оверлеи карты). */
+export function useSettingsOpen(): boolean {
+  return useContext(GameShellContext)?.settingsOpen ?? false;
 }

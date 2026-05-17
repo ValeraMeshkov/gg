@@ -617,8 +617,8 @@ function emitTs(map) {
     map.continentId.replace(/-([a-z])/g, (_, c) => c.toUpperCase()) + "Data";
   const lines = [];
   lines.push(`/** Карта: пути из world.svg (extract), точки правятся вручную или в редакторе. */`);
-  lines.push(`import type { TerritoryMapData } from '../buildTerritoryMap'`);
-  lines.push(`import { MAP_ID } from '../../mapIds'`);
+  lines.push(`import type { TerritoryMapData } from '@/game/maps/world/buildTerritoryMap'`);
+  lines.push(`import { MAP_ID } from '@/game/maps/mapIds'`);
   lines.push(``);
   lines.push(`export const ${varName}: TerritoryMapData = {`);
   lines.push(`  continentId: ${mapIdConstExpr(map.continentId)},`);

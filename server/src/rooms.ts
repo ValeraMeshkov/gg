@@ -1,10 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { isValidMapId } from "../../shared/mapPlayable.js";
+import { isValidMapId, pickRandomMapId } from "@/shared/mapPlayable.js";
 import {
   normalizeMaxPlayers,
   playerSlotId,
   PLAYER_SLOT_IDS,
-} from "../../shared/playerSlots.js";
+} from "@/shared/playerSlots.js";
 import { initGameForRoom, spawnJoinedPlayerInRoom } from "./gameState.js";
 
 const DEFAULT_MAP_ID = "south-america";
@@ -19,6 +19,8 @@ export type Room = {
   code: string;
   hostUserId: string;
   mapId: string;
+  /** Случайная карта при «Новая игра» (по умолчанию включено). */
+  randomMapOnStart: boolean;
   status: "lobby" | "playing";
   players: RoomPlayer[];
   maxPlayers: number;
@@ -72,7 +74,8 @@ function assignSlotsAndStart(room: Room): void {
 export function createRoom(
   hostUserId: string,
   mapId?: string,
-  maxPlayers?: number
+  maxPlayers?: number,
+  randomMapOnStart = true
 ): Room {
   const cap = normalizeMaxPlayers(maxPlayers);
   const code = generateRoomCode();
@@ -81,6 +84,7 @@ export function createRoom(
     code,
     hostUserId,
     mapId: mapId ?? DEFAULT_MAP_ID,
+    randomMapOnStart,
     status: "playing",
     maxPlayers: cap,
     createdAt: now,
@@ -152,12 +156,27 @@ export function restartRoom(
   if (!room || room.status !== "playing") return null;
   if (room.hostUserId !== hostUserId) return null;
 
-  if (mapId && isValidMapId(mapId)) {
+  if (room.randomMapOnStart) {
+    room.mapId = pickRandomMapId(room.mapId);
+  } else if (mapId && isValidMapId(mapId)) {
     room.mapId = mapId;
   }
 
   room.gameGeneration = (room.gameGeneration ?? 0) + 1;
   initGameForRoom(room);
+  return room;
+}
+
+export function patchRoomSettings(
+  code: string,
+  hostUserId: string,
+  patch: { randomMapOnStart?: boolean }
+): Room | null {
+  const room = getRoom(code);
+  if (!room || room.hostUserId !== hostUserId) return null;
+  if (patch.randomMapOnStart !== undefined) {
+    room.randomMapOnStart = patch.randomMapOnStart;
+  }
   return room;
 }
 

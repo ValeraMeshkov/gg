@@ -1,3 +1,4 @@
+import type { DisplayColorId } from "@/shared/displayColors.js";
 import type { BuildingSkinId, FighterSkinId } from "./skins.js";
 
 export type UserProfile = {
@@ -6,6 +7,12 @@ export type UserProfile = {
   displayName: string;
   fighter: FighterSkinId;
   building: BuildingSkinId;
+  displayColor?: DisplayColorId;
+  offlineBotCount?: number;
+  offlineBotDifficulty?: number;
+  randomMapOnStart?: boolean;
+  email?: string;
+  googleLinked?: boolean;
   createdAt: string;
   updatedAt: string;
 };

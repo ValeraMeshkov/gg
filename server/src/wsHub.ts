@@ -1,8 +1,8 @@
 import type { Server as HttpServer } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { SyncAppearance, WsServerMessage } from "../../shared/wsProtocol.js";
-import { parseWsMessage } from "../../shared/wsProtocol.js";
-import { getProfile } from "./db.js";
+import type { SyncAppearance, WsServerMessage } from "@/shared/wsProtocol.js";
+import { parseWsMessage } from "@/shared/wsProtocol.js";
+import { getProfile, updateProfile } from "./db.js";
 import { ensureGameForRoom, getGameForRoom, type RoomGameState } from "./gameState.js";
 import {
   cancelPendingFromSource,
@@ -10,8 +10,12 @@ import {
   setProjectileCollisionHandler,
 } from "./roomAttack.js";
 import { getRoom, type Room } from "./rooms.js";
-import { defaultDisplayColorForSlot } from "../../shared/displayColors.js";
-import { slotIndexFromId } from "../../shared/playerSlots.js";
+import { slotIndexFromId } from "@/shared/playerSlots.js";
+import {
+  preferredDisplayColorForSlot,
+  resolveRoomDisplayColor,
+  sortSyncAppearancesBySlot,
+} from "@/shared/roomPlayerColors.js";
 import {
   DEFAULT_BUILDING,
   DEFAULT_FIGHTER,
@@ -68,10 +72,13 @@ function roomChatHistorySnapshot(roomCode: string): ChatHistoryEntry[] {
   return arr ? [...arr] : [];
 }
 
+function profileDisplayNameRaw(userId: string): string {
+  return getProfile(userId)?.displayName?.trim().slice(0, 32) ?? "";
+}
+
 function chatAuthorLabel(userId: string, slotId: string): string {
-  const profile = getProfile(userId);
-  const raw = profile?.displayName?.trim();
-  if (raw) return raw.slice(0, 32);
+  const raw = profileDisplayNameRaw(userId);
+  if (raw) return raw;
   return `Игрок ${slotIndexFromId(slotId) + 1}`;
 }
 
@@ -93,18 +100,34 @@ function slotColorsForRoom(roomCode: string): Map<string, DisplayColorId> {
 
 function appearancesForRoom(room: Room): SyncAppearance[] {
   const colors = slotColorsForRoom(room.code);
-  return room.players
-    .filter((p): p is typeof p & { slotId: string } => Boolean(p.slotId))
-    .map((p) => {
-      const profile = getProfile(p.userId);
-      return {
-        slotId: p.slotId,
-        fighter: profile?.fighter ?? DEFAULT_FIGHTER,
-        building: profile?.building ?? DEFAULT_BUILDING,
-        displayColor:
-          colors.get(p.slotId) ?? defaultDisplayColorForSlot(p.slotId),
-      };
-    });
+  const assigned = new Map<string, DisplayColorId>();
+  const players = room.players.filter(
+    (p): p is typeof p & { slotId: string } => Boolean(p.slotId)
+  );
+
+  return sortSyncAppearancesBySlot(players).map((p) => {
+    const profile = getProfile(p.userId);
+    const requested = preferredDisplayColorForSlot(
+      p.slotId,
+      colors.get(p.slotId) ?? null,
+      profile?.displayColor ?? null
+    );
+    const displayColor = resolveRoomDisplayColor(
+      p.slotId,
+      requested,
+      assigned
+    );
+    assigned.set(p.slotId, displayColor);
+    colors.set(p.slotId, displayColor);
+
+    return {
+      slotId: p.slotId,
+      fighter: profile?.fighter ?? DEFAULT_FIGHTER,
+      building: profile?.building ?? DEFAULT_BUILDING,
+      displayColor,
+      displayName: profileDisplayNameRaw(p.userId),
+    };
+  });
 }
 
 export function broadcastGameReset(
@@ -131,6 +154,16 @@ export function broadcastCells(
     type: "cells",
     cells: cells.map((c) => ({ ...c })),
     serverTime: Date.now(),
+  });
+}
+
+export function broadcastRoomSettings(
+  roomCode: string,
+  randomMapOnStart: boolean
+): void {
+  broadcastAll(roomCode.toUpperCase(), {
+    type: "room_settings",
+    randomMapOnStart,
   });
 }
 
@@ -217,6 +250,13 @@ export function attachRoomWebSocket(server: HttpServer): void {
               cells,
               serverTime: Date.now(),
             });
+          },
+          (fromIndex, keepToIndex) => {
+            broadcastAll(ctx.roomCode, {
+              type: "pending_tail_strip",
+              fromIndex,
+              keepToIndex,
+            });
           }
         );
         return;
@@ -224,18 +264,38 @@ export function attachRoomWebSocket(server: HttpServer): void {
 
       if (msg.type === "cancel_pending") {
         cancelPendingFromSource(ctx.roomCode, msg.fromIndex);
+        broadcastAll(ctx.roomCode, {
+          type: "pending_cancelled",
+          fromIndex: msg.fromIndex,
+        });
         return;
       }
 
       if (msg.type === "appearance") {
-        const dc = normalizeDisplayColor(msg.displayColor);
-        if (dc) slotColorsForRoom(ctx.roomCode).set(ctx.slotId, dc);
+        const colors = slotColorsForRoom(ctx.roomCode);
+        const requested = normalizeDisplayColor(msg.displayColor);
+        let displayColor: DisplayColorId | undefined;
+        if (requested) {
+          displayColor = resolveRoomDisplayColor(
+            ctx.slotId,
+            requested,
+            colors
+          );
+          colors.set(ctx.slotId, displayColor);
+        }
+        if (typeof msg.displayName === "string") {
+          updateProfile(ctx.userId, {
+            displayName: msg.displayName.trim().slice(0, 32),
+          });
+        }
+        const displayName = profileDisplayNameRaw(ctx.userId);
         broadcastAll(ctx.roomCode, {
           type: "appearance",
           slotId: ctx.slotId,
           fighter: msg.fighter,
           building: msg.building,
-          ...(dc ? { displayColor: dc } : {}),
+          ...(displayColor ? { displayColor } : {}),
+          displayName,
         });
         return;
       }
@@ -317,6 +377,7 @@ function handleJoin(ws: WebSocket, roomCode: string, userId: string): void {
     cells: game.cells.map((c) => ({ ...c })),
     appearances,
     serverTime: Date.now(),
+    randomMapOnStart: room.randomMapOnStart,
   });
   const hist = roomChatHistorySnapshot(code);
   if (hist.length > 0) {

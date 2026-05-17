@@ -7,7 +7,9 @@ import {
 import { normalizeDisplayColor } from "./displayColors";
 import { normalizeBuildingSkin, normalizeFighterSkin } from "./storage";
 
-const MY_SKINS_KEY = "game-my-skins-v1";
+import { STORAGE_KEYS } from "@/constants/storageKeys";
+
+const MY_SKINS_KEY = STORAGE_KEYS.mySkins;
 
 export function loadMyAppearance(): PlayerAppearance {
   try {

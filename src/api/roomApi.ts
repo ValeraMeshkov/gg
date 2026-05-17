@@ -1,4 +1,5 @@
-import { apiUrl, isApiEnabled } from "./config";
+import { apiFetch } from "./fetchApi";
+import { isApiEnabled } from "./config";
 
 export type RoomPlayer = {
   userId: string;
@@ -15,6 +16,7 @@ export type Room = {
   code: string;
   hostUserId: string;
   mapId: string;
+  randomMapOnStart: boolean;
   status: "lobby" | "playing";
   players: RoomPlayer[];
   maxPlayers: number;
@@ -37,26 +39,41 @@ export function isRoomApiEnabled(): boolean {
 
 export async function createRoom(
   hostUserId: string,
-  mapId?: string
+  mapId?: string,
+  randomMapOnStart = true
 ): Promise<Room> {
   return parseJson(
-    await fetch(apiUrl("/api/rooms"), {
+    await apiFetch("/api/rooms", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ hostUserId, mapId }),
+      body: JSON.stringify({ hostUserId, mapId, randomMapOnStart }),
+    })
+  );
+}
+
+export async function patchRoomSettings(
+  code: string,
+  hostUserId: string,
+  randomMapOnStart: boolean
+): Promise<Room> {
+  return parseJson(
+    await apiFetch(`/api/rooms/${encodeURIComponent(code)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hostUserId, randomMapOnStart }),
     })
   );
 }
 
 export async function fetchRoom(code: string): Promise<Room | null> {
-  const res = await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}`));
+  const res = await apiFetch(`/api/rooms/${encodeURIComponent(code)}`);
   if (res.status === 404) return null;
   return parseJson<Room>(res);
 }
 
 export async function joinRoom(code: string, userId: string): Promise<Room> {
   return parseJson(
-    await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/join`), {
+    await apiFetch(`/api/rooms/${encodeURIComponent(code)}/join`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId }),
@@ -66,7 +83,7 @@ export async function joinRoom(code: string, userId: string): Promise<Room> {
 
 export async function startRoom(code: string, hostUserId: string): Promise<Room> {
   return parseJson(
-    await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/start`), {
+    await apiFetch(`/api/rooms/${encodeURIComponent(code)}/start`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ hostUserId }),
@@ -80,7 +97,7 @@ export async function restartRoom(
   mapId?: string
 ): Promise<Room> {
   return parseJson(
-    await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/restart`), {
+    await apiFetch(`/api/rooms/${encodeURIComponent(code)}/restart`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ hostUserId, ...(mapId ? { mapId } : {}) }),

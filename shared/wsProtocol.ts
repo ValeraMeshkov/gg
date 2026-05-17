@@ -9,6 +9,8 @@ export type SyncAppearance = {
   building: string;
   /** Личный цвет игрока — виден сопернику (пули, эффекты попадания). */
   displayColor?: string;
+  /** Сырое имя из профиля; пусто — клиент покажет «Игрок N». */
+  displayName?: string;
 };
 
 export type WsClientMessage =
@@ -20,6 +22,7 @@ export type WsClientMessage =
       fighter: string;
       building: string;
       displayColor?: string;
+      displayName?: string;
     }
   | { type: "chat"; text: string };
 
@@ -31,6 +34,11 @@ export type WsServerMessage =
       appearances: SyncAppearance[];
       /** Unix ms — база для анимации полётов. */
       serverTime: number;
+      randomMapOnStart?: boolean;
+    }
+  | {
+      type: "room_settings";
+      randomMapOnStart: boolean;
     }
   | { type: "appearances"; players: SyncAppearance[] }
   | {
@@ -39,6 +47,7 @@ export type WsServerMessage =
       fighter: string;
       building: string;
       displayColor?: string;
+      displayName?: string;
     }
   | {
       type: "attack_launch";
@@ -47,7 +56,21 @@ export type WsServerMessage =
       fromIndex: number;
       toIndex: number;
       amount: number;
+      /** Unix ms — момент старта залпа на сервере. */
       issuedAt: number;
+      /** Unix ms — момент рассылки (якорь для синхронизации анимации). */
+      serverTime: number;
+    }
+  | {
+      /** Снята очередь невылетевших волн с клетки (S / смена цели). */
+      type: "pending_cancelled";
+      fromIndex: number;
+    }
+  | {
+      /** Новый залп с клетки: очередь на другие цели обнулена. */
+      type: "pending_tail_strip";
+      fromIndex: number;
+      keepToIndex: number;
     }
   | { type: "cells"; cells: SyncCell[]; serverTime: number }
   | {

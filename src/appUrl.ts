@@ -1,6 +1,8 @@
 import { DEFAULT_MAP_ID } from "./game/maps";
 
-const EDITOR_MAP_SESSION_KEY = "map-dot-editor-map";
+import { STORAGE_KEYS } from "./constants/storageKeys";
+
+const EDITOR_MAP_SESSION_KEY = STORAGE_KEYS.mapDotEditorMap;
 
 export type AppRoute = {
   mapId: string;

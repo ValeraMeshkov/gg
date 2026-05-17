@@ -1,9 +1,11 @@
 import {
   normalizeOfflineBotCount,
   OFFLINE_BOT_COUNT,
-} from "../../shared/offlineBotCount";
+} from "@/shared/offlineBotCount";
 
-const STORAGE_KEY = "game-offline-bot-count-v1";
+import { STORAGE_KEYS } from "@/constants/storageKeys";
+
+const STORAGE_KEY = STORAGE_KEYS.offlineBotCount;
 
 export function readOfflineBotCount(): number {
   try {

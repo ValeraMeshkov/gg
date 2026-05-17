@@ -1,4 +1,4 @@
-import { MAP_ID } from "../mapIds";
+import { MAP_ID } from "@/game/maps/mapIds";
 
 /** ISO / class-ключ территории в world.svg (Simplemaps). */
 export type WorldTerritoryRef = {

@@ -1,9 +1,11 @@
 import {
   normalizeOfflineBotDifficulty,
   OFFLINE_BOT_DIFFICULTY,
-} from "../../shared/offlineBotDifficulty.js";
+} from "@/shared/offlineBotDifficulty";
 
-const STORAGE_KEY = "game-offline-bot-difficulty-v1";
+import { STORAGE_KEYS } from "@/constants/storageKeys";
+
+const STORAGE_KEY = STORAGE_KEYS.offlineBotDifficulty;
 
 export function readOfflineBotDifficulty(): number {
   try {

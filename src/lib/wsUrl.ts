@@ -1,4 +1,4 @@
-import { apiBaseUrl } from "../api/config";
+import { apiBaseUrl } from "@/api/config";
 
 /** WebSocket URL для комнаты (dev: через прокси Vite). */
 export function roomWsUrl(roomCode: string): string {

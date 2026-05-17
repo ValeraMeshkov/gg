@@ -1,3 +1,4 @@
+import { pickRandomMapId } from "@/shared/mapPlayable.ts";
 import { DEFAULT_MAP_ID, MAP_ID } from "./mapIds";
 
 /**
@@ -40,18 +41,5 @@ export function getTerritorySpotNumber(territoryIndex: number): number {
 
 /** Случайная карта из каталога; при нескольких картах старается не вернуть `excludeId`. */
 export function pickRandomCatalogMapId(excludeId?: string): string {
-  const ids = MAP_CATALOG.map((e) => e.id);
-  if (ids.length === 0) {
-    return DEFAULT_MAP_ID;
-  }
-  if (ids.length === 1) {
-    return ids[0]!;
-  }
-  let pick: string;
-  let n = 0;
-  do {
-    pick = ids[Math.floor(Math.random() * ids.length)]!;
-    n++;
-  } while (pick === excludeId && n < 64);
-  return pick;
+  return pickRandomMapId(excludeId) || DEFAULT_MAP_ID;
 }

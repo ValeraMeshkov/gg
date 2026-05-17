@@ -1,6 +1,13 @@
-import { normalizeOfflineBotCount } from "../../../shared/offlineBotCount.js";
-import { isTerritoryIndexHidden } from "../maps/world/mapDotLayout";
-import type { GameMap } from "../maps/types";
+import { CELL } from "@/shared/constants";
+import { pickDistinctIndices } from "@/shared/pickDistinct";
+import { normalizeOfflineBotCount } from "@/shared/offlineBotCount";
+import {
+  normalizeOfflineBotDifficulty,
+  offlineBotStartTerritoriesPerBot,
+  offlineHumanStartTerritories,
+} from "@/shared/offlineBotDifficulty";
+import { isTerritoryIndexHidden } from "@/game/maps/world/mapDotLayout";
+import type { GameMap } from "@/game/maps/types";
 import { MOCK_PLAYERS } from "./user";
 
 export type MockPlayerSlot = {
@@ -29,50 +36,71 @@ function playableCellIndices(map: GameMap): number[] {
   return indices;
 }
 
-/** N разных индексов из играбельных клеток (без скрытых точек). */
-function pickDistinctIndices(
-  playable: readonly number[],
-  count: number
-): number[] {
-  if (playable.length < count) {
-    throw new Error(
-      `Для ${count} игроков на карте нужно минимум ${count} играбельных клеток`
-    );
+function scoreTotalsFromMap(map: GameMap): Map<string, number> {
+  const totals = new Map<string, number>();
+  for (const cell of map.cells) {
+    const id = cell.ownerId;
+    if (!id) continue;
+    totals.set(id, (totals.get(id) ?? 0) + (cell.units ?? 0));
   }
-  const picked = new Set<number>();
-  while (picked.size < count) {
-    picked.add(playable[Math.floor(Math.random() * playable.length)]!);
-  }
-  return [...picked];
+  return totals;
 }
 
 /**
- * Старт партии: локальный игрок + `botCount` ботов (1–5), у каждого своя случайная клетка.
+ * Старт партии: игрок + `botCount` ботов.
+ * На высокой сложности: у игрока 2 точки с 100%; у ботов 2 с 80%, 3 с 100%.
  */
 export function createMockSession(
   baseMap: GameMap,
-  botCount = 2
+  botCount = 2,
+  difficulty?: number
 ): MockGameSession {
   const bots = normalizeOfflineBotCount(botCount);
-  const playerCount = 1 + bots;
+  const d = normalizeOfflineBotDifficulty(difficulty);
+  const requestedPerHuman = offlineHumanStartTerritories(d);
+  const requestedPerBot = offlineBotStartTerritoriesPerBot(d);
   const map = cloneMapWithCells(baseMap);
   const playable = playableCellIndices(map);
-  const indices = pickDistinctIndices(playable, playerCount);
+  const maxPerBot = Math.max(
+    1,
+    Math.floor((playable.length - requestedPerHuman) / bots)
+  );
+  const perBot = Math.min(requestedPerBot, maxPerBot);
+  const maxPerHuman = Math.max(1, playable.length - bots * perBot);
+  const perHuman = Math.min(requestedPerHuman, maxPerHuman);
+  const totalStarts = perHuman + bots * perBot;
+  const indices = pickDistinctIndices(playable, totalStarts);
 
-  for (let i = 0; i < playerCount; i++) {
-    const user = MOCK_PLAYERS[i]!;
-    map.cells[indices[i]!] = {
-      ...map.cells[indices[i]!],
-      ownerId: user.id,
-      units: user.initialScore,
+  const human = MOCK_PLAYERS[0]!;
+  for (let t = 0; t < perHuman; t++) {
+    map.cells[indices[t]!] = {
+      ...map.cells[indices[t]!],
+      ownerId: human.id,
+      units: CELL.playerStart,
     };
   }
+
+  let cursor = perHuman;
+  for (let b = 0; b < bots; b++) {
+    const user = MOCK_PLAYERS[b + 1]!;
+    for (let t = 0; t < perBot; t++) {
+      map.cells[indices[cursor]!] = {
+        ...map.cells[indices[cursor]!],
+        ownerId: user.id,
+        units: CELL.playerStart,
+      };
+      cursor += 1;
+    }
+  }
+
+  const totals = scoreTotalsFromMap(map);
+  const playerCount = 1 + bots;
 
   return {
     map,
     players: MOCK_PLAYERS.slice(0, playerCount).map((user) => ({
       user,
-      score: user.initialScore,
+      score: totals.get(user.id) ?? user.initialScore,
     })),
   };
 }

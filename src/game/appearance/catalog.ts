@@ -1,33 +1,16 @@
-import type { BuildingSkinId, FighterSkinId } from "./types";
+import { getVisibleGlbBuildingCatalog } from "@/components/map/buildingGlb";
+import { FIGHTER_SKIN_LABELS, FIGHTER_SKINS } from "@/shared/skinIds";
+import type { BuildingSkinId } from "@/shared/skinIds";
+import type { FighterSkinId } from "./types";
 
 export type SkinOption<T extends string> = {
   id: T;
   label: string;
 };
 
-export const FIGHTER_SKIN_OPTIONS: readonly SkinOption<FighterSkinId>[] = [
-  { id: "triangle", label: "Треугольник" },
-  { id: "heart", label: "Сердце" },
-  { id: "bear", label: "Мишка" },
-  { id: "star", label: "Звезда" },
-  { id: "diamond", label: "Ромб" },
-  { id: "ghost", label: "Призрак" },
-  { id: "rocket", label: "Ракета" },
-  { id: "clover", label: "Клевер" },
-  { id: "bomb", label: "Бомба" },
-  { id: "ufo", label: "НЛО" },
-  { id: "shield", label: "Щит" },
-];
+export const FIGHTER_SKIN_OPTIONS: readonly SkinOption<FighterSkinId>[] =
+  FIGHTER_SKINS.map((id) => ({ id, label: FIGHTER_SKIN_LABELS[id] }));
 
-export const BUILDING_SKIN_OPTIONS: readonly SkinOption<BuildingSkinId>[] = [
-  { id: "circle", label: "Кружок" },
-  { id: "fortress", label: "Крепость" },
-  { id: "flower", label: "Цветок" },
-  { id: "crown", label: "Корона" },
-  { id: "barn", label: "Амбар" },
-  { id: "temple", label: "Храм" },
-  { id: "lighthouse", label: "Маяк" },
-  { id: "house", label: "Домик" },
-  { id: "castle", label: "Замок" },
-  { id: "skull", label: "Череп" },
-];
+export function getBuildingSkinOptions(): readonly SkinOption<BuildingSkinId>[] {
+  return getVisibleGlbBuildingCatalog().map(({ id, label }) => ({ id, label }));
+}

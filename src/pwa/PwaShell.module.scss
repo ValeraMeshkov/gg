@@ -1,0 +1,56 @@
+.root {
+  position: fixed;
+  z-index: 500;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  max-width: min(420px, calc(100vw - 24px));
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(26, 39, 64, 0.92);
+  color: #f1f5f9;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.35);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.message {
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.btn,
+.btnGhost {
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+}
+
+.btn {
+  background: #2a6bb8;
+  color: #fff;
+}
+
+.btn:hover {
+  background: #1f5a9e;
+}
+
+.btnGhost {
+  background: transparent;
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.btnGhost:hover {
+  background: rgba(255, 255, 255, 0.08);
+}

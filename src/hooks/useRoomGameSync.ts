@@ -3,10 +3,11 @@ import type {
   SyncAppearance,
   SyncCell,
   WsServerMessage,
-} from "../../shared/wsProtocol";
-import type { FighterSkinId, BuildingSkinId } from "../game/appearance";
-import { getOrCreateUserId } from "../lib/userId";
-import { roomWsUrl } from "../lib/wsUrl";
+} from "@/shared/wsProtocol";
+import type { FighterSkinId, BuildingSkinId } from "@/game/appearance";
+import { updateServerClockOffset } from "@/game/serverClock";
+import { useUserId } from "./useUserId";
+import { roomWsUrl } from "@/lib/wsUrl";
 
 export type AttackLaunchEvent = {
   attackId: string;
@@ -15,6 +16,9 @@ export type AttackLaunchEvent = {
   toIndex: number;
   amount: number;
   issuedAt: number;
+  serverTime: number;
+  /** performance.now() в момент получения WS-сообщения. */
+  perfAtReceive: number;
 };
 
 type UseRoomGameSyncOptions = {
@@ -22,10 +26,14 @@ type UseRoomGameSyncOptions = {
   onSnapshot: (
     mapId: string,
     cells: SyncCell[],
-    appearances: SyncAppearance[]
+    appearances: SyncAppearance[],
+    randomMapOnStart?: boolean
   ) => void;
+  onRoomSettings?: (randomMapOnStart: boolean) => void;
   onCells: (cells: SyncCell[]) => void;
   onAttackLaunch: (launch: AttackLaunchEvent) => void;
+  onPendingCancelled: (fromIndex: number) => void;
+  onPendingTailStrip: (fromIndex: number, keepToIndex: number) => void;
   onGameReset: (
     mapId: string,
     cells: SyncCell[],
@@ -37,7 +45,8 @@ type UseRoomGameSyncOptions = {
     slotId: string,
     fighter: string,
     building: string,
-    displayColor?: string
+    displayColor?: string,
+    displayName?: string
   ) => void;
   onProjectileCollision: (
     destroyed: readonly { attackId: string; simIndex: number }[],
@@ -64,13 +73,17 @@ export function useRoomGameSync({
   onSnapshot,
   onCells,
   onAttackLaunch,
+  onPendingCancelled,
+  onPendingTailStrip,
   onGameReset,
   onAppearances,
   onAppearance,
   onProjectileCollision,
   onChatMessage,
   onChatHistory,
+  onRoomSettings,
 }: UseRoomGameSyncOptions) {
+  const userId = useUserId();
   const [connected, setConnected] = useState(false);
   const [wsKey, setWsKey] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
@@ -78,23 +91,29 @@ export function useRoomGameSync({
     onSnapshot,
     onCells,
     onAttackLaunch,
+    onPendingCancelled,
+    onPendingTailStrip,
     onGameReset,
     onAppearances,
     onAppearance,
     onProjectileCollision,
     onChatMessage,
     onChatHistory,
+    onRoomSettings,
   });
   handlersRef.current = {
     onSnapshot,
     onCells,
     onAttackLaunch,
+    onPendingCancelled,
+    onPendingTailStrip,
     onGameReset,
     onAppearances,
     onAppearance,
     onProjectileCollision,
     onChatMessage,
     onChatHistory,
+    onRoomSettings,
   };
 
   useEffect(() => {
@@ -109,7 +128,7 @@ export function useRoomGameSync({
     ws.onopen = () => {
       setConnected(true);
       ws.send(
-        JSON.stringify({ type: "join", userId: getOrCreateUserId() })
+        JSON.stringify({ type: "join", userId })
       );
     };
 
@@ -121,11 +140,15 @@ export function useRoomGameSync({
         return;
       }
       if (msg.type === "snapshot") {
+        updateServerClockOffset(msg.serverTime);
         handlersRef.current.onSnapshot(
           msg.mapId,
           msg.cells,
-          msg.appearances ?? []
+          msg.appearances ?? [],
+          msg.randomMapOnStart
         );
+      } else if (msg.type === "room_settings") {
+        handlersRef.current.onRoomSettings?.(msg.randomMapOnStart);
       } else if (msg.type === "appearances") {
         handlersRef.current.onAppearances(msg.players);
       } else if (msg.type === "appearance") {
@@ -133,11 +156,14 @@ export function useRoomGameSync({
           msg.slotId,
           msg.fighter,
           msg.building,
-          msg.displayColor
+          msg.displayColor,
+          msg.displayName
         );
       } else if (msg.type === "cells") {
+        updateServerClockOffset(msg.serverTime);
         handlersRef.current.onCells(msg.cells);
       } else if (msg.type === "attack_launch") {
+        updateServerClockOffset(msg.serverTime);
         handlersRef.current.onAttackLaunch({
           attackId: msg.attackId,
           attackerId: msg.attackerId,
@@ -145,8 +171,18 @@ export function useRoomGameSync({
           toIndex: msg.toIndex,
           amount: msg.amount,
           issuedAt: msg.issuedAt,
+          serverTime: msg.serverTime,
+          perfAtReceive: performance.now(),
         });
+      } else if (msg.type === "pending_cancelled") {
+        handlersRef.current.onPendingCancelled(msg.fromIndex);
+      } else if (msg.type === "pending_tail_strip") {
+        handlersRef.current.onPendingTailStrip(
+          msg.fromIndex,
+          msg.keepToIndex
+        );
       } else if (msg.type === "game_reset") {
+        updateServerClockOffset(msg.serverTime);
         handlersRef.current.onGameReset(
           msg.mapId,
           msg.cells,
@@ -178,7 +214,7 @@ export function useRoomGameSync({
       wsRef.current = null;
       setConnected(false);
     };
-  }, [roomCode, wsKey]);
+  }, [roomCode, wsKey, userId]);
 
   const reconnect = useCallback(() => {
     setWsKey((k) => k + 1);
@@ -205,16 +241,19 @@ export function useRoomGameSync({
     (
       fighter: FighterSkinId,
       building: BuildingSkinId,
-      displayColor?: string
+      displayColor?: string,
+      displayName?: string
     ) => {
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      const name = displayName?.trim().slice(0, 32);
       ws.send(
         JSON.stringify({
           type: "appearance",
           fighter,
           building,
           ...(displayColor ? { displayColor } : {}),
+          ...(name ? { displayName: name } : {}),
         })
       );
     },

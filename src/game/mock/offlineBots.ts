@@ -1,15 +1,19 @@
-import { CELL } from "../../../shared/constants";
-import { OFFLINE_MOCK_BOT_APPEARANCES } from "../../../shared/offlineMock.js";
-import type { PlayerAppearance } from "../appearance";
+import { CELL } from "@/shared/constants";
+import {
+  buildingSkinForOfflineBot,
+  OFFLINE_MOCK_BOT_APPEARANCES,
+} from "@/shared/offlineMock";
+import type { PlayerAppearance } from "@/game/appearance";
 import {
   isTerritoryIndexHidden,
   mapDotCenter,
   territoryCellPos,
   type CellPos,
-} from "../maps";
-import type { GameMap } from "../maps/types";
-import type { MapCell } from "../maps/types";
-import { normalizeOfflineBotCount } from "../../../shared/offlineBotCount.js";
+} from "@/game/maps";
+import type { GameMap } from "@/game/maps/types";
+import type { MapCell } from "@/game/maps/types";
+import { normalizeOfflineBotCount } from "@/shared/offlineBotCount";
+import { offlineBotSkillNormalized } from "@/shared/offlineBotDifficulty";
 import { MOCK_PLAYERS } from "./user";
 
 /** Id активных ботов по настройке (1–5). */
@@ -18,15 +22,18 @@ export function offlineBotIdsForCount(botCount: number): string[] {
   return MOCK_PLAYERS.slice(1, 1 + n).map((u) => u.id);
 }
 
-/** @deprecated Используйте `offlineBotIdsForCount(2)`. */
-export const OFFLINE_BOT_IDS: readonly string[] = offlineBotIdsForCount(2);
-
 /** Скины в `shared/offlineMock.ts` — привязка к слотам mock-user-2 … mock-user-6. */
 export const OFFLINE_BOT_APPEARANCES: Record<string, PlayerAppearance> =
   Object.fromEntries(
     OFFLINE_MOCK_BOT_APPEARANCES.map((appearance, i) => {
       const user = MOCK_PLAYERS[i + 1]!;
-      return [user.id, { ...appearance }] as const;
+      return [
+        user.id,
+        {
+          ...appearance,
+          building: buildingSkinForOfflineBot(i),
+        },
+      ] as const;
     })
   );
 
@@ -129,7 +136,8 @@ export function pickOfflineBotAttack(
   opts?: PickOfflineBotAttackOpts
 ): OfflineBotAttack | null {
   const rng = opts?.rng ?? Math.random;
-  const skill = Math.min(100, Math.max(0, opts?.difficulty ?? 50)) / 100;
+  const skill = offlineBotSkillNormalized(opts?.difficulty ?? 50);
+  const hard = skill >= 0.78;
   const elite = skill >= 0.99;
   type Src = { index: number; avail: number };
   const sources: Src[] = [];
@@ -157,31 +165,43 @@ export function pickOfflineBotAttack(
   /** Тяга к нейтралям при отставании; к вражеским слабым точкам при преимуществе. */
   const expandNeutralPull = elite
     ? behindLeader
-      ? 1.2
-      : 0.35
-    : behindLeader
-      ? 0.85 + rng() * 0.35
-      : 0.25 + rng() * 0.2;
+      ? 1.28
+      : 0.38
+    : hard
+      ? behindLeader
+        ? 1.05 + rng() * 0.25
+        : 0.32 + rng() * 0.15
+      : behindLeader
+        ? 0.88 + rng() * 0.32
+        : 0.22 + rng() * 0.18;
   const attackEnemyPull = elite
     ? aheadOfLeader
-      ? 1.15
-      : 0.5
-    : aheadOfLeader
-      ? 0.75 + rng() * 0.4
-      : 0.35 + rng() * 0.25;
+      ? 1.22
+      : 0.55
+    : hard
+      ? aheadOfLeader
+        ? 0.95 + rng() * 0.28
+        : 0.42 + rng() * 0.18
+      : aheadOfLeader
+        ? 0.72 + rng() * 0.38
+        : 0.3 + rng() * 0.22;
 
-  const reserveSlack = elite ? 0 : Math.round((1 - skill) * 2.5);
+  const reserveSlack = elite ? 0 : hard ? 1 : Math.round((1 - skill) * 2.2);
   const minAvail = elite
     ? behindLeader
       ? 4
       : 5
-    : behindLeader
-      ? rng() < 0.55
+    : hard
+      ? behindLeader
         ? 4 + reserveSlack
         : 5 + reserveSlack
-      : rng() < 0.4
-        ? 5 + reserveSlack
-        : 6 + reserveSlack;
+      : behindLeader
+        ? rng() < 0.5
+          ? 4 + reserveSlack
+          : 5 + reserveSlack
+        : rng() < 0.38
+          ? 5 + reserveSlack
+          : 6 + reserveSlack;
   const strongSources = sources.filter((s) => s.avail >= Math.min(minAvail, 10));
   const srcPool = strongSources.length > 0 ? strongSources : sources;
 
@@ -249,7 +269,9 @@ export function pickOfflineBotAttack(
         toI: t.index,
         avail: src.avail,
         needApprox,
-        score: elite ? score : score + rng() * (0.05 + (1 - skill) * 0.26),
+        score: elite
+          ? score
+          : score + rng() * (0.04 + (1 - skill) * (hard ? 0.16 : 0.24)),
       });
     }
   }
@@ -267,21 +289,22 @@ export function pickOfflineBotAttack(
     );
   } else {
     const top = cands[0]!.score;
-    const tierWide = 0.36 + (1 - skill) * 1.08;
+    const tierWide = hard ? 0.22 + (1 - skill) * 0.55 : 0.32 + (1 - skill) * 0.95;
     const tier = cands.filter((c) => c.score >= top - tierWide);
     shuffleInPlace(tier, rng);
     pick = tier[0]!;
-    if (skill < 0.97 && rng() < (1 - skill) * 0.4) {
+    if (skill < 0.97 && rng() < (hard ? (1 - skill) * 0.22 : (1 - skill) * 0.38)) {
       pick = tier[Math.floor(rng() * tier.length)]!;
     }
-    const extraBurst = Math.floor(rng() * (6 + skill * 12));
-    const aheadBurst = aheadOfLeader ? Math.round(2 + skill * 7) : 0;
+    const extraBurst = Math.floor(rng() * (7 + skill * 14));
+    const aheadBurst = aheadOfLeader ? Math.round(2 + skill * 8) : 0;
     maxUnits = Math.max(
       6,
       Math.min(
         pick.avail,
         Math.floor(
-          (pick.needApprox + extraBurst + aheadBurst) * (0.68 + 0.32 * skill)
+          (pick.needApprox + extraBurst + aheadBurst) *
+            (hard ? 0.74 + 0.28 * skill : 0.7 + 0.3 * skill)
         )
       )
     );
@@ -293,13 +316,4 @@ export function pickOfflineBotAttack(
     to: territoryCellPos(pick.toI),
     maxUnits,
   };
-}
-
-/** Очередность ходов ботов на один тик (случайная). */
-export function shuffledOfflineBotIds(
-  rng: () => number = Math.random
-): string[] {
-  const ids = [...OFFLINE_BOT_IDS];
-  shuffleInPlace(ids, rng);
-  return ids;
 }

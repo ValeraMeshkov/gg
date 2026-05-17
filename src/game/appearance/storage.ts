@@ -1,4 +1,11 @@
-import { PLAYER_SLOT_IDS } from "../../../shared/playerSlots";
+import {
+  coerceBuildingSkinId,
+  DEFAULT_BUILDING_SKIN,
+  LEGACY_BUILDING_SKIN_MAP,
+} from "@/shared/skinIds";
+import { isGlbBuildingSkin, isGlbBuildingVisible } from "@/components/map/buildingGlb";
+import { normalizeDisplayColor } from "./displayColors";
+import { PLAYER_SLOT_IDS } from "@/shared/playerSlots";
 import {
   BUILDING_SKINS,
   DEFAULT_PLAYER_APPEARANCE,
@@ -8,7 +15,9 @@ import {
   type PlayerAppearance,
 } from "./types";
 
-const STORAGE_KEY = "game-player-appearance-v1";
+import { STORAGE_KEYS } from "@/constants/storageKeys";
+
+const STORAGE_KEY = STORAGE_KEYS.playerAppearance;
 
 export type PlayerAppearancesMap = Record<string, PlayerAppearance>;
 
@@ -42,25 +51,48 @@ export function normalizeFighterSkin(v: unknown): FighterSkinId | null {
   return isFighterSkin(v) ? v : null;
 }
 
-const REMOVED_BUILDING_SKINS = new Set([
-  "flag",
-  "tower",
-  "tent",
-  "tree",
-  "mushroom",
-  "pyramid",
-  "igloo",
-  "windmill",
-  "volcano",
-  "crystal",
-  "campfire",
-]);
-
 export function normalizeBuildingSkin(v: unknown): BuildingSkinId | null {
-  if (typeof v === "string" && REMOVED_BUILDING_SKINS.has(v)) {
-    return DEFAULT_PLAYER_APPEARANCE.building;
+  if (typeof v === "string") {
+    const mapped = LEGACY_BUILDING_SKIN_MAP[v];
+    if (mapped) return mapped;
+    if (v.startsWith("fort") || v.endsWith("3d")) {
+      return DEFAULT_BUILDING_SKIN;
+    }
   }
-  return isBuildingSkin(v) ? v : null;
+  if (!isBuildingSkin(v)) return null;
+  if (v === "cube") return DEFAULT_BUILDING_SKIN;
+  if (isGlbBuildingSkin(v) && !isGlbBuildingVisible(v)) {
+    return DEFAULT_BUILDING_SKIN;
+  }
+  return v;
+}
+
+/** Любой id → актуальное здание с 3D на карте (удалённые → дефолт). */
+export const coerceBuildingSkin = coerceBuildingSkinId;
+
+function sanitizeAppearance(raw: PlayerAppearance): PlayerAppearance {
+  const fighter =
+    normalizeFighterSkin(raw.fighter) ?? DEFAULT_PLAYER_APPEARANCE.fighter;
+  const building = coerceBuildingSkin(raw.building);
+  const displayColor =
+    normalizeDisplayColor(raw.displayColor) ??
+    DEFAULT_PLAYER_APPEARANCE.displayColor;
+
+  if (
+    raw.fighter === fighter &&
+    raw.building === building &&
+    raw.displayColor === displayColor
+  ) {
+    return raw;
+  }
+  if (
+    fighter === DEFAULT_PLAYER_APPEARANCE.fighter &&
+    building === DEFAULT_PLAYER_APPEARANCE.building &&
+    displayColor === DEFAULT_PLAYER_APPEARANCE.displayColor
+  ) {
+    return DEFAULT_PLAYER_APPEARANCE;
+  }
+  return { fighter, building, displayColor };
 }
 
 function parseAppearance(raw: unknown): PlayerAppearance | null {
@@ -114,5 +146,7 @@ export function appearanceForPlayer(
   map: PlayerAppearancesMap,
   playerId: string
 ): PlayerAppearance {
-  return map[playerId] ?? DEFAULT_PLAYER_APPEARANCE;
+  const raw = map[playerId];
+  if (!raw) return DEFAULT_PLAYER_APPEARANCE;
+  return sanitizeAppearance(raw);
 }

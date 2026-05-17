@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { createRoom, isRoomApiEnabled } from "./api/roomApi";
-import { AppGameChrome } from "./components/AppGameChrome";
-import { GameCanvas } from "./components/GameCanvas";
-import { MapDotEditor } from "./components/MapDotEditor";
-import { RoomJoinRedirect } from "./components/RoomJoinRedirect";
-import { RoomLobby } from "./components/RoomLobby";
+import {
+  AppGameChrome,
+  GameCanvas,
+  MapDotEditor,
+  RoomJoinRedirect,
+  RoomLobby,
+} from "./components";
 import { GameShellProvider } from "./context/GameShellContext";
 import { readAppRoute, writeAppRoute, gameHref, type AppRoute } from "./appUrl";
 import { pickRandomCatalogMapId } from "./game/maps";
@@ -20,7 +22,10 @@ import {
   readRandomMapOnStart,
   writeRandomMapOnStart,
 } from "./lib/randomMapOnStart";
-import { getOrCreateUserId } from "./lib/userId";
+import { useAuth } from "./context/AuthContext";
+import { useSyncedUserPreferences } from "./hooks/useSyncedUserPreferences";
+import { useUserId } from "./hooks/useUserId";
+import { UI } from "./constants/uiStrings";
 import styles from "./App.module.scss";
 
 function isSoloPlayRoute(r: AppRoute): boolean {
@@ -36,6 +41,9 @@ function initialRoute(): AppRoute {
 }
 
 function App() {
+  const userId = useUserId();
+  const auth = useAuth();
+  const { scheduleSave: schedulePrefsSave } = useSyncedUserPreferences();
   const [route, setRoute] = useState<AppRoute>(initialRoute);
   const [createBusy, setCreateBusy] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -45,6 +53,23 @@ function App() {
     readOfflineBotDifficulty
   );
   const [offlineBotCount, setOfflineBotCount] = useState(readOfflineBotCount);
+
+  useEffect(() => {
+    if (!auth.ready || !auth.user) return;
+    const p = auth.user;
+    if (p.offlineBotCount !== undefined) {
+      setOfflineBotCount(p.offlineBotCount);
+      writeOfflineBotCount(p.offlineBotCount);
+    }
+    if (p.offlineBotDifficulty !== undefined) {
+      setOfflineBotDifficulty(p.offlineBotDifficulty);
+      writeOfflineBotDifficulty(p.offlineBotDifficulty);
+    }
+    if (p.randomMapOnStart !== undefined) {
+      setRandomMapOnStart(p.randomMapOnStart);
+      writeRandomMapOnStart(p.randomMapOnStart);
+    }
+  }, [auth.ready, auth.user]);
 
   useEffect(() => {
     const onPopState = () => setRoute(readAppRoute());
@@ -69,6 +94,10 @@ function App() {
     });
   }, []);
 
+  const restartSoloSession = useCallback(() => {
+    setSoloSessionKey((k) => k + 1);
+  }, []);
+
   const bumpSoloSession = useCallback(() => {
     setRoute((prev) => {
       if (!isSoloPlayRoute(prev) || !readRandomMapOnStart()) {
@@ -79,47 +108,58 @@ function App() {
       writeAppRoute(next);
       return next;
     });
-    setSoloSessionKey((k) => k + 1);
-  }, []);
+    restartSoloSession();
+  }, [restartSoloSession]);
 
-  const handleRandomMapOnStartChange = useCallback((v: boolean) => {
-    setRandomMapOnStart(v);
-    writeRandomMapOnStart(v);
-  }, []);
+  const handleRandomMapOnStartChange = useCallback(
+    (v: boolean) => {
+      setRandomMapOnStart(v);
+      writeRandomMapOnStart(v);
+      schedulePrefsSave({ randomMapOnStart: v });
+    },
+    [schedulePrefsSave]
+  );
 
-  const handleOfflineBotDifficultyChange = useCallback((v: number) => {
-    setOfflineBotDifficulty(v);
-    writeOfflineBotDifficulty(v);
-  }, []);
+  const handleOfflineBotDifficultyChange = useCallback(
+    (v: number) => {
+      setOfflineBotDifficulty(v);
+      writeOfflineBotDifficulty(v);
+      schedulePrefsSave({ offlineBotDifficulty: v });
+      restartSoloSession();
+    },
+    [schedulePrefsSave, restartSoloSession]
+  );
 
-  const handleOfflineBotCountChange = useCallback((v: number) => {
-    setOfflineBotCount(v);
-    writeOfflineBotCount(v);
-    setSoloSessionKey((k) => k + 1);
-  }, []);
+  const handleOfflineBotCountChange = useCallback(
+    (v: number) => {
+      setOfflineBotCount(v);
+      writeOfflineBotCount(v);
+      schedulePrefsSave({ offlineBotCount: v });
+      restartSoloSession();
+    },
+    [schedulePrefsSave, restartSoloSession]
+  );
 
   const handleCreateRoom = useCallback(async () => {
     if (!isRoomApiEnabled()) {
       setCreateError(
-        import.meta.env.DEV
-          ? "Запустите сервер: npm run dev:server"
-          : "Сервер не настроен (api-config.json)"
+        import.meta.env.DEV ? UI.serverDevHint : UI.serverNotConfigured
       );
       return;
     }
     setCreateBusy(true);
     setCreateError(null);
     try {
-      const room = await createRoom(getOrCreateUserId(), route.mapId);
+      const room = await createRoom(userId, route.mapId);
       window.location.assign(gameHref(room.mapId, room.code));
     } catch (e) {
       setCreateError(
-        e instanceof Error ? e.message : "Не удалось создать комнату"
+        e instanceof Error ? e.message : UI.createRoomFailed
       );
     } finally {
       setCreateBusy(false);
     }
-  }, [route.mapId]);
+  }, [route.mapId, userId]);
 
   if (route.edit) {
     return (
@@ -177,13 +217,13 @@ function App() {
             key={
               route.roomCode
                 ? `room-${route.roomCode}`
-                : `solo-${route.mapId}-${soloSessionKey}-${offlineBotCount}`
+                : `solo-${route.mapId}-${soloSessionKey}`
             }
             mapId={route.mapId}
             roomCode={route.roomCode}
             onMapIdChange={setMapId}
             mapSelectHint={
-              route.roomCode ? "Карта (новая партия)" : undefined
+              route.roomCode ? UI.mapForNewRound : undefined
             }
             randomMapOnStart={
               route.roomCode ? undefined : randomMapOnStart
@@ -196,6 +236,7 @@ function App() {
             }
             offlineBotCount={route.roomCode ? undefined : offlineBotCount}
             onOfflineNewGame={route.roomCode ? undefined : bumpSoloSession}
+            soloRestartNonce={route.roomCode ? undefined : soloSessionKey}
           />
         </main>
       </div>

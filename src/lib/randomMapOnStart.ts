@@ -1,4 +1,6 @@
-const STORAGE_KEY = "game-random-map-on-start-v1";
+import { STORAGE_KEYS } from "@/constants/storageKeys";
+
+const STORAGE_KEY = STORAGE_KEYS.randomMapOnStart;
 
 export function readRandomMapOnStart(): boolean {
   try {

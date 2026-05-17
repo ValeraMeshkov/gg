@@ -28,7 +28,7 @@ export const TERRITORY_MAPS: readonly TerritoryGameMap[] = [
   build(oceaniaData),
 ];
 
-import { MAP_CATALOG } from "../mapCatalog";
+import { MAP_CATALOG } from "@/game/maps/mapCatalog";
 
 /** Порядок id совпадает с номерами в `MAP_CATALOG`. */
 export const RANDOM_MAP_POOL: readonly string[] = MAP_CATALOG.map((m) => m.id);

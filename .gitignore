@@ -25,3 +25,6 @@ logs/
 # Tooling cache
 node_modules/.vite/
 node_modules/.tmp/
+
+# Сырые GLB до npm run glb:optimize (положить сюда, в git не коммитить)
+src/assets/buildings-source/

@@ -1,0 +1,32 @@
+{
+  "frames": 256,
+  "framePx": 160,
+  "spinPeriodSec": 11.423973285781065,
+  "sheets": {
+    "tower.glb": "bashnya.png",
+    "tower-alt.glb": "bashnya2.png",
+    "watchtower.glb": "storozh.png",
+    "signpost.glb": "ukaz.png",
+    "crystal-tree.glb": "krist.png",
+    "poison-bottle.glb": "yad.png",
+    "skull.glb": "cherep.png",
+    "skull-potion.glb": "zele.png",
+    "slime.glb": "slaym.png",
+    "banner.glb": "banner.png",
+    "bomb.glb": "bomba.png",
+    "potion-bottle-alt.glb": "flakon.png",
+    "undead.glb": "nezhit.png",
+    "zombie.glb": "zombi.png",
+    "pixellabs-grim-reaper-3d-3011.glb": "zhnets.png",
+    "planet-boy.glb": "malchik.png",
+    "planet-defective.glb": "brak.png",
+    "planet-energy.glb": "energiya.png",
+    "planet-icon.glb": "ikonka.png",
+    "planet-shield.glb": "shchit.png",
+    "planet-star.glb": "zvezda.png",
+    "shark.glb": "akula.png",
+    "castle.glb": "zamok.png",
+    "castle-alt.glb": "zamok2.png",
+    "house.glb": "dom.png"
+  }
+}

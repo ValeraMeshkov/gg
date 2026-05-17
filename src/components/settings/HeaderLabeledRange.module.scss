@@ -1,0 +1,123 @@
+/* Компактный блок как кнопка: подпись сверху, тонкий ползунок снизу. */
+.root {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 9rem;
+  min-height: 36px;
+  margin: 0;
+  padding: 5px 10px 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(26, 58, 92, 0.22);
+  background: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.rootWide {
+  width: 10.5rem;
+}
+
+.captionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 1.1rem;
+  pointer-events: none;
+}
+
+.labelName {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5a6578;
+  white-space: nowrap;
+}
+
+.labelValue {
+  flex-shrink: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  color: #1a3a5c;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(42, 107, 184, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(42, 107, 184, 0.12);
+}
+
+.range {
+  display: block;
+  width: 100%;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.range:focus {
+  outline: none;
+}
+
+.root:focus-within {
+  border-color: rgba(42, 107, 184, 0.45);
+  box-shadow: 0 0 0 2px rgba(42, 107, 184, 0.1);
+}
+
+.root:focus-within .labelValue {
+  background: rgba(42, 107, 184, 0.22);
+  color: #0f3558;
+}
+
+/* WebKit */
+.range::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(42, 107, 184, 0.2);
+}
+
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -3.5px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: #2a6bb8;
+  box-shadow: 0 1px 3px rgba(26, 58, 92, 0.28);
+  cursor: grab;
+}
+
+.range:active::-webkit-slider-thumb {
+  transform: scale(1.06);
+  cursor: grabbing;
+}
+
+/* Firefox */
+.range::-moz-range-track {
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(42, 107, 184, 0.2);
+}
+
+.range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: #2a6bb8;
+  box-shadow: 0 1px 3px rgba(26, 58, 92, 0.28);
+  cursor: grab;
+}
+
+.range:active::-moz-range-thumb {
+  transform: scale(1.06);
+}

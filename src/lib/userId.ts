@@ -1,4 +1,6 @@
-const USER_ID_KEY = "game-user-id-v1";
+import { STORAGE_KEYS } from "@/constants/storageKeys";
+
+const USER_ID_KEY = STORAGE_KEYS.userId;
 
 /** Стабильный анонимный id браузера для API профиля. */
 export function getOrCreateUserId(): string {

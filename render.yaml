@@ -13,3 +13,15 @@ services:
         value: "22"
       - key: CORS_ORIGINS
         sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: AUTH_SESSION_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false
+      - key: AUTH_COOKIE_CROSS_SITE
+        value: "1"

@@ -1,15 +1,15 @@
 import { randomBytes } from "node:crypto";
-import { CELL } from "../../shared/constants.js";
-import { applyIncrementalLandHit } from "../../shared/combat.js";
-import { buildFlightPlan } from "../../shared/flightSchedule.js";
+import { CELL } from "@/shared/constants.js";
+import { applyIncrementalLandHit } from "@/shared/combat.js";
+import { buildFlightPlan } from "@/shared/flightSchedule.js";
 import {
   projectileHitRadius2,
   projectilePositionAt,
   projectilesCollideDuringInterval,
   type ProjectilePath,
-} from "../../shared/projectileMotion.js";
-import { projectileCollisionShowsExplosion } from "../../shared/collisionFx.js";
-import type { SyncCell } from "../../shared/wsProtocol.js";
+} from "@/shared/projectileMotion.js";
+import { projectileCollisionShowsExplosion } from "@/shared/collisionFx.js";
+import type { SyncCell } from "@/shared/wsProtocol.js";
 import { enqueueRoomCellUpdate } from "./cellUpdateQueue.js";
 import { cloneCells, getGameForRoom, updateRoomCells, type RoomGameState } from "./gameState.js";
 import { dotCenter } from "./mapDots.js";
@@ -260,7 +260,10 @@ function countUnspawned(fromI: number, flights: PendingFlight[]): number {
 function compactFlights(flights: PendingFlight[]): void {
   const kept = flights.filter((f) => f.sims.some((s) => !s.landApplied));
   for (const f of flights) {
-    if (!kept.includes(f)) clearFlightTimers(f);
+    if (kept.includes(f)) continue;
+    // Снятые с очереди волны — только spawn; land-таймеры должны дожать попадания.
+    for (const t of f.waveSpawnTimers.values()) clearTimeout(t);
+    f.waveSpawnTimers.clear();
   }
   flights.length = 0;
   for (const f of kept) flights.push(f);
@@ -333,6 +336,7 @@ export type AttackLaunch = {
   toIndex: number;
   amount: number;
   issuedAt: number;
+  serverTime: number;
 };
 
 export function processAttack(
@@ -342,7 +346,8 @@ export function processAttack(
   fromIndices: number[],
   toIndex: number,
   onLaunch: (launch: AttackLaunch) => void,
-  onCells: (cells: SyncCell[]) => void
+  onCells: (cells: SyncCell[]) => void,
+  onPendingTailStrip?: (fromIndex: number, keepToIndex: number) => void
 ): void {
   const key = roomCode.toUpperCase();
   const flights = pendingByRoom.get(key) ?? [];
@@ -358,6 +363,7 @@ export function processAttack(
     if (owner !== attackerId) continue;
 
     stripPendingTailTowardsOtherTargets(fromIndex, toIndex, flights);
+    onPendingTailStrip?.(fromIndex, toIndex);
 
     const reserved = countUnspawned(fromIndex, flights);
     const u = state.cells[fromIndex]?.units ?? 0;
@@ -411,6 +417,7 @@ export function processAttack(
       toIndex,
       amount,
       issuedAt,
+      serverTime: Date.now(),
     });
 
     const byWave = new Map<number, number[]>();
@@ -455,12 +462,10 @@ export function processAttack(
       const landTimer = setTimeout(() => {
         pending.simLandTimers.delete(idx);
         enqueueRoomCellUpdate(key, () => {
-          const flightsLive = pendingByRoom.get(key);
-          if (!flightsLive?.includes(pending)) return;
           const g = getGameForRoom(key);
           if (!g) return;
-          const slot = pending.sims[idx]!;
-          if (slot.landApplied || slot.destroyed) return;
+          const slot = pending.sims[idx];
+          if (!slot || slot.landApplied || slot.destroyed) return;
           slot.landApplied = true;
           const cur = cloneCells(g.cells);
           cur[toIndex] = applyIncrementalLandHit(
@@ -468,7 +473,8 @@ export function processAttack(
             attackerId
           );
           commitCells(key, cur, onCells);
-          compactFlights(flightsLive);
+          const flightsLive = pendingByRoom.get(key);
+          if (flightsLive) compactFlights(flightsLive);
           stopCollisionLoopIfIdle(key);
         });
       }, Math.max(0, sim.landDelayMs));

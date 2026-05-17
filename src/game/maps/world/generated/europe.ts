@@ -1,6 +1,6 @@
 /** Карта: пути из world.svg (extract), точки правятся вручную или в редакторе. */
-import type { TerritoryMapData } from '../buildTerritoryMap'
-import { MAP_ID } from '../../mapIds'
+import type { TerritoryMapData } from '@/game/maps/world/buildTerritoryMap'
+import { MAP_ID } from '@/game/maps/mapIds'
 
 export const europeData: TerritoryMapData = {
   continentId: MAP_ID.EUROPE,

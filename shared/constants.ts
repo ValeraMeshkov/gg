@@ -1,7 +1,7 @@
 /** Клетки: стартовые юниты, потолок пассивного роста. */
 export const CELL = {
   neutralStart: 20,
-  playerStart: 35,
+  playerStart: 100,
   ownedCap: 100,
   growthMs: 650,
 } as const;
@@ -25,11 +25,23 @@ export const TERRITORY_SHOT_SPEED_FACTOR = 150;
 export const MAP_SHOT_SPEED_PER_MS =
   SHOT.speedPerMs * TERRITORY_SHOT_SPEED_FACTOR;
 
-/** Радиус кружка точки на карте мира (viewBox), как в `mapLayout.ts`. */
+/** Радиус кружка точки на карте мира (viewBox). */
 export const TERRITORY_DOT_RADIUS = 14 / 1.5;
 
-/** Радиус пули в viewBox: диаметр кружка ÷ 3. */
-export const TERRITORY_PROJECTILE_R = (TERRITORY_DOT_RADIUS * 2) / 3 / 2;
+/**
+ * Размер пули: диаметр точки ÷ это число (меньше — крупнее).
+ * Меняйте только здесь — клиент, сервер и залп используют одно значение.
+ */
+export const TERRITORY_PROJECTILE_DIAMETER_RATIO = 1.5;
+
+/** Радиус пули в viewBox для радиуса точки `dotRadius`. */
+export function projectileRadiusFromDot(dotRadius: number): number {
+  return dotRadius / TERRITORY_PROJECTILE_DIAMETER_RATIO;
+}
+
+/** Эталонный радиус пули (точка = `TERRITORY_DOT_RADIUS` на карте Азии). */
+export const TERRITORY_PROJECTILE_R =
+  projectileRadiusFromDot(TERRITORY_DOT_RADIUS);
 
 /** @deprecated Используйте TERRITORY_PROJECTILE_R — 0.034 слишком мало для viewBox. */
 export const MAP_PROJECTILE_R = TERRITORY_PROJECTILE_R;

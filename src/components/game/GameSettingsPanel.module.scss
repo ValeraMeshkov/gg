@@ -1,0 +1,152 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+}
+
+.appearanceBlock {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.googleSignInBtn {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(26, 58, 92, 0.18);
+  background: #fff;
+  color: #1a2740;
+  cursor: pointer;
+  width: 100%;
+}
+
+.googleSignInBtn:hover {
+  border-color: rgba(42, 107, 184, 0.45);
+  background: #f8fbff;
+}
+
+.accountEmail {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1a3a5c;
+}
+
+.accountHint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #6a758c;
+  line-height: 1.35;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #6a758c;
+}
+
+.nameField {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin: 0;
+}
+
+.nameInput {
+  font: inherit;
+  font-size: 0.95rem;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(20, 35, 60, 0.15);
+  background: #fff;
+  color: #1a2740;
+}
+
+.nameInput::placeholder {
+  color: #8a92a4;
+}
+
+.nameInput:focus {
+  outline: none;
+  border-color: rgba(42, 107, 184, 0.55);
+  box-shadow: 0 0 0 2px rgba(42, 107, 184, 0.15);
+}
+
+.nameHint {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: #6a758c;
+}
+
+.mapRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.mapSelectCol {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mapRandomCheck {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 10.5rem;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(26, 58, 92, 0.18);
+  background: #fff;
+  cursor: pointer;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.mapRandomCheckDisabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.mapRandomCheckInput {
+  margin: 0;
+  flex-shrink: 0;
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: #2a6bb8;
+  cursor: inherit;
+}
+
+.mapRandomCheckLabel {
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #1a2740;
+}
+
+@media (max-width: 520px) {
+  .mapRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mapRandomCheck {
+    max-width: none;
+  }
+}

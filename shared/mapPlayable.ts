@@ -38,6 +38,20 @@ export function isValidMapId(mapId: string): boolean {
   return mapId in MAP_PLAYABLE;
 }
 
+/** Случайная карта из пула; старается не вернуть `excludeId`. */
+export function pickRandomMapId(excludeId?: string): string {
+  const ids = VALID_MAP_IDS;
+  if (ids.length === 0) return "south-america";
+  if (ids.length === 1) return ids[0]!;
+  let pick: string;
+  let n = 0;
+  do {
+    pick = ids[Math.floor(Math.random() * ids.length)]!;
+    n++;
+  } while (pick === excludeId && n < 64);
+  return pick;
+}
+
 export function playableIndices(mapId: string): number[] {
   const meta = MAP_PLAYABLE[mapId];
   if (!meta) {

@@ -4,35 +4,44 @@ import {
   loadPlayerAppearances,
   type PlayerAppearance,
   type PlayerAppearancesMap,
-} from "../game/appearance";
+} from "@/game/appearance";
 import {
   loadMyAppearance,
   saveMyAppearance,
   type MyAppearancePatch,
-} from "../game/appearance/myAppearance";
-import { loadMyDisplayName, saveMyDisplayName } from "../game/myDisplayName";
+} from "@/game/appearance/myAppearance";
+import { loadMyDisplayName, saveMyDisplayName } from "@/game/myDisplayName";
 import {
   fetchRemoteProfile,
+  saveMyRemoteProfile,
   saveRemoteProfile,
   ensureRemoteUser,
-} from "../api/profileApi";
-import { getOrCreateUserId } from "../lib/userId";
+} from "@/api/profileApi";
+import { useAuth } from "@/context/AuthContext";
 
 const SAVE_DEBOUNCE_MS = 400;
 
 type LocalBundle = { appearance: PlayerAppearance; displayName: string };
 
 /**
- * Скины и имя текущего браузерного пользователя → localStorage + API.
- * На карте применяются к выбранному слоту; mock-user-2/3 пока с дефолтами.
+ * Скины и имя текущего пользователя → localStorage + API.
+ * Сначала localStorage, затем данные с сервера (Google-сессия).
  */
 export function useSyncedPlayerAppearances(controlledPlayerId: string) {
+  const {
+    ready: authReady,
+    userId,
+    isAuthenticated,
+    authConfigured,
+    user: authUser,
+    setUserFromProfile,
+  } = useAuth();
+
   const [myAppearance, setMyAppearance] = useState<PlayerAppearance>(
     loadMyAppearance
   );
   const [displayName, setDisplayName] = useState(loadMyDisplayName);
   const [syncReady, setSyncReady] = useState(false);
-  const userIdRef = useRef(getOrCreateUserId());
   const saveTimerRef = useRef<number | null>(null);
   const bundleRef = useRef<LocalBundle>({
     appearance: loadMyAppearance(),
@@ -46,15 +55,33 @@ export function useSyncedPlayerAppearances(controlledPlayerId: string) {
   }, [controlledPlayerId, myAppearance]);
 
   useEffect(() => {
+    if (!authReady) return;
+    if (authUser) {
+      const remoteName = (authUser.displayName ?? "").trim().slice(0, 32);
+      setMyAppearance((prev) => {
+        const next: PlayerAppearance = {
+          fighter: authUser.fighter,
+          building: authUser.building,
+          displayColor: authUser.displayColor ?? prev.displayColor,
+        };
+        saveMyAppearance(next);
+        bundleRef.current = { appearance: next, displayName: remoteName };
+        return next;
+      });
+      setDisplayName(remoteName);
+      saveMyDisplayName(remoteName);
+      setSyncReady(true);
+      return;
+    }
+
     let cancelled = false;
 
     (async () => {
       try {
-        const userId = await ensureRemoteUser(userIdRef.current);
+        const ensured = await ensureRemoteUser(userId);
         if (cancelled) return;
-        userIdRef.current = userId;
 
-        const remote = await fetchRemoteProfile(userId);
+        const remote = await fetchRemoteProfile(ensured);
         if (cancelled) return;
 
         if (remote) {
@@ -63,7 +90,7 @@ export function useSyncedPlayerAppearances(controlledPlayerId: string) {
             const next: PlayerAppearance = {
               fighter: remote.fighter,
               building: remote.building,
-              displayColor: prev.displayColor,
+              displayColor: remote.displayColor ?? prev.displayColor,
             };
             saveMyAppearance(next);
             bundleRef.current = { appearance: next, displayName: remoteName };
@@ -82,18 +109,32 @@ export function useSyncedPlayerAppearances(controlledPlayerId: string) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authReady, authUser, userId]);
 
   const flushToServer = useCallback(() => {
     const { appearance, displayName: name } = bundleRef.current;
     saveMyAppearance(appearance);
     saveMyDisplayName(name);
-    void saveRemoteProfile(userIdRef.current, {
+
+    const patch = {
       fighter: appearance.fighter,
       building: appearance.building,
       displayName: name.trim(),
-    }).catch((err) => console.warn("[profile] сохранение на сервер", err));
-  }, []);
+      displayColor: appearance.displayColor,
+    };
+
+    if (authConfigured && !isAuthenticated) return;
+
+    const save = isAuthenticated
+      ? saveMyRemoteProfile(patch)
+      : saveRemoteProfile(userId, patch);
+
+    void save
+      .then((updated) => {
+        if (updated) setUserFromProfile(updated);
+      })
+      .catch((err) => console.warn("[profile] сохранение на сервер", err));
+  }, [authConfigured, isAuthenticated, userId, setUserFromProfile]);
 
   const scheduleSave = useCallback(() => {
     if (saveTimerRef.current != null) {
@@ -138,10 +179,20 @@ export function useSyncedPlayerAppearances(controlledPlayerId: string) {
     [scheduleSave]
   );
 
-  const controlledAppearance = appearanceForPlayer(
-    playerAppearances,
-    controlledPlayerId
-  );
+  const controlledAppearanceRef = useRef<PlayerAppearance>(myAppearance);
+  const controlledAppearance = useMemo(() => {
+    const next = appearanceForPlayer(playerAppearances, controlledPlayerId);
+    const prev = controlledAppearanceRef.current;
+    if (
+      prev.fighter === next.fighter &&
+      prev.building === next.building &&
+      prev.displayColor === next.displayColor
+    ) {
+      return prev;
+    }
+    controlledAppearanceRef.current = next;
+    return next;
+  }, [playerAppearances, controlledPlayerId]);
 
   return {
     playerAppearances,
@@ -149,6 +200,6 @@ export function useSyncedPlayerAppearances(controlledPlayerId: string) {
     patchMyAppearance,
     displayName,
     patchDisplayName,
-    syncReady,
+    syncReady: syncReady && authReady,
   };
 }

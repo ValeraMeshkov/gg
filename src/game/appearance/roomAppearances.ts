@@ -1,4 +1,8 @@
-import { defaultDisplayColorForSlot } from "../../../shared/displayColors";
+import { defaultDisplayColorForSlot } from "@/shared/displayColors";
+import {
+  resolveRoomDisplayColor,
+  sortSyncAppearancesBySlot,
+} from "@/shared/roomPlayerColors";
 import { normalizeDisplayColor } from "./displayColors";
 import {
   normalizeBuildingSkin,
@@ -11,19 +15,31 @@ import type {
   FighterSkinId,
   PlayerAppearance,
 } from "./types";
-import type { SyncAppearance } from "../../../shared/wsProtocol";
+import type { SyncAppearance } from "@/shared/wsProtocol";
 
 export function appearancesFromSync(
-  players: readonly SyncAppearance[]
+  players: readonly SyncAppearance[],
+  existing: PlayerAppearancesMap = {}
 ): PlayerAppearancesMap {
+  const assigned = new Map<string, DisplayColorId>();
+  for (const [slotId, app] of Object.entries(existing)) {
+    assigned.set(slotId, app.displayColor);
+  }
+
   const out: PlayerAppearancesMap = {};
-  for (const p of players) {
+  for (const p of sortSyncAppearancesBySlot(players)) {
     const fighter = normalizeFighterSkin(p.fighter);
     const building = normalizeBuildingSkin(p.building);
     if (!fighter || !building) continue;
-    const displayColor =
+    const requested =
       normalizeDisplayColor(p.displayColor) ??
       defaultDisplayColorForSlot(p.slotId);
+    const displayColor = resolveRoomDisplayColor(
+      p.slotId,
+      requested,
+      assigned
+    );
+    assigned.set(p.slotId, displayColor);
     out[p.slotId] = {
       fighter,
       building,

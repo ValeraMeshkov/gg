@@ -40,8 +40,8 @@ jobs:
         env:
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
 
-      - name: Install and build
-        run: npm ci && npm run build
+      - name: Install, lint, and build
+        run: npm ci && npm run lint && npm run build
         env:
           VITE_BASE_PATH: /gg/
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}

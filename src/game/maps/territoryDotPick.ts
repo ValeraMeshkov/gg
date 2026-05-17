@@ -1,4 +1,4 @@
-import { territoryDotHitRadius } from "../mapLayout";
+import { territoryDotHitRadius } from "@/game/mapLayout";
 import {
   isTerritoryIndexHidden,
   mapDotCenter,

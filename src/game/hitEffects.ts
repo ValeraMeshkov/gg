@@ -1,4 +1,4 @@
-import { seededRandom } from "../../shared/seededRandom";
+import { seededRandom } from "@/shared/seededRandom";
 
 /** Белые расходящиеся волны при попадании. */
 export const LAND_HIT_FX_COLOR = "#ffffff";

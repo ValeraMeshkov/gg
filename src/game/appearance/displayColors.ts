@@ -2,7 +2,7 @@ import {
   DISPLAY_COLORS,
   normalizeDisplayColor as normalizeDisplayColorShared,
   type DisplayColorId,
-} from "../../../shared/displayColors";
+} from "@/shared/displayColors";
 
 export type { DisplayColorId };
 export { DISPLAY_COLORS };

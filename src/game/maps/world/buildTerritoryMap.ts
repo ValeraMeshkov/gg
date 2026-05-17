@@ -1,4 +1,4 @@
-import { CELL } from "../../constants";
+import { CELL } from "@/game/constants";
 import type { MapTerritory, TerritoryGameMap, TerritoryMapViewBox } from "./types";
 
 export type TerritoryMapData = {

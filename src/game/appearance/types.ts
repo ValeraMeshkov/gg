@@ -1,17 +1,18 @@
-import type {
-  BuildingSkinId,
-  FighterSkinId,
-} from "../../../shared/skinIds";
-import type { DisplayColorId } from "../../../shared/displayColors";
+import {
+  DEFAULT_BUILDING_SKIN,
+  type BuildingSkinId,
+  type FighterSkinId,
+} from "@/shared/skinIds";
+import type { DisplayColorId } from "@/shared/displayColors";
 
 export {
   FIGHTER_SKINS,
   BUILDING_SKINS,
   type FighterSkinId,
   type BuildingSkinId,
-} from "../../../shared/skinIds";
+} from "@/shared/skinIds";
 
-export { DISPLAY_COLORS, type DisplayColorId } from "../../../shared/displayColors";
+export { DISPLAY_COLORS, type DisplayColorId } from "@/shared/displayColors";
 
 export type PlayerAppearance = {
   fighter: FighterSkinId;
@@ -21,6 +22,6 @@ export type PlayerAppearance = {
 
 export const DEFAULT_PLAYER_APPEARANCE: PlayerAppearance = {
   fighter: "triangle",
-  building: "circle",
+  building: DEFAULT_BUILDING_SKIN,
   displayColor: "blue",
 };

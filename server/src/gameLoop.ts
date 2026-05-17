@@ -1,5 +1,5 @@
-import { CELL } from "../../shared/constants.js";
-import { bumpCellsTowardsCap } from "../../shared/cellGrowth.js";
+import { CELL } from "@/shared/constants.js";
+import { bumpCellsTowardsCap } from "@/shared/cellGrowth.js";
 import { enqueueRoomCellUpdate } from "./cellUpdateQueue.js";
 import { cloneCells, getGameForRoom, listActiveGames, updateRoomCells } from "./gameState.js";
 import { sourcesWithPendingLaunch } from "./roomAttack.js";

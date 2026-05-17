@@ -1,4 +1,4 @@
-import centers from "../../shared/mapDotCenters.json" with { type: "json" };
+import centers from "@/shared/mapDotCenters.json" with { type: "json" };
 
 const DOT_CENTERS = centers as Record<string, readonly { x: number; y: number }[]>;
 

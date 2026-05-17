@@ -1,5 +1,5 @@
 export {
-  BUILDING_SKIN_OPTIONS,
+  getBuildingSkinOptions,
   FIGHTER_SKIN_OPTIONS,
   type SkinOption,
 } from "./catalog";
@@ -22,6 +22,7 @@ export {
 } from "./myAppearance";
 export { appearancesFromSync } from "./roomAppearances";
 export {
+  coerceBuildingSkin,
   normalizeBuildingSkin,
   normalizeFighterSkin,
 } from "./storage";

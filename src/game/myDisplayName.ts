@@ -1,4 +1,6 @@
-const KEY = "game-display-name-v1";
+import { STORAGE_KEYS } from "@/constants/storageKeys";
+
+const KEY = STORAGE_KEYS.displayName;
 
 export function loadMyDisplayName(): string {
   try {

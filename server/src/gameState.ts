@@ -1,10 +1,10 @@
-import { CELL } from "../../shared/constants.js";
+import { CELL } from "@/shared/constants.js";
 import {
   addPlayerSpawnToCells,
   createRoomSession,
-} from "../../shared/createRoomSession.js";
-import { playableIndices } from "../../shared/mapPlayable.js";
-import type { SyncCell } from "../../shared/wsProtocol.js";
+} from "@/shared/createRoomSession.js";
+import { playableIndices } from "@/shared/mapPlayable.js";
+import type { SyncCell } from "@/shared/wsProtocol.js";
 import type { Room } from "./rooms.js";
 
 export type RoomGameState = {
@@ -14,14 +14,17 @@ export type RoomGameState = {
 
 const games = new Map<string, RoomGameState>();
 
-/** Подтянуть нейтральные клетки до 20 (старые сессии в памяти). */
+/**
+ * Старые сессии: у нейтрали без поля `units` подставить 20.
+ * Ноль после боя не трогаем — иначе захват/реген 0→1→2… ломаются.
+ */
 function normalizeNeutralCells(mapId: string, cells: SyncCell[]): SyncCell[] {
   const playable = playableIndices(mapId);
   let changed = false;
   const next = cells.map((c) => ({ ...c }));
   for (const i of playable) {
     if (next[i]?.ownerId) continue;
-    if ((next[i]?.units ?? 0) > 0) continue;
+    if (next[i]?.units != null) continue;
     next[i] = { units: CELL.neutralStart };
     changed = true;
   }
