@@ -89,6 +89,18 @@ export function AppGameChrome({
     return () => window.removeEventListener("keydown", onKey);
   }, [settingsOpen, setSettingsOpen]);
 
+  const showNewGameInHeader =
+    Boolean(onNewSoloGame) || (inRoom && roomChromeActions != null);
+
+  const handleNewGameClick = useCallback(() => {
+    setSettingsOpen(false);
+    if (onNewSoloGame) {
+      onNewSoloGame();
+      return;
+    }
+    void roomChromeActions?.onPrimary();
+  }, [onNewSoloGame, roomChromeActions, setSettingsOpen]);
+
   return (
     <div className={styles.chrome}>
       <header className={styles.header}>
@@ -101,14 +113,14 @@ export function AppGameChrome({
             >
               Home
             </button>
-            {!inRoom && onNewSoloGame ? (
+            {showNewGameInHeader ? (
               <button
                 type="button"
                 className={styles.newGameBtn}
-                onClick={() => {
-                  setSettingsOpen(false);
-                  onNewSoloGame();
-                }}
+                disabled={
+                  inRoom ? roomChromeActions?.primaryDisabled : false
+                }
+                onClick={() => void handleNewGameClick()}
               >
                 {UI.newGame}
               </button>
@@ -147,16 +159,6 @@ export function AppGameChrome({
                 >
                   {headerLinkCopied ? UI.linkCopied : UI.linkCopy}
                 </button>
-                {roomChromeActions ? (
-                  <button
-                    type="button"
-                    className={styles.createRoomBtn}
-                    disabled={roomChromeActions.primaryDisabled}
-                    onClick={() => roomChromeActions.onPrimary()}
-                  >
-                    {roomChromeActions.primaryLabel}
-                  </button>
-                ) : null}
               </>
             ) : (
               <button

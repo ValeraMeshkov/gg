@@ -27,6 +27,13 @@ export function addUnitsToFriendlyCell(current: number, delta: number): number {
   return Math.max(0, Math.floor(current) + d);
 }
 
+/** Урон по своей клетке — без потолка ownedCap (только ≥ 0). */
+export function damageOwnedCellUnits(current: number, damage: number): number {
+  const d = Math.floor(Number(damage));
+  if (!Number.isFinite(d) || d <= 0) return Math.max(0, Math.floor(current));
+  return Math.max(0, Math.floor(current) - d);
+}
+
 /** Исправить битые значения после старых багов или некорректного JSON. */
 export function sanitizeCombatCell<T extends CombatCell>(cell: T): T {
   const u = readCellUnits(cell);

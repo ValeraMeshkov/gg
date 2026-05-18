@@ -1,6 +1,7 @@
 import type { CombatCell } from "./combat.js";
 import { pauseCellGrowth } from "./combat.js";
 import { readCellUnits } from "./cellUnits.js";
+import { SHOT } from "./constants.js";
 
 /** Снаряд в очереди / в полёте — для учёта силы на клетке-источнике. */
 export type LaunchPowerSim = {
@@ -38,6 +39,18 @@ export function projectileCountForLaunchBudget(
 ): number {
   if (launchPower <= 0 || availableUnits < launchPower) return 0;
   return Math.floor(availableUnits / launchPower);
+}
+
+/** Сколько снарядов выпустить в одном залпе (боты, лимит очереди). */
+export function salvoProjectileCount(
+  availableCount: number,
+  maxUnitsPerSource?: number
+): number {
+  let n = Math.max(0, availableCount);
+  if (maxUnitsPerSource != null) {
+    n = Math.min(n, maxUnitsPerSource);
+  }
+  return Math.min(n, SHOT.maxProjectilesPerSalvo);
 }
 
 /** Списать силу вылета и поставить паузу роста на клетке-источнике. */

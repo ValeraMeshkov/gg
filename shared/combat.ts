@@ -2,6 +2,7 @@ import { CELL } from "./constants.js";
 import {
   addUnitsToFriendlyCell,
   clampCellUnits,
+  damageOwnedCellUnits,
   readCellUnits,
 } from "./cellUnits.js";
 
@@ -48,15 +49,15 @@ export function applyLandHitWithPower<T extends CombatCell>(
   }
 
   const current = readCellUnits(cell);
-  const u = current - hitPower;
+  const remaining = damageOwnedCellUnits(current, hitPower);
   const next: T =
-    u < 0
+    remaining <= 0
       ? {
           ...cell,
           ownerId: attackerId,
-          units: clampCellUnits(-u, attackerId),
+          units: clampCellUnits(-remaining, attackerId),
         }
-      : { ...cell, units: clampCellUnits(u, cell.ownerId) };
+      : { ...cell, units: remaining };
   return pauseCellGrowth(next, nowMs);
 }
 

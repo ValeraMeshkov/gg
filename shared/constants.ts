@@ -13,6 +13,8 @@ export const CELL = {
 export const SHOT = {
   speedPerMs: 0.00034,
   projectileR: 0.034,
+  /** Максимум снарядов за один залп; остаток — следующими залпами в очереди. */
+  maxProjectilesPerSalvo: 100,
   waveSize: 5,
   bulletBatchGapMs: 200,
   neighborCenterDistBallDiameters: 1.1,
