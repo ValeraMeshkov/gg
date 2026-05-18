@@ -17,8 +17,20 @@ import {
   jitterExplosionPosition,
   pruneLandHitFx,
   type LandHitFx,
-  LAND_HIT_FX_COLOR,
 } from "@/game/hitEffects";
+import { pickCollisionExplosionWeapon } from "@/shared/fighterExplosionFx";
+import {
+  type AttackAnimationId,
+  weaponStatsById,
+  WEAPONS,
+} from "@/shared/weaponStats";
+
+function coerceExplosionWeapon(w: unknown): AttackAnimationId {
+  if (typeof w === "string" && w in WEAPONS) {
+    return weaponStatsById(w as AttackAnimationId).id;
+  }
+  return "bullet";
+}
 import {
   cellIndex,
   cellPosFromIndex,
@@ -262,7 +274,7 @@ export function useProjectileCombat({
               x: boomPos.x,
               y: boomPos.y,
               start: now,
-              color: LAND_HIT_FX_COLOR,
+              weapon: pickCollisionExplosionWeapon(a.sim, b.sim),
             });
           }
           removeFlightIfComplete(a.flight);
@@ -333,10 +345,9 @@ export function useProjectileCombat({
   };
 
   const spawnLandHitFx = (
-    _seed: string,
+    weapon: AttackAnimationId,
     x: number,
     y: number,
-    _attackerId: string,
     fxId: string
   ) => {
     const now = performance.now();
@@ -351,7 +362,7 @@ export function useProjectileCombat({
           x: boomPos.x,
           y: boomPos.y,
           start: now,
-          color: LAND_HIT_FX_COLOR,
+          weapon,
         },
       ];
       landHitFxRef.current = next;
@@ -438,10 +449,9 @@ export function useProjectileCombat({
       cell.ownerId != null && cell.ownerId === attackerId;
     if (flight.visualCombat && !isOwnCell) {
       spawnLandHitFx(
-        sim.id,
+        sim.attackAnimation,
         landPos.x,
         landPos.y,
-        attackerId,
         `land-${sim.id}`
       );
     }
@@ -600,7 +610,11 @@ export function useProjectileCombat({
   const handleProjectileCollision = useCallback(
     (
       destroyed: readonly { attackId: string; simIndex: number }[],
-      explosions?: readonly { x: number; y: number }[]
+      explosions?: readonly {
+        x: number;
+        y: number;
+        weapon?: string;
+      }[]
     ) => {
       if (pausedRef.current) return;
       for (const d of destroyed) {
@@ -624,7 +638,7 @@ export function useProjectileCombat({
               x: boomPos.x,
               y: boomPos.y,
               start: now,
-              color: LAND_HIT_FX_COLOR,
+              weapon: coerceExplosionWeapon(p.weapon),
             };
           });
           const next = [...kept, ...additions];

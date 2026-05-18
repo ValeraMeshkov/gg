@@ -30,6 +30,7 @@ export const MAP_PLAYABLE: Record<string, MapPlayableMeta> = {
     ],
   },
   oceania: { cellCount: 9, hidden: [] },
+  "world-large": { cellCount: 40, hidden: [] },
 };
 
 export const VALID_MAP_IDS = Object.keys(MAP_PLAYABLE);

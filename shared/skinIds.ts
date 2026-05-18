@@ -17,7 +17,7 @@ export const FIGHTER_SKINS = [
 
 export type FighterSkinId = (typeof FIGHTER_SKINS)[number];
 
-/** Подписи бойцов для UI (единый источник с id). */
+/** Подписи оружия / скинов бойца для UI (единый источник с id). */
 export const FIGHTER_SKIN_LABELS: Record<FighterSkinId, string> = {
   triangle: "Треугольник",
   heart: "Сердце",

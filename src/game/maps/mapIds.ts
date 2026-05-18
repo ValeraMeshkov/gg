@@ -6,6 +6,7 @@ export const MAP_ID = {
   AFRICA: "africa",
   ASIA: "asia",
   OCEANIA: "oceania",
+  WORLD_LARGE: "world-large",
 } as const;
 
 export type MapId = (typeof MAP_ID)[keyof typeof MAP_ID];

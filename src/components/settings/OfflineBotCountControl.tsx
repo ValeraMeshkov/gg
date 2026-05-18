@@ -7,12 +7,14 @@ import { HeaderLabeledRange } from "./HeaderLabeledRange";
 type OfflineBotCountControlProps = {
   value: number;
   onChange: (value: number) => void;
+  onCommit?: (value: number) => void;
   className?: string;
 };
 
 export function OfflineBotCountControl({
   value,
   onChange,
+  onCommit,
   className,
 }: OfflineBotCountControlProps) {
   const normalized = normalizeOfflineBotCount(value);
@@ -29,6 +31,7 @@ export function OfflineBotCountControl({
       ariaLabel="Количество соперников"
       formatValue={(v) => String(v)}
       onChange={(v) => onChange(normalizeOfflineBotCount(v))}
+      onCommit={onCommit ? (v) => onCommit(normalizeOfflineBotCount(v)) : undefined}
     />
   );
 }

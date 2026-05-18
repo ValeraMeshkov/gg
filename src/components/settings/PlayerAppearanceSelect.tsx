@@ -3,7 +3,6 @@ import {
   DISPLAY_COLOR_OPTIONS,
   getBuildingSkinOptions,
   getFighterSkinOptions,
-  fighterSkinShortLabel,
   type BuildingSkinId,
   type DisplayColorId,
   type FighterSkinId,
@@ -12,8 +11,6 @@ import {
   BuildingGlbSettingsGrid,
   GLB_BUILDING_VISIBILITY_CHANGE_EVENT,
 } from "@/components/map/buildingGlb";
-import { AppearanceSettingsGrid } from "@/components/settings/AppearanceSettingsGrid";
-import { FighterSettingsPreview } from "@/components/settings/FighterSettingsPreview";
 import { DEFAULT_BUILDING_SKIN } from "@/shared/skinIds";
 import styles from "./PlayerAppearanceSelect.module.scss";
 
@@ -40,13 +37,8 @@ export function PlayerAppearanceSelect({
   const fighterOptions = getFighterSkinOptions();
   const [buildingsScrollRoot, setBuildingsScrollRoot] =
     useState<HTMLDivElement | null>(null);
-  const [fightersScrollRoot, setFightersScrollRoot] =
-    useState<HTMLDivElement | null>(null);
   const buildingsViewportRef: RefCallback<HTMLDivElement> = (node) => {
     setBuildingsScrollRoot(node);
-  };
-  const fightersViewportRef: RefCallback<HTMLDivElement> = (node) => {
-    setFightersScrollRoot(node);
   };
 
   useEffect(() => {
@@ -110,31 +102,6 @@ export function PlayerAppearanceSelect({
         </div>
       </div>
 
-      <div className={styles.rowBlock}>
-        <p className={styles.rowLabel}>Бойцы</p>
-        <div
-          ref={fightersViewportRef}
-          className={styles.buildingsViewport}
-          data-appearance-settings-viewport=""
-          role="presentation"
-        >
-          <AppearanceSettingsGrid
-            options={fighterOptions}
-            selected={fighter}
-            onSelect={onFighterChange}
-            scrollRoot={fightersScrollRoot}
-            ariaLabel="Бойцы"
-            getShortLabel={(opt) => fighterSkinShortLabel(opt.id)}
-            renderPreview={({ opt, visible, size }) => (
-              <FighterSettingsPreview
-                fighter={opt.id}
-                size={size}
-                animated={visible}
-              />
-            )}
-          />
-        </div>
-      </div>
     </div>
   );
 }

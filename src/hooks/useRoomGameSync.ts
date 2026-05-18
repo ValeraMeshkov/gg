@@ -51,7 +51,11 @@ type UseRoomGameSyncOptions = {
   ) => void;
   onProjectileCollision: (
     destroyed: readonly { attackId: string; simIndex: number }[],
-    explosions?: readonly { x: number; y: number }[]
+    explosions?: readonly {
+      x: number;
+      y: number;
+      weapon?: string;
+    }[]
   ) => void;
   onChatMessage?: (msg: {
     slotId: string;

@@ -48,7 +48,11 @@ type UseRoomSessionOpts = {
   stripPendingTail: (fromIndex: number, toIndex: number) => void;
   handleProjectileCollision: (
     destroyed: readonly { attackId: string; simIndex: number }[],
-    explosions?: readonly { x: number; y: number }[]
+    explosions?: readonly {
+      x: number;
+      y: number;
+      weapon?: string;
+    }[]
   ) => void;
   controlledAppearance: PlayerAppearance;
   displayName: string;

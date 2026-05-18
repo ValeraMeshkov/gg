@@ -1,15 +1,12 @@
+import type { AttackAnimationId } from "@/shared/weaponStats";
 import { seededRandom } from "@/shared/seededRandom";
-
-/** Белые расходящиеся волны при попадании. */
-export const LAND_HIT_FX_COLOR = "#ffffff";
 
 export type LandHitFx = {
   id: string;
   x: number;
   y: number;
   start: number;
-  /** @deprecated Не используется при отрисовке; см. LAND_HIT_FX_COLOR. */
-  color: string;
+  weapon: AttackAnimationId;
 };
 
 /** Смещение центра взрыва в координатах карты (детерминированно по seed). */

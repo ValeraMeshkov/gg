@@ -13,6 +13,9 @@ import type { RemoteUserProfile } from "@/api/profileApi";
 import { applyRemoteProfileToLocal } from "@/lib/applyRemoteProfile";
 import { getOrCreateUserId } from "@/lib/userId";
 
+/** Временно скрыть кнопку «Войти через Google» в хедере и настройках. */
+const GOOGLE_SIGN_IN_UI_ENABLED = false;
+
 type AuthContextValue = {
   ready: boolean;
   /** Google OAuth настроен на сервере (есть client id / secret). */
@@ -95,7 +98,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [authConfigured]);
 
   const showGoogleSignIn =
-    isApiEnabled() && ready && !isAuthenticated;
+    GOOGLE_SIGN_IN_UI_ENABLED &&
+    isApiEnabled() &&
+    ready &&
+    !isAuthenticated;
 
   const value = useMemo(
     (): AuthContextValue => ({

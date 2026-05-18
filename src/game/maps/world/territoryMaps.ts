@@ -5,6 +5,7 @@ import {
   northAmericaData,
   oceaniaData,
   southAmericaData,
+  worldLargeData,
 } from "./generated";
 import {
   assertTerritoryMapShape,
@@ -18,7 +19,7 @@ function build(data: Parameters<typeof buildTerritoryMap>[0]): TerritoryGameMap 
   return map;
 }
 
-/** Играбельные карты-континенты (попадают в случайный выбор при загрузке). */
+/** Играбельные карты (континенты). */
 export const TERRITORY_MAPS: readonly TerritoryGameMap[] = [
   build(southAmericaData),
   build(northAmericaData),
@@ -26,6 +27,7 @@ export const TERRITORY_MAPS: readonly TerritoryGameMap[] = [
   build(africaData),
   build(asiaData),
   build(oceaniaData),
+  build(worldLargeData),
 ];
 
 import { MAP_CATALOG } from "@/game/maps/mapCatalog";

@@ -125,12 +125,20 @@ function App() {
       setOfflineBotDifficulty(v);
       writeOfflineBotDifficulty(v);
       schedulePrefsSave({ offlineBotDifficulty: v });
-      restartSoloSession();
     },
-    [schedulePrefsSave, restartSoloSession]
+    [schedulePrefsSave]
   );
 
   const handleOfflineBotCountChange = useCallback(
+    (v: number) => {
+      setOfflineBotCount(v);
+      writeOfflineBotCount(v);
+      schedulePrefsSave({ offlineBotCount: v });
+    },
+    [schedulePrefsSave]
+  );
+
+  const handleOfflineBotCountCommit = useCallback(
     (v: number) => {
       setOfflineBotCount(v);
       writeOfflineBotCount(v);
@@ -201,16 +209,6 @@ function App() {
           createError={createError}
           onCreateRoom={handleCreateRoom}
           onNewSoloGame={route.roomCode ? undefined : bumpSoloSession}
-          offlineBotDifficulty={
-            route.roomCode ? undefined : offlineBotDifficulty
-          }
-          onOfflineBotDifficultyChange={
-            route.roomCode ? undefined : handleOfflineBotDifficultyChange
-          }
-          offlineBotCount={route.roomCode ? undefined : offlineBotCount}
-          onOfflineBotCountChange={
-            route.roomCode ? undefined : handleOfflineBotCountChange
-          }
         />
         <main className={styles.main}>
           <GameCanvas
@@ -234,7 +232,16 @@ function App() {
             offlineBotDifficulty={
               route.roomCode ? undefined : offlineBotDifficulty
             }
+            onOfflineBotDifficultyChange={
+              route.roomCode ? undefined : handleOfflineBotDifficultyChange
+            }
             offlineBotCount={route.roomCode ? undefined : offlineBotCount}
+            onOfflineBotCountChange={
+              route.roomCode ? undefined : handleOfflineBotCountChange
+            }
+            onOfflineBotCountCommit={
+              route.roomCode ? undefined : handleOfflineBotCountCommit
+            }
             onOfflineNewGame={route.roomCode ? undefined : bumpSoloSession}
             soloRestartNonce={route.roomCode ? undefined : soloSessionKey}
           />

@@ -6,6 +6,7 @@ export const MAP_ID = {
   AFRICA: "africa",
   ASIA: "asia",
   OCEANIA: "oceania",
+  WORLD_LARGE: "world-large",
 };
 
 /** Выражение для codegen: `MAP_ID.SOUTH_AMERICA` */

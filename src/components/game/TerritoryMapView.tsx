@@ -23,6 +23,11 @@ import {
   type CellPos,
 } from "@/game/maps";
 import type { TerritoryGameMap } from "@/game/maps";
+import { MapSideFighterPicker } from "@/components/map/MapSideFighterPicker";
+import { MapSideMapPicker } from "@/components/map/MapSideMapPicker";
+import { OfflineBotCountControl } from "@/components/settings/OfflineBotCountControl";
+import { OfflineBotDifficultyControl } from "@/components/settings/OfflineBotDifficultyControl";
+import type { FighterSkinId } from "@/game/appearance";
 import { UI } from "@/constants/uiStrings";
 import { mapCursorCss } from "@/game/mapCursor";
 import {
@@ -102,6 +107,20 @@ type TerritoryMapViewProps = {
     meetScale: number;
     dotRadius: number;
   }) => void;
+  offlineBotCount?: number;
+  onOfflineBotCountChange?: (value: number) => void;
+  onOfflineBotCountCommit?: (value: number) => void;
+  offlineBotDifficulty?: number;
+  onOfflineBotDifficultyChange?: (value: number) => void;
+  fighter: FighterSkinId;
+  onFighterChange: (fighter: FighterSkinId) => void;
+  mapId: string;
+  onMapIdChange: (mapId: string) => void;
+  mapSelectHint?: string;
+  mapCatalogDisabled?: boolean;
+  randomMapOnStart?: boolean;
+  onRandomMapOnStartChange?: (value: boolean) => void;
+  randomMapLabel?: string;
 };
 
 function isMapHotkeyTarget(el: EventTarget | null): boolean {
@@ -207,6 +226,28 @@ function multiAttackAllowed(
   return shooters.every((s) => canAttackTarget(s, target));
 }
 
+const TOP_OWN_SELECT_COUNT = 1;
+
+/** До `maxCount` своих точек с наибольшим числом юнитов. */
+function topOwnTerritoriesByUnits(
+  map: TerritoryGameMap,
+  localId: string,
+  maxCount: number,
+  hiddenOpts?: Parameters<typeof isTerritoryIndexHidden>[2]
+): CellPos[] {
+  const ranked: { pos: CellPos; units: number }[] = [];
+  for (let index = 0; index < map.territories.length; index++) {
+    if (isTerritoryIndexHidden(map, index, hiddenOpts)) continue;
+    const cell = getCell(map, index);
+    if (cell.ownerId !== localId) continue;
+    const units = cell.units ?? 0;
+    if (units <= 0) continue;
+    ranked.push({ pos: territoryCellPos(index), units });
+  }
+  ranked.sort((a, b) => b.units - a.units || a.pos.x - b.pos.x);
+  return ranked.slice(0, maxCount).map((e) => e.pos);
+}
+
 /** Начальная точка прицела при выборе всех своих (A): чуть в сторону центра карты от центроида сил. */
 function defaultAimEndForSelectAll(
   map: TerritoryGameMap,
@@ -262,7 +303,28 @@ export const TerritoryMapView = memo(function TerritoryMapView({
   showFirstMoveHint = false,
   mapInteractionLocked = false,
   onMapFlightMetricsChange,
+  offlineBotCount,
+  onOfflineBotCountChange,
+  onOfflineBotCountCommit,
+  offlineBotDifficulty,
+  onOfflineBotDifficultyChange,
+  fighter,
+  onFighterChange,
+  mapId,
+  onMapIdChange,
+  mapSelectHint,
+  mapCatalogDisabled = false,
+  randomMapOnStart,
+  onRandomMapOnStartChange,
+  randomMapLabel,
 }: TerritoryMapViewProps) {
+  const showSoloControls =
+    offlineBotCount != null &&
+    onOfflineBotCountChange != null &&
+    onOfflineBotCountCommit != null &&
+    offlineBotDifficulty != null &&
+    onOfflineBotDifficultyChange != null;
+  const [mapSidePanelOpen, setMapSidePanelOpen] = useState(true);
   const hiddenOpts = useMemo(
     () => (syncMapLayout ? { syncMapLayout: true as const } : undefined),
     [syncMapLayout]
@@ -389,6 +451,23 @@ export const TerritoryMapView = memo(function TerritoryMapView({
     });
   }, [map, localPlayerId, hiddenOpts]);
 
+  const selectTopOwnTerritoriesByUnits = useCallback(() => {
+    const topOwn = topOwnTerritoriesByUnits(
+      map,
+      localPlayerId,
+      TOP_OWN_SELECT_COUNT,
+      hiddenOpts
+    );
+    if (topOwn.length === 0) return;
+    const aim =
+      lastPointerMapRef.current ?? defaultAimEndForSelectAll(map, topOwn);
+    setDrag({
+      sources: topOwn,
+      hoverCell: cellUnderCursorTerritoryDot(map, aim.x, aim.y, hiddenOpts),
+      aimEnd: aim,
+    });
+  }, [map, localPlayerId, hiddenOpts]);
+
   const cancelAimAndPending = useCallback(() => {
     setDrag(null);
     setHoveredOwnIndex(null);
@@ -407,6 +486,11 @@ export const TerritoryMapView = memo(function TerritoryMapView({
         selectAllOwnTerritories();
         return;
       }
+      if (e.code === "KeyD") {
+        e.preventDefault();
+        selectTopOwnTerritoriesByUnits();
+        return;
+      }
       if (e.code === "KeyS") {
         e.preventDefault();
         cancelAimAndPending();
@@ -414,7 +498,12 @@ export const TerritoryMapView = memo(function TerritoryMapView({
     };
     window.addEventListener("keydown", onKey, { capture: false });
     return () => window.removeEventListener("keydown", onKey);
-  }, [mapInteractionLocked, selectAllOwnTerritories, cancelAimAndPending]);
+  }, [
+    mapInteractionLocked,
+    selectAllOwnTerritories,
+    selectTopOwnTerritoriesByUnits,
+    cancelAimAndPending,
+  ]);
 
   const territoryBacks = useMemo(() => {
     const backs: ReactElement[] = [];
@@ -536,8 +625,72 @@ export const TerritoryMapView = memo(function TerritoryMapView({
         if (!drag) setHoveredOwnIndex(null);
       }}
     >
-      <div className={styles.mapActionBar} aria-label={UI.mapQuickActions}>
-        <button
+      <div
+        className={`${styles.mapSideBar}${mapSidePanelOpen ? "" : ` ${styles.mapSideBarCollapsed}`}`}
+        aria-label={UI.mapSidePanel}
+      >
+        <div className={styles.mapSideBarHeader}>
+          {mapSidePanelOpen ? (
+            <div className={styles.mapSideBarHeaderText}>
+              <p className={styles.mapSideBarSectionTitle}>{UI.mapSection}</p>
+              {mapSelectHint ? (
+                <p className={styles.mapSideBarSectionHint}>{mapSelectHint}</p>
+              ) : null}
+            </div>
+          ) : null}
+          <button
+            type="button"
+            className={styles.mapSideBarToggle}
+            aria-expanded={mapSidePanelOpen}
+            aria-controls="map-side-panel-body"
+            title={
+              mapSidePanelOpen ? UI.mapSidePanelCollapse : UI.mapSidePanelExpand
+            }
+            aria-label={
+              mapSidePanelOpen ? UI.mapSidePanelCollapse : UI.mapSidePanelExpand
+            }
+            onClick={() => setMapSidePanelOpen((open) => !open)}
+          >
+            <span className={styles.mapSideBarToggleIcon} aria-hidden>
+              {mapSidePanelOpen ? "‹" : "›"}
+            </span>
+          </button>
+        </div>
+        {mapSidePanelOpen ? (
+          <div id="map-side-panel-body" className={styles.mapSideBarBody}>
+        <MapSideMapPicker
+          mapId={mapId}
+          onMapIdChange={onMapIdChange}
+          mapSelectHint={mapSelectHint}
+          showTitle={false}
+          disabled={mapCatalogDisabled}
+          randomMapOnStart={randomMapOnStart}
+          onRandomMapOnStartChange={onRandomMapOnStartChange}
+          randomMapLabel={randomMapLabel}
+        />
+        <MapSideFighterPicker
+          fighter={fighter}
+          onFighterChange={onFighterChange}
+          disabled={mapInteractionLocked}
+        />
+        {showSoloControls ? (
+          <div className={styles.mapSideControls}>
+            <OfflineBotCountControl
+              className={styles.mapSideControl}
+              value={offlineBotCount}
+              onChange={onOfflineBotCountChange}
+              onCommit={onOfflineBotCountCommit}
+            />
+            <OfflineBotDifficultyControl
+              className={styles.mapSideControl}
+              value={offlineBotDifficulty}
+              onChange={onOfflineBotDifficultyChange}
+            />
+          </div>
+        ) : null}
+        <div className={styles.mapActionGroup}>
+          <p className={styles.mapActionGroupTitle}>{UI.mapHotkeysHint}</p>
+          <button
           type="button"
           className={styles.mapActionBtn}
           data-map-action="select-all"
@@ -546,7 +699,24 @@ export const TerritoryMapView = memo(function TerritoryMapView({
           aria-label={UI.selectAllOwn}
           onClick={() => selectAllOwnTerritories()}
         >
-          A
+          <span className={styles.mapActionKey} aria-hidden>
+            A
+          </span>
+          <span className={styles.mapActionLabel}>{UI.selectAllOwn}</span>
+        </button>
+        <button
+          type="button"
+          className={styles.mapActionBtn}
+          data-map-action="select-top"
+          disabled={mapInteractionLocked}
+          title={UI.selectTopOwnTitle}
+          aria-label={UI.selectTopOwn}
+          onClick={() => selectTopOwnTerritoriesByUnits()}
+        >
+          <span className={styles.mapActionKey} aria-hidden>
+            D
+          </span>
+          <span className={styles.mapActionLabel}>{UI.selectTopOwn}</span>
         </button>
         <button
           type="button"
@@ -557,8 +727,14 @@ export const TerritoryMapView = memo(function TerritoryMapView({
           aria-label={UI.stopFire}
           onClick={() => cancelAimAndPending()}
         >
-          S
+          <span className={styles.mapActionKey} aria-hidden>
+            S
+          </span>
+          <span className={styles.mapActionLabel}>{UI.stopFire}</span>
         </button>
+        </div>
+          </div>
+        ) : null}
       </div>
       <svg
         ref={svgRef}
@@ -662,7 +838,7 @@ export const TerritoryMapView = memo(function TerritoryMapView({
       ) : null}
       {territoryDots}
       {aimLines}
-      <LandHitFxLayer map={map} effects={landHitFx} projR={projR} />
+      <LandHitFxLayer effects={landHitFx} projR={projR} />
       <FirstMoveHintLayer
         map={map}
         localPlayerId={localPlayerId}

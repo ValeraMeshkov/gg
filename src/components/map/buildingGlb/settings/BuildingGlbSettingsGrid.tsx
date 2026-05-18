@@ -5,7 +5,6 @@ import {
   isGlbBuildingSkin,
   type GlbBuildingSkinId,
 } from "@/components/map/buildingGlb/catalog";
-import { buildingGlbShortLabel } from "@/components/map/buildingGlb/catalog/buildingGlbShortNames";
 import { getBuildingSpriteDisplayScale } from "@/components/map/buildingGlb/catalog/buildingSpriteDisplayScale";
 import { BuildingSpinSprite } from "@/components/map/buildingGlb/spin/BuildingSpinSprite";
 import { hasBuildingSpinSheet } from "@/components/map/buildingGlb/spin/buildingSpinSheets";
@@ -39,11 +38,6 @@ export function BuildingGlbSettingsGrid({
       onSelect={onBuildingChange}
       scrollRoot={scrollRoot}
       ariaLabel="Здания"
-      getShortLabel={(opt) =>
-        isGlbBuildingSkin(opt.id)
-          ? buildingGlbShortLabel(opt.id as GlbBuildingSkinId)
-          : opt.label
-      }
       hasPreview={(opt) => {
         const skin = opt.id;
         return (

@@ -23,7 +23,7 @@ import {
 import { pendingLaunchFromIndicesForPlayer } from "@/game/projectiles/flightQueue";
 import { type LandHitFx } from "@/game/hitEffects";
 import { shareBarColorForView } from "@/game/playerColors";
-import type { PlayerAppearancesMap } from "@/game/appearance";
+import type { FighterSkinId, PlayerAppearancesMap } from "@/game/appearance";
 import { useRoomSession } from "@/hooks/useRoomSession";
 import {
   createMockSession,
@@ -80,6 +80,9 @@ type GameCanvasProps = {
   offlineBotDifficulty?: number;
   /** Оффлайн: число ботов-соперников (1–5). */
   offlineBotCount?: number;
+  onOfflineBotCountChange?: (value: number) => void;
+  onOfflineBotCountCommit?: (value: number) => void;
+  onOfflineBotDifficultyChange?: (value: number) => void;
   /** Оффлайн: сброс партии после «Новая игра» в сообщении о конце игры. */
   onOfflineNewGame?: () => void;
   /** >0 после «Новая игра» в оффлайне — запускает 3-2-1. */
@@ -95,6 +98,9 @@ export function GameCanvas({
   onRandomMapOnStartChange,
   offlineBotDifficulty,
   offlineBotCount,
+  onOfflineBotCountChange,
+  onOfflineBotCountCommit,
+  onOfflineBotDifficultyChange,
   onOfflineNewGame,
   soloRestartNonce = 0,
 }: GameCanvasProps) {
@@ -490,23 +496,6 @@ export function GameCanvas({
   const settingsPanelContent = useMemo(
     () => (
       <GameSettingsPanel
-        mapId={settingsMapId}
-        onMapIdChange={
-          roomCode ? room.handleRoomMapIdChange : onMapIdChange
-        }
-        mapSelectHint={mapSelectHint}
-        mapCatalogDisabled={
-          Boolean(roomCode && (!room.isHost || room.roomBusy))
-        }
-        randomMapOnStart={
-          roomCode ? room.roomRandomMapOnStart : randomMapOnStart
-        }
-        onRandomMapOnStartChange={
-          roomCode || onRandomMapOnStartChange
-            ? handleRandomMapOnStartChange
-            : undefined
-        }
-        randomMapLabel={roomCode ? UI.randomMapInRoom : undefined}
         displayName={displayName}
         onDisplayNameChange={patchDisplayName}
         fighter={controlledAppearance.fighter}
@@ -525,13 +514,6 @@ export function GameCanvas({
       />
     ),
     [
-      settingsMapId,
-      onMapIdChange,
-      room.handleRoomMapIdChange,
-      mapSelectHint,
-      roomCode,
-      room.isHost,
-      room.roomBusy,
       displayName,
       patchDisplayName,
       controlledAppearance.fighter,
@@ -539,10 +521,6 @@ export function GameCanvas({
       controlledAppearance.displayColor,
       room.patchMyAppearanceRoom,
       patchMyAppearance,
-      room.roomRandomMapOnStart,
-      randomMapOnStart,
-      handleRandomMapOnStartChange,
-      onRandomMapOnStartChange,
       showGoogleSignIn,
       isAuthenticated,
       authUser?.email,
@@ -623,6 +601,17 @@ export function GameCanvas({
       room.matchCountdown,
       cancelPendingAtCell,
     ]
+  );
+
+  const handleFighterChange = useCallback(
+    (fighter: FighterSkinId) => {
+      if (roomCode) {
+        room.patchMyAppearanceRoom({ fighter });
+      } else {
+        patchMyAppearance({ fighter });
+      }
+    },
+    [roomCode, room.patchMyAppearanceRoom, patchMyAppearance]
   );
 
   const handleCancelAllPending = useCallback(() => {
@@ -730,6 +719,40 @@ export function GameCanvas({
             onCancelPendingFrom={handleCancelPendingFrom}
             onCancelAllPending={handleCancelAllPending}
             onMapFlightMetricsChange={onMapFlightMetricsChange}
+            offlineBotCount={
+              roomCode ? undefined : offlineBotCount
+            }
+            onOfflineBotCountChange={
+              roomCode ? undefined : onOfflineBotCountChange
+            }
+            onOfflineBotCountCommit={
+              roomCode ? undefined : onOfflineBotCountCommit
+            }
+            offlineBotDifficulty={
+              roomCode ? undefined : offlineBotDifficulty
+            }
+            onOfflineBotDifficultyChange={
+              roomCode ? undefined : onOfflineBotDifficultyChange
+            }
+            fighter={controlledAppearance.fighter}
+            onFighterChange={handleFighterChange}
+            mapId={settingsMapId}
+            onMapIdChange={
+              roomCode ? room.handleRoomMapIdChange : onMapIdChange
+            }
+            mapSelectHint={mapSelectHint}
+            mapCatalogDisabled={Boolean(
+              roomCode && (!room.isHost || room.roomBusy)
+            )}
+            randomMapOnStart={
+              roomCode ? room.roomRandomMapOnStart : randomMapOnStart
+            }
+            onRandomMapOnStartChange={
+              roomCode || onRandomMapOnStartChange
+                ? handleRandomMapOnStartChange
+                : undefined
+            }
+            randomMapLabel={roomCode ? UI.randomMapInRoom : undefined}
           />
         </div>
         {room.matchCountdown !== null ? (

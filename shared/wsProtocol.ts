@@ -81,7 +81,11 @@ export type WsServerMessage =
       type: "projectile_collision";
       destroyed: readonly { attackId: string; simIndex: number }[];
       /** Точки взрыва (середина между пулями), по одной на каждую пару столкновений. */
-      explosions?: readonly { x: number; y: number }[];
+      explosions?: readonly {
+        x: number;
+        y: number;
+        weapon?: string;
+      }[];
     }
   | {
       type: "game_reset";

@@ -1,6 +1,10 @@
 import { memo, type MutableRefObject, type RefObject } from "react";
 import type { MapProjectilesCanvasHandle } from "@/components/map";
-import type { DisplayColorId, PlayerAppearancesMap } from "@/game/appearance";
+import type {
+  DisplayColorId,
+  FighterSkinId,
+  PlayerAppearancesMap,
+} from "@/game/appearance";
 import type { LandHitFx } from "@/game/hitEffects";
 import type { GameMap, MapCell } from "@/game/maps";
 import { TerritoryMapView } from "./TerritoryMapView";
@@ -17,7 +21,7 @@ export type MapViewProps = {
   landHitFx?: readonly LandHitFx[];
   onCommitAttacks: (froms: readonly CellPos[], to: CellPos) => void;
   onCancelPendingFrom?: (cell: CellPos) => void;
-  /** S — снять все ещё не вылетевшие залпы со своих точек. */
+  /** D — своя точка с макс. запасом; S — снять все ещё не вылетевшие залпы. */
   onCancelAllPending?: () => void;
   syncMapLayout?: boolean;
   /** Подсказка первого хода: рука от своей точки к ближайшей цели. */
@@ -28,6 +32,20 @@ export type MapViewProps = {
     meetScale: number;
     dotRadius: number;
   }) => void;
+  offlineBotCount?: number;
+  onOfflineBotCountChange?: (value: number) => void;
+  onOfflineBotCountCommit?: (value: number) => void;
+  offlineBotDifficulty?: number;
+  onOfflineBotDifficultyChange?: (value: number) => void;
+  fighter: FighterSkinId;
+  onFighterChange: (fighter: FighterSkinId) => void;
+  mapId: string;
+  onMapIdChange: (mapId: string) => void;
+  mapSelectHint?: string;
+  mapCatalogDisabled?: boolean;
+  randomMapOnStart?: boolean;
+  onRandomMapOnStartChange?: (value: boolean) => void;
+  randomMapLabel?: string;
 };
 
 export const MapView = memo(function MapView(props: MapViewProps) {

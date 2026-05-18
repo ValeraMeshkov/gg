@@ -3,14 +3,10 @@ import {
   type DisplayColorId,
   type FighterSkinId,
 } from "@/game/appearance";
-import { MapCatalogSelect } from "@/components/settings/MapCatalogSelect";
 import { PlayerAppearanceSelect } from "@/components/settings/PlayerAppearanceSelect";
 import styles from "./GameSettingsPanel.module.scss";
 
 export type GameSettingsPanelProps = {
-  mapId: string;
-  onMapIdChange: (mapId: string) => void;
-  mapSelectHint?: string;
   /** Сырое имя в профиле (до 32 симв.); пустое — подпись «Игрок N». */
   displayName: string;
   onDisplayNameChange: (value: string) => void;
@@ -20,13 +16,6 @@ export type GameSettingsPanelProps = {
   onFighterChange: (skin: FighterSkinId) => void;
   onBuildingChange: (skin: BuildingSkinId) => void;
   onDisplayColorChange: (color: DisplayColorId) => void;
-  /** В комнате только хост меняет карту следующей партии. */
-  mapCatalogDisabled?: boolean;
-  /** Чекбокс «случайная карта». */
-  randomMapOnStart?: boolean;
-  onRandomMapOnStartChange?: (value: boolean) => void;
-  /** Подпись чекбокса (оффлайн / комната). */
-  randomMapLabel?: string;
   /** Аккаунт Google (вход / email). */
   accountEmail?: string | null;
   onGoogleSignIn?: () => void;
@@ -34,9 +23,6 @@ export type GameSettingsPanelProps = {
 };
 
 export function GameSettingsPanel({
-  mapId,
-  onMapIdChange,
-  mapSelectHint,
   displayName,
   onDisplayNameChange,
   fighter,
@@ -45,17 +31,10 @@ export function GameSettingsPanel({
   onFighterChange,
   onBuildingChange,
   onDisplayColorChange,
-  mapCatalogDisabled = false,
-  randomMapOnStart,
-  onRandomMapOnStartChange,
-  randomMapLabel = "Случайная карта",
   accountEmail,
   onGoogleSignIn,
   googleSignInHint,
 }: GameSettingsPanelProps) {
-  const showRandomMap =
-    randomMapOnStart != null && onRandomMapOnStartChange != null;
-
   return (
     <>
       {onGoogleSignIn || accountEmail ? (
@@ -105,39 +84,6 @@ export function GameSettingsPanel({
           onBuildingChange={onBuildingChange}
           onDisplayColorChange={onDisplayColorChange}
         />
-      </div>
-
-      <div className={styles.section}>
-        <h3 className={styles.sectionTitle}>Карта</h3>
-        <div className={styles.mapRow}>
-          <div className={styles.mapSelectCol}>
-            <MapCatalogSelect
-              mapId={mapId}
-              onMapIdChange={onMapIdChange}
-              hint={mapSelectHint}
-              showLabel={false}
-              disabled={mapCatalogDisabled}
-              size="large"
-            />
-          </div>
-          {showRandomMap ? (
-            <label
-              className={`${styles.mapRandomCheck}${
-                mapCatalogDisabled ? ` ${styles.mapRandomCheckDisabled}` : ""
-              }`}
-              title={randomMapLabel}
-            >
-              <input
-                type="checkbox"
-                className={styles.mapRandomCheckInput}
-                checked={randomMapOnStart}
-                disabled={mapCatalogDisabled}
-                onChange={(e) => onRandomMapOnStartChange(e.target.checked)}
-              />
-              <span className={styles.mapRandomCheckLabel}>{randomMapLabel}</span>
-            </label>
-          ) : null}
-        </div>
       </div>
     </>
   );

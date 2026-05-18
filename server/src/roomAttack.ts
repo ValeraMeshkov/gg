@@ -20,7 +20,12 @@ import {
   projectileCountForLaunchBudget,
   reservedLaunchPower,
 } from "@/shared/launchPower.js";
-import { weaponStatsForFighter } from "@/shared/weaponStats.js";
+import { pickCollisionExplosionWeapon } from "@/shared/fighterExplosionFx.js";
+import {
+  weaponStatsForFighter,
+  type AttackAnimationId,
+  type WeaponId,
+} from "@/shared/weaponStats.js";
 import type { FighterSkinId } from "./skins.js";
 import type { SyncCell } from "@/shared/wsProtocol.js";
 import { enqueueRoomCellUpdate } from "./cellUpdateQueue.js";
@@ -31,6 +36,7 @@ type PendingSim = {
   releaseWave: number;
   path: ProjectilePath;
   power: number;
+  attackAnimation: AttackAnimationId;
   spawnApplied: boolean;
   landApplied: boolean;
   destroyed: boolean;
@@ -41,6 +47,7 @@ type PendingFlight = {
   attackerId: string;
   fromIndex: number;
   toIndex: number;
+  weaponId: WeaponId;
   sims: PendingSim[];
   waveSpawnTimers: Map<number, NodeJS.Timeout>;
   simLandTimers: Map<number, NodeJS.Timeout>;
@@ -51,7 +58,11 @@ export type ProjectileCollisionDestroy = {
   simIndex: number;
 };
 
-export type ProjectileCollisionExplosion = { x: number; y: number };
+export type ProjectileCollisionExplosion = {
+  x: number;
+  y: number;
+  weapon: AttackAnimationId;
+};
 
 const pendingByRoom = new Map<string, PendingFlight[]>();
 const collisionLoops = new Map<string, NodeJS.Timeout>();
@@ -228,7 +239,22 @@ function tickProjectileCollisions(key: string): void {
         (aDestroyed || bDestroyed) &&
         projectileCollisionShowsExplosion(idA, idB)
       ) {
-        explosionsBroadcast.push({ x: bx, y: by });
+        explosionsBroadcast.push({
+          x: bx,
+          y: by,
+          weapon: pickCollisionExplosionWeapon(
+            {
+              attackAnimation: slotA.attackAnimation,
+              power: slotA.power,
+              id: idA,
+            },
+            {
+              attackAnimation: slotB.attackAnimation,
+              power: slotB.power,
+              id: idB,
+            }
+          ),
+        });
       }
 
       if (aDestroyed && !slotA.destroyed) {
@@ -436,6 +462,7 @@ export function processAttack(
       attackerId,
       fromIndex,
       toIndex,
+      weaponId: weapon.id,
       sims: plan.sims.map((sim) => ({
         releaseWave: sim.releaseWave,
         path: {
@@ -449,6 +476,7 @@ export function processAttack(
           arcPerpY: sim.arcPerpY,
         },
         power: sim.power,
+        attackAnimation: weapon.id,
         spawnApplied: false,
         landApplied: false,
         destroyed: false,

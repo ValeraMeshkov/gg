@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "maps:extract": "node scripts/extract-world-maps.mjs",
+    "maps:extract-world": "node scripts/extract-world-large-map.mjs",
     "maps:apply-layout": "node scripts/write-dot-layout.mjs",
     "glb:optimize": "node scripts/optimize-glb-buildings.mjs",
     "glb:bake-spin": "node scripts/bake-building-spin-sheets.mjs",

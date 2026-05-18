@@ -5,28 +5,149 @@
   overflow: visible;
 }
 
-.mapActionBar {
-  position: absolute;
-  left: 10px;
-  bottom: 10px;
-  z-index: 12;
+/* Фиксировано у левого края окна, не у края вписанной карты. */
+.mapSideBar {
+  position: fixed;
+  left: max(8px, env(safe-area-inset-left, 0px));
+  bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  z-index: 55;
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  gap: 8px;
+  width: 240px;
+  max-height: min(88dvh, 720px);
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(26, 58, 92, 0.12);
+  box-shadow: 0 4px 20px rgba(20, 35, 60, 0.14);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   pointer-events: auto;
+  backdrop-filter: blur(8px);
+  transition: width 0.2s ease, padding 0.2s ease;
+}
+
+.mapSideBarCollapsed {
+  width: 40px;
+  max-height: none;
+  padding: 6px;
+  gap: 0;
+  overflow: hidden;
+}
+
+.mapSideBarHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.mapSideBarHeaderText {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mapSideBarSectionTitle {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #6a758c;
+}
+
+.mapSideBarSectionHint {
+  margin: 2px 0 0;
+  font-size: 0.65rem;
+  line-height: 1.25;
+  color: #6a758c;
+}
+
+.mapSideBarCollapsed .mapSideBarHeader {
+  justify-content: center;
+}
+
+.mapSideBarToggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(26, 58, 92, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #3d4f6a;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(20, 35, 60, 0.1);
+
+  &:hover {
+    background: #fff;
+    border-color: rgba(42, 107, 184, 0.45);
+    color: #1a4a8a;
+  }
+}
+
+.mapSideBarToggleIcon {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.mapSideBarBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mapSideControls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mapSideControl {
+  width: 100% !important;
+  box-shadow: 0 2px 8px rgba(20, 35, 60, 0.1);
+
+  input[type="range"] {
+    height: 22px;
+    touch-action: none;
+  }
+}
+
+.mapActionGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mapActionGroupTitle {
+  margin: 0;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+  color: #6a758c;
+  text-transform: uppercase;
 }
 
 .mapActionBtn {
   box-sizing: border-box;
-  min-width: 36px;
-  height: 36px;
-  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 10px 6px 6px;
   border: 2px solid rgba(20, 35, 60, 0.14);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.92);
   color: #1a2a44;
-  font-size: 0.95rem;
-  font-weight: 800;
-  line-height: 1;
+  text-align: left;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(20, 35, 60, 0.12);
   backdrop-filter: blur(4px);
@@ -40,6 +161,31 @@
     opacity: 0.45;
     cursor: not-allowed;
   }
+}
+
+.mapActionKey {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  border: 1px solid rgba(26, 58, 92, 0.22);
+  background: #eef2f8;
+  color: #1a2a44;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 1px 3px rgba(20, 35, 60, 0.1);
+}
+
+.mapActionLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .svg {

@@ -4,8 +4,6 @@ import { writeAppRoute, inviteHref, type AppRoute } from "@/appUrl";
 import { UI } from "@/constants/uiStrings";
 import { useAuth } from "@/context/AuthContext";
 import { useGameShell } from "@/context/GameShellContext";
-import { OfflineBotCountControl } from "@/components/settings/OfflineBotCountControl";
-import { OfflineBotDifficultyControl } from "@/components/settings/OfflineBotDifficultyControl";
 import { PlayerShareBar } from "@/components/settings/PlayerShareBar";
 import styles from "./AppGameChrome.module.scss";
 
@@ -17,12 +15,6 @@ type AppGameChromeProps = {
   onCreateRoom: () => void;
   /** Одиночная игра: сброс партии без смены карты. */
   onNewSoloGame?: () => void;
-  /** Одиночная игра: сложность ботов в хедере. */
-  offlineBotDifficulty?: number;
-  onOfflineBotDifficultyChange?: (value: number) => void;
-  /** Одиночная игра: число ботов (1–5). */
-  offlineBotCount?: number;
-  onOfflineBotCountChange?: (value: number) => void;
 };
 
 export function AppGameChrome({
@@ -32,10 +24,6 @@ export function AppGameChrome({
   createError,
   onCreateRoom,
   onNewSoloGame,
-  offlineBotDifficulty,
-  onOfflineBotDifficultyChange,
-  offlineBotCount,
-  onOfflineBotCountChange,
 }: AppGameChromeProps) {
   const inRoom = Boolean(route.roomCode);
   const {
@@ -113,6 +101,18 @@ export function AppGameChrome({
             >
               Home
             </button>
+            {!inRoom && onNewSoloGame ? (
+              <button
+                type="button"
+                className={styles.newGameBtn}
+                onClick={() => {
+                  setSettingsOpen(false);
+                  onNewSoloGame();
+                }}
+              >
+                {UI.newGame}
+              </button>
+            ) : null}
             {showGoogleSignIn ? (
               <button
                 type="button"
@@ -128,21 +128,12 @@ export function AppGameChrome({
               </span>
             ) : null}
           </div>
-          {!inRoom &&
-          offlineBotCount != null &&
-          onOfflineBotCountChange &&
-          offlineBotDifficulty != null &&
-          onOfflineBotDifficultyChange ? (
-            <div className={styles.headerSoloControls}>
-              <OfflineBotCountControl
-                className={styles.headerSoloControlItem}
-                value={offlineBotCount}
-                onChange={onOfflineBotCountChange}
-              />
-              <OfflineBotDifficultyControl
-                className={styles.headerSoloControlItem}
-                value={offlineBotDifficulty}
-                onChange={onOfflineBotDifficultyChange}
+          {shareBar && shareBar.players.length > 0 ? (
+            <div className={styles.headerShareBar}>
+              <PlayerShareBar
+                players={shareBar.players}
+                activePlayerId={shareBar.activePlayerId}
+                readOnly
               />
             </div>
           ) : null}
@@ -168,28 +159,14 @@ export function AppGameChrome({
                 ) : null}
               </>
             ) : (
-              <>
-                {onNewSoloGame ? (
-                  <button
-                    type="button"
-                    className={styles.newGameBtn}
-                    onClick={() => {
-                      setSettingsOpen(false);
-                      onNewSoloGame();
-                    }}
-                  >
-                    {UI.newGame}
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className={styles.createRoomBtn}
-                  disabled={createBusy}
-                  onClick={() => void onCreateRoom()}
-                >
-                  {createBusy ? UI.creatingRoom : UI.createRoom}
-                </button>
-              </>
+              <button
+                type="button"
+                className={styles.createRoomBtn}
+                disabled={createBusy}
+                onClick={() => void onCreateRoom()}
+              >
+                {createBusy ? UI.creatingRoom : UI.createRoom}
+              </button>
             )}
             <button
               type="button"
@@ -201,15 +178,6 @@ export function AppGameChrome({
             </button>
           </div>
         </div>
-        {shareBar && shareBar.players.length > 0 ? (
-          <div className={styles.shareBarSlot}>
-            <PlayerShareBar
-              players={shareBar.players}
-              activePlayerId={shareBar.activePlayerId}
-              readOnly
-            />
-          </div>
-        ) : null}
       </header>
       {!inRoom && createError ? (
         <p className={styles.createRoomError}>{createError}</p>

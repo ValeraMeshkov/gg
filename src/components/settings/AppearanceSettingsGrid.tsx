@@ -16,7 +16,6 @@ export type AppearanceSettingsGridProps<T extends string> = {
   onSelect: (id: T) => void;
   scrollRoot: HTMLElement | null;
   ariaLabel: string;
-  getShortLabel: (opt: SkinOption<T>) => string;
   renderPreview: (ctx: AppearanceSettingsPreviewProps<T>) => ReactNode;
   /** false — кнопка с плейсхолдером (здание без спрайта). */
   hasPreview?: (opt: SkinOption<T>) => boolean;
@@ -47,7 +46,6 @@ function AppearanceSettingsCell<T extends string>({
   selected,
   onSelect,
   scrollRoot,
-  shortLabel,
   previewSize,
   hasPreview,
   renderPreview,
@@ -56,7 +54,6 @@ function AppearanceSettingsCell<T extends string>({
   selected: boolean;
   onSelect: () => void;
   scrollRoot: HTMLElement | null;
-  shortLabel: string;
   previewSize: number;
   hasPreview: (opt: SkinOption<T>) => boolean;
   renderPreview: (ctx: AppearanceSettingsPreviewProps<T>) => ReactNode;
@@ -84,6 +81,7 @@ function AppearanceSettingsCell<T extends string>({
         }`}
         onClick={onSelect}
         aria-label={opt.label}
+        title={opt.label}
       >
         {showPreview ? (
           <div
@@ -96,9 +94,6 @@ function AppearanceSettingsCell<T extends string>({
           <span className={styles.buildingPreviewPlaceholder} aria-hidden />
         )}
       </button>
-      <span className={styles.buildingGlbShortLabel} title={opt.label}>
-        {shortLabel}
-      </span>
     </div>
   );
 }
@@ -110,7 +105,6 @@ export function AppearanceSettingsGrid<T extends string>({
   onSelect,
   scrollRoot,
   ariaLabel,
-  getShortLabel,
   renderPreview,
   hasPreview = () => true,
   previewSize = SETTINGS_BUILDING_PREVIEW_PX,
@@ -124,7 +118,6 @@ export function AppearanceSettingsGrid<T extends string>({
           selected={selected === opt.id}
           onSelect={() => onSelect(opt.id)}
           scrollRoot={scrollRoot}
-          shortLabel={getShortLabel(opt)}
           previewSize={previewSize}
           hasPreview={hasPreview}
           renderPreview={renderPreview}

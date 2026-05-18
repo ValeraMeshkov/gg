@@ -1,5 +1,9 @@
 import { CELL } from "./constants.js";
-import { clampCellUnits, readCellUnits } from "./cellUnits.js";
+import {
+  addUnitsToFriendlyCell,
+  clampCellUnits,
+  readCellUnits,
+} from "./cellUnits.js";
 
 /** Минимальные поля клетки для расчёта попадания снаряда. */
 export type CombatCell = {
@@ -38,7 +42,7 @@ export function applyLandHitWithPower<T extends CombatCell>(
 
   if (cell.ownerId === attackerId) {
     const current = readCellUnits(cell);
-    const next = clampCellUnits(current + hitPower, attackerId);
+    const next = addUnitsToFriendlyCell(current, hitPower);
     if (next === current) return pauseCellGrowth(cell, nowMs);
     return pauseCellGrowth({ ...cell, units: next }, nowMs);
   }

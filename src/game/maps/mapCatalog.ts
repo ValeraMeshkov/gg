@@ -21,6 +21,7 @@ export const MAP_CATALOG: readonly MapCatalogEntry[] = [
   { number: 4, id: MAP_ID.AFRICA, name: "Африка" },
   { number: 5, id: MAP_ID.ASIA, name: "Азия" },
   { number: 6, id: MAP_ID.OCEANIA, name: "Океания" },
+  { number: 7, id: MAP_ID.WORLD_LARGE, name: "Мир" },
 ] as const;
 
 export function getMapCatalogEntry(mapId: string): MapCatalogEntry | undefined {

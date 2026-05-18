@@ -16,7 +16,7 @@ export type SkinOption<T extends string> = {
 export const FIGHTER_SKIN_OPTIONS: readonly SkinOption<FighterSkinId>[] =
   FIGHTER_SKINS.map((id) => ({ id, label: FIGHTER_SKIN_LABELS[id] }));
 
-/** Бойцы в настройках (3D-оружие в полёте). */
+/** Оружие в боковой панели (3D-спрайты в полёте). */
 export const SETTINGS_FIGHTER_SKINS = WEAPON_FIGHTER_SKINS;
 
 export type SettingsFighterSkinId = (typeof SETTINGS_FIGHTER_SKINS)[number];

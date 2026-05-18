@@ -1,0 +1,56 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.title {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #6a758c;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.65rem;
+  line-height: 1.25;
+  color: #6a758c;
+}
+
+.randomCheck {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(26, 58, 92, 0.18);
+  background: rgba(255, 255, 255, 0.94);
+  cursor: pointer;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(20, 35, 60, 0.08);
+}
+
+.randomCheckDisabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.randomCheckInput {
+  margin: 0;
+  flex-shrink: 0;
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: #2a6bb8;
+  cursor: inherit;
+}
+
+.randomCheckLabel {
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #1a2740;
+}
