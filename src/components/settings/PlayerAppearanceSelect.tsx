@@ -1,8 +1,9 @@
 import { useEffect, useState, type RefCallback } from "react";
 import {
   DISPLAY_COLOR_OPTIONS,
-  FIGHTER_SKIN_OPTIONS,
   getBuildingSkinOptions,
+  getFighterSkinOptions,
+  fighterSkinShortLabel,
   type BuildingSkinId,
   type DisplayColorId,
   type FighterSkinId,
@@ -11,8 +12,9 @@ import {
   BuildingGlbSettingsGrid,
   GLB_BUILDING_VISIBILITY_CHANGE_EVENT,
 } from "@/components/map/buildingGlb";
+import { AppearanceSettingsGrid } from "@/components/settings/AppearanceSettingsGrid";
+import { FighterSettingsPreview } from "@/components/settings/FighterSettingsPreview";
 import { DEFAULT_BUILDING_SKIN } from "@/shared/skinIds";
-import { SkinPreviewIcon } from "@/components/map";
 import styles from "./PlayerAppearanceSelect.module.scss";
 
 type PlayerAppearanceSelectProps = {
@@ -35,10 +37,16 @@ export function PlayerAppearanceSelect({
   const [buildingOptions, setBuildingOptions] = useState(
     getBuildingSkinOptions
   );
+  const fighterOptions = getFighterSkinOptions();
   const [buildingsScrollRoot, setBuildingsScrollRoot] =
+    useState<HTMLDivElement | null>(null);
+  const [fightersScrollRoot, setFightersScrollRoot] =
     useState<HTMLDivElement | null>(null);
   const buildingsViewportRef: RefCallback<HTMLDivElement> = (node) => {
     setBuildingsScrollRoot(node);
+  };
+  const fightersViewportRef: RefCallback<HTMLDivElement> = (node) => {
+    setFightersScrollRoot(node);
   };
 
   useEffect(() => {
@@ -53,6 +61,12 @@ export function PlayerAppearanceSelect({
     const fallback = buildingOptions[0]?.id ?? DEFAULT_BUILDING_SKIN;
     if (fallback !== building) onBuildingChange(fallback);
   }, [building, buildingOptions, onBuildingChange]);
+
+  useEffect(() => {
+    if (fighterOptions.some((o) => o.id === fighter)) return;
+    const fallback = fighterOptions[0]?.id ?? "bomb";
+    if (fallback !== fighter) onFighterChange(fallback);
+  }, [fighter, fighterOptions, onFighterChange]);
 
   return (
     <div className={styles.root}>
@@ -84,9 +98,8 @@ export function PlayerAppearanceSelect({
         <div
           ref={buildingsViewportRef}
           className={styles.buildingsViewport}
-          data-buildings-settings-viewport=""
-          role="radiogroup"
-          aria-label="Здания"
+          data-appearance-settings-viewport=""
+          role="presentation"
         >
           <BuildingGlbSettingsGrid
             options={buildingOptions}
@@ -99,25 +112,27 @@ export function PlayerAppearanceSelect({
 
       <div className={styles.rowBlock}>
         <p className={styles.rowLabel}>Бойцы</p>
-        <div className={styles.cubeRow} role="radiogroup" aria-label="Бойцы">
-          {FIGHTER_SKIN_OPTIONS.map((opt) => {
-            const selected = fighter === opt.id;
-            return (
-              <button
-                key={opt.id}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                className={`${styles.cube} ${styles.cubeSkin}${
-                  selected ? ` ${styles.cubeSelected}` : ""
-                }`}
-                onClick={() => onFighterChange(opt.id)}
-                aria-label={opt.label}
-              >
-                <SkinPreviewIcon kind="fighter" skin={opt.id} size={42} />
-              </button>
-            );
-          })}
+        <div
+          ref={fightersViewportRef}
+          className={styles.buildingsViewport}
+          data-appearance-settings-viewport=""
+          role="presentation"
+        >
+          <AppearanceSettingsGrid
+            options={fighterOptions}
+            selected={fighter}
+            onSelect={onFighterChange}
+            scrollRoot={fightersScrollRoot}
+            ariaLabel="Бойцы"
+            getShortLabel={(opt) => fighterSkinShortLabel(opt.id)}
+            renderPreview={({ opt, visible, size }) => (
+              <FighterSettingsPreview
+                fighter={opt.id}
+                size={size}
+                animated={visible}
+              />
+            )}
+          />
         </div>
       </div>
     </div>

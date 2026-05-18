@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { isPlayerAliveInMatch } from "@/game/scoring/matchElimination";
 import styles from "./PlayerShareBar.module.scss";
 
 export type PlayerShareBarEntry = {
@@ -25,10 +26,13 @@ export function PlayerShareBar({
   readOnly = false,
   onSelectPlayer,
 }: PlayerShareBarProps) {
-  const alive = players.filter((p) => p.score > 0);
-  const total = alive.reduce((sum, p) => sum + p.score, 0);
+  /** Выбывшие (−1) и «живые» с 0 очков не занимают долю полосы. */
+  const inBar = players.filter(
+    (p) => isPlayerAliveInMatch(p.score) && p.score > 0
+  );
+  const total = inBar.reduce((sum, p) => sum + p.score, 0);
 
-  if (alive.length === 0) {
+  if (inBar.length === 0) {
     return (
       <div
         className={styles.bar}
@@ -45,7 +49,7 @@ export function PlayerShareBar({
       role="group"
       aria-label="Доля игроков и выбор под управлением"
     >
-      {alive.map((player) => {
+      {inBar.map((player) => {
         const isActive = player.id === activePlayerId;
         const flexGrow = player.score;
         const sharePct =
@@ -77,7 +81,8 @@ export function PlayerShareBar({
         ) : null;
 
         const segmentStyle: CSSProperties = {
-          flexGrow,
+          flex: `${flexGrow} 1 0`,
+          minWidth: 0,
           ...(player.barBackground ? { background: player.barBackground } : {}),
         };
         const dataPlayer = player.barBackground

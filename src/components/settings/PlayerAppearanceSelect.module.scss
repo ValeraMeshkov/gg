@@ -54,8 +54,9 @@
 }
 
 .cubeBuilding {
-  width: 96px;
-  height: 96px;
+  width: 88px;
+  height: 88px;
+  overflow: hidden;
 }
 
 .buildingsViewport {
@@ -75,8 +76,8 @@
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: flex-end;
-  gap: 8px;
-  padding: 4px 4px 6px;
+  gap: 6px;
+  padding: 4px 6px 6px;
   width: max-content;
   box-sizing: border-box;
 }
@@ -90,7 +91,7 @@
 }
 
 .buildingGlbShortLabel {
-  max-width: 96px;
+  max-width: 88px;
   font-size: 0.62rem;
   font-weight: 600;
   line-height: 1.1;
@@ -112,21 +113,13 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  overflow: visible;
-}
-
-.buildingsGrid .cubeBuilding {
-  overflow: visible;
-}
-
-.buildingsGrid .buildingGlbSettingsPreview > div {
-  flex-shrink: 0;
+  overflow: hidden;
 }
 
 .buildingPreviewPlaceholder {
   display: block;
-  width: 96px;
-  height: 96px;
+  width: 88px;
+  height: 88px;
   flex-shrink: 0;
 }
 

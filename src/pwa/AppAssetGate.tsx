@@ -48,7 +48,7 @@ export function AppAssetGate({ children }: AppAssetGateProps): ReactElement {
   const [progress, setProgress] = useState<PreloadProgress>({
     loaded: 0,
     total: 1,
-    phase: UI.preloadBoot,
+    phase: UI.preloadGame,
   });
 
   useEffect(() => {

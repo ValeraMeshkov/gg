@@ -31,22 +31,22 @@ export const OFFLINE_MOCK_BOT_APPEARANCES = [
     displayColor: "red",
   },
   {
-    fighter: "shield",
+    fighter: "poison",
     building: OFFLINE_BOT_BUILDINGS[1],
     displayColor: "green",
   },
   {
-    fighter: "star",
+    fighter: "potion",
     building: OFFLINE_BOT_BUILDINGS[2],
     displayColor: "orange",
   },
   {
-    fighter: "rocket",
+    fighter: "dagger",
     building: OFFLINE_BOT_BUILDINGS[3],
     displayColor: "violet",
   },
   {
-    fighter: "bear",
+    fighter: "bomb",
     building: OFFLINE_BOT_BUILDINGS[4],
     displayColor: "gold",
   },

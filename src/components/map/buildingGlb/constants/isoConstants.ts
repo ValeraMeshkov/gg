@@ -9,8 +9,8 @@ export const PREVIEW_BOUNDS_MARGIN =
 export const SPIN_BOUNDS_MARGIN = PREVIEW_BOUNDS_MARGIN * 1.55;
 export const PREVIEW_CAMERA_ZOOM = 17 * PREVIEW_SETTINGS_SCALE;
 
-/** Размер квадрата превью в настройках (PlayerAppearanceSelect). */
-export const SETTINGS_BUILDING_PREVIEW_PX = 130;
+/** Размер квадрата превью в настройках (здания и бойцы). */
+export const SETTINGS_BUILDING_PREVIEW_PX = 88;
 
 /** Эталон для расчёта размера пина на карте (не менять с кнопкой настроек). */
 export const MAP_PIN_REFERENCE_PX = 84;
@@ -25,7 +25,7 @@ export const MAP_PREVIEW_MODEL_BOOST = 1.2;
  * Множитель размера viewport пина на карте (84px × MAP_PIN_SIZE).
  * 1.0 — базовый эталон, меньше — компактнее на точке.
  */
-export const MAP_PIN_SIZE = 1.15;
+export const MAP_PIN_SIZE = 0.92;
 
 export const MAP_PIN_OFFSET_Y_PX = -10;
 
@@ -33,11 +33,11 @@ export const MAP_PIN_OFFSET_Y_PX = -10;
  * Общий множитель размера спрайта на карте (см. MapGlbPins).
  * 1 — крупно, 0.7 — компактно (эталон под 160px bake).
  */
-export const MAP_SPIN_SPRITE_DISPLAY_SCALE = 0.9;
+export const MAP_SPIN_SPRITE_DISPLAY_SCALE = 0.78;
 
 /**
  * mapPinScale — buildingGlbCatalog.ts (запекание, npm run glb:bake-spin)
- * BUILDING_SPRITE_DISPLAY_SCALE — buildingSpriteDisplayScale.ts (карта и настройки)
+ * BUILDING_SPRITE_DISPLAY_SCALE — buildingSpriteDisplayScale.ts (карта)
  */
 export { GLB_MAP_PIN_SCALE } from "@/components/map/buildingGlb/catalog/buildingGlbCatalog";
 

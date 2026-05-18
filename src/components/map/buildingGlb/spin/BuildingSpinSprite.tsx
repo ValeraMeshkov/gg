@@ -1,6 +1,9 @@
 import { memo, useMemo, type CSSProperties, type ReactElement } from "react";
 import type { GlbBuildingSkinId } from "@/components/map/buildingGlb/catalog/buildingGlbCatalog";
-import { getBuildingSpriteDisplayScale } from "@/components/map/buildingGlb/catalog/buildingSpriteDisplayScale";
+import {
+  getBuildingSpriteDisplayScale,
+  getSpinSheetDisplayRotationRad,
+} from "@/components/map/buildingGlb/catalog/buildingSpriteDisplayScale";
 import { SPIN_SHEET_FRAMES } from "./buildingSpinSheetConstants";
 import {
   getBuildingSpinSheetUrl,
@@ -20,6 +23,8 @@ type BuildingSpinSpriteProps = {
   displayScale?: number;
   /** false — первый кадр без подписки на rAF (для невидимых плиток). */
   animated?: boolean;
+  /** Скорость вращения; 1 = эталон (здания по умолчанию). */
+  spinSpeed?: number;
 };
 
 function BuildingSpinSpriteInner({
@@ -28,10 +33,12 @@ function BuildingSpinSpriteInner({
   phaseKey,
   displayScale,
   animated = true,
+  spinSpeed = 1,
 }: BuildingSpinSpriteProps): ReactElement | null {
   const scale = displayScale ?? getBuildingSpriteDisplayScale(skin);
+  const rotationRad = getSpinSheetDisplayRotationRad(skin);
   const sheetUrl = getBuildingSpinSheetUrl(skin);
-  const spinFrame = useMapSpinFrame(animated);
+  const spinFrame = useMapSpinFrame(animated, spinSpeed);
   const phaseOffset = useMemo(
     () => spinPhaseOffsetFromKey(phaseKey, SPIN_SHEET_FRAMES),
     [phaseKey]
@@ -49,11 +56,21 @@ function BuildingSpinSpriteInner({
       backgroundSize: `${SPIN_SHEET_FRAMES * size}px ${size}px`,
       backgroundPosition: `${-offsetPx}px 0px`,
       backgroundRepeat: "no-repeat",
-      ...(scale !== 1
-        ? { transform: `scale(${scale})`, transformOrigin: "center center" }
+      ...(scale !== 1 || rotationRad !== 0
+        ? {
+            transform: [
+              rotationRad !== 0
+                ? `rotate(${(rotationRad * 180) / Math.PI}deg)`
+                : "",
+              scale !== 1 ? `scale(${scale})` : "",
+            ]
+              .filter(Boolean)
+              .join(" "),
+            transformOrigin: "center center",
+          }
         : {}),
     };
-  }, [sheetUrl, size, scale, spinFrame, phaseOffset]);
+  }, [sheetUrl, size, scale, rotationRad, spinFrame, phaseOffset]);
 
   if (!sheetUrl || !hasBuildingSpinSheet(skin)) {
     return null;

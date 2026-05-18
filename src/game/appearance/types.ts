@@ -21,7 +21,7 @@ export type PlayerAppearance = {
 };
 
 export const DEFAULT_PLAYER_APPEARANCE: PlayerAppearance = {
-  fighter: "triangle",
+  fighter: "dagger",
   building: DEFAULT_BUILDING_SKIN,
   displayColor: "blue",
 };

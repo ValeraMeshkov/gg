@@ -1,12 +1,14 @@
-import { getBuildingSpriteDisplayScale } from "@/components/map/buildingGlb/catalog/buildingSpriteDisplayScale";
+import { getSpinSheetFlightRotationRad } from "@/components/map/buildingGlb/catalog/buildingSpriteDisplayScale";
 import type { GlbBuildingSkinId } from "@/components/map/buildingGlb/catalog/buildingGlbCatalog";
 import { getBuildingSpinSheetUrl } from "@/components/map/buildingGlb/spin/buildingSpinSheets";
 import {
   SPIN_SHEET_FRAME_PX,
   SPIN_SHEET_FRAMES,
 } from "@/components/map/buildingGlb/spin/buildingSpinSheetConstants";
-import { mapSpinFrameIndexAt } from "@/components/map/buildingGlb/spin/useMapSpinFrame";
+import { spinFrameIndexAt } from "@/components/map/buildingGlb/spin/useMapSpinFrame";
 import { spinPhaseOffsetFromKey } from "@/components/map/buildingGlb/spin/spinPhaseOffset";
+import { weaponStatsById, type WeaponId } from "@/shared/weaponStats";
+import { projectileSpinDrawHalfSize } from "./projectileDrawExtents";
 import { allProjectileSpinSheetUrls } from "./fighterSkinToSpinSheet";
 
 const sheetImages = new Map<string, HTMLImageElement>();
@@ -40,32 +42,39 @@ export function drawProjectileSpinSheetOnCanvas(
   mapX: number,
   mapY: number,
   projR: number,
-  phaseKey: string
+  flightAngle: number,
+  phaseKey: string,
+  attackAnimation: WeaponId
 ): boolean {
   const url = getBuildingSpinSheetUrl(buildingSkin);
   if (!url) return false;
   const img = ensureSheetImage(url);
   if (!img) return false;
 
+  const spinSpeed = weaponStatsById(attackAnimation).spinSpeed;
   const frame =
-    (mapSpinFrameIndexAt() +
+    (spinFrameIndexAt(performance.now(), spinSpeed) +
       spinPhaseOffsetFromKey(phaseKey, SPIN_SHEET_FRAMES)) %
     SPIN_SHEET_FRAMES;
-  const scale = getBuildingSpriteDisplayScale(buildingSkin);
-  const size = projR * 2.4 * scale;
-  const half = size / 2;
+  const half = projectileSpinDrawHalfSize(projR, buildingSkin);
+  const size = half * 2;
   const sx = frame * SPIN_SHEET_FRAME_PX;
+  const rotation = getSpinSheetFlightRotationRad(buildingSkin, flightAngle);
 
+  ctx.save();
+  ctx.translate(mapX, mapY);
+  ctx.rotate(rotation);
   ctx.drawImage(
     img,
     sx,
     0,
     SPIN_SHEET_FRAME_PX,
     SPIN_SHEET_FRAME_PX,
-    mapX - half,
-    mapY - half,
+    -half,
+    -half,
     size,
     size
   );
+  ctx.restore();
   return true;
 }

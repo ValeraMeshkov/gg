@@ -4,6 +4,7 @@ import { useOfflineCellGrowth } from "@/hooks/useOfflineCellGrowth";
 import { useMergedPlayerAppearances } from "@/hooks/useMergedPlayerAppearances";
 import { useGameScoring } from "@/hooks/useGameScoring";
 import { useOfflineBotLoop } from "@/hooks/useOfflineBotLoop";
+import { usePageVisible } from "@/hooks/usePageVisible";
 import { useProjectileCombat } from "@/hooks/useProjectileCombat";
 import { UI } from "@/constants/uiStrings";
 import {
@@ -13,7 +14,12 @@ import {
   type CellPos,
   type MapCell,
 } from "@/game/maps";
-import { mapAspectRatio, mapProjectileRadius } from "@/game/maps";
+import {
+  mapAspectRatio,
+  mapAspectRatioValue,
+  mapProjectileRadius,
+  mapProjectileRadiusFromDotRadius,
+} from "@/game/maps";
 import { pendingLaunchFromIndicesForPlayer } from "@/game/projectiles/flightQueue";
 import { type LandHitFx } from "@/game/hitEffects";
 import { shareBarColorForView } from "@/game/playerColors";
@@ -102,6 +108,7 @@ export function GameCanvas({
   } = useAuth();
   const soloBotCount = offlineBotCount ?? 2;
   const soloBotDifficulty = offlineBotDifficulty ?? 50;
+  const pageVisible = usePageVisible();
 
   const { setShareBar, setSettingsPanel } = useGameShell();
 
@@ -148,6 +155,9 @@ export function GameCanvas({
   const playerAppearancesRef = useRef<PlayerAppearancesMap>({});
   /** Пересчёт полосы, когда меняются полёты без обновления cells (столкновения пуль). */
   const [scoreEpoch, setScoreEpoch] = useState(0);
+  /** 1 → на полосе очков 0 отображается как −1 (выбыл). */
+  const eliminationPenaltyRef = useRef(new Map<string, number>());
+  const scoreSlotIdsRef = useRef<string[]>([]);
   const scoreBarDirtyRef = useRef(false);
   const markScoreBarStale = useCallback(() => {
     scoreBarDirtyRef.current = true;
@@ -169,9 +179,15 @@ export function GameCanvas({
     setCells(cloneCells(cellsRef.current));
   }, []);
 
+  const eliminationHooksRef = useRef<{
+    capture: () => void;
+    commit: () => void;
+  } | null>(null);
   const applyCellsFromServer = useCallback((next: MapCell[]) => {
+    eliminationHooksRef.current?.capture();
     cellsRef.current = cloneCells(next);
     setCells(cloneCells(next));
+    eliminationHooksRef.current?.commit();
   }, []);
 
   const liveMapRef = useRef({
@@ -179,8 +195,18 @@ export function GameCanvas({
     cells: cellsRef.current,
   });
   const explosionJitterSpreadRef = useRef(0);
+  const mapFlightMetricsRef = useRef({ meetScale: 0, dotRadius: 0 });
   explosionJitterSpreadRef.current =
     mapProjectileRadius(bootstrapSession.map) * 3.4;
+
+  const onMapFlightMetricsChange = useCallback(
+    (metrics: { meetScale: number; dotRadius: number }) => {
+      mapFlightMetricsRef.current = metrics;
+      explosionJitterSpreadRef.current =
+        mapProjectileRadiusFromDotRadius(metrics.dotRadius) * 3.4;
+    },
+    []
+  );
 
   const {
     flightsRef,
@@ -193,6 +219,8 @@ export function GameCanvas({
     cancelPendingAtCell,
     cancelAllPendingLocal,
     stripPendingTail,
+    captureEliminationBaseline,
+    commitEliminationStrikes,
   } = useProjectileCombat({
     roomCode,
     sessionMap: bootstrapSession.map,
@@ -202,13 +230,18 @@ export function GameCanvas({
     bumpScoreDisplay,
     markScoreBarStale,
     flushScoreBarIfDirty,
+    eliminationPenaltyRef,
+    scoreSlotIdsRef,
     projectilesCanvasRef,
     liveMapRef,
     explosionJitterSpreadRef,
     landHitFxRef,
     landHitFxMetaRef,
     setLandHitFx,
+    playerAppearancesRef,
     onLocalAttack: () => setFirstMoveHintDismissed(true),
+    paused: !pageVisible,
+    mapFlightMetricsRef,
   });
 
   const room = useRoomSession({
@@ -232,7 +265,19 @@ export function GameCanvas({
     displayName,
     patchMyAppearance,
     onFirstMoveHintReset: () => setFirstMoveHintDismissed(false),
+    pageVisible,
   });
+
+  const tabWasHiddenRef = useRef(false);
+  useEffect(() => {
+    if (!pageVisible) {
+      tabWasHiddenRef.current = true;
+      return;
+    }
+    if (!roomCode || !tabWasHiddenRef.current) return;
+    tabWasHiddenRef.current = false;
+    room.reconnect();
+  }, [pageVisible, roomCode, room.reconnect]);
 
   const mapId = room.roomMapId ?? mapIdProp ?? DEFAULT_MAP_ID;
   const settingsMapId = roomCode ? (mapIdProp ?? DEFAULT_MAP_ID) : mapId;
@@ -254,7 +299,14 @@ export function GameCanvas({
     return createMockSession(map, soloBotCount, soloBotDifficulty);
   }, [mapId, roomCode, soloBotCount, soloBotDifficulty]);
 
-  explosionJitterSpreadRef.current = mapProjectileRadius(session.map) * 3.4;
+  const meetScale = mapFlightMetricsRef.current.meetScale;
+  explosionJitterSpreadRef.current =
+    (mapFlightMetricsRef.current.dotRadius > 0
+      ? mapProjectileRadiusFromDotRadius(mapFlightMetricsRef.current.dotRadius)
+      : mapProjectileRadius(
+          session.map,
+          meetScale > 0 ? meetScale : undefined
+        )) * 3.4;
 
   useEffect(() => {
     setFirstMoveHintDismissed(false);
@@ -272,7 +324,7 @@ export function GameCanvas({
   liveMapRef.current = liveMap;
 
   useOfflineCellGrowth(
-    !roomCode,
+    !roomCode && pageVisible,
     cellsRef,
     flightsRef,
     pushCellsToReact
@@ -305,10 +357,26 @@ export function GameCanvas({
         : session.players.map((s) => s.user.id),
     [roomCode, room.roomSlotIds, session.players]
   );
+  scoreSlotIdsRef.current = scoreSlotIds;
+
+  useEffect(() => {
+    eliminationHooksRef.current = {
+      capture: captureEliminationBaseline,
+      commit: () => {
+        commitEliminationStrikes();
+        bumpScoreDisplay();
+      },
+    };
+  }, [
+    captureEliminationBaseline,
+    commitEliminationStrikes,
+    bumpScoreDisplay,
+  ]);
 
   const { liveScores, gameOutcome, offlineAliveCount } = useGameScoring({
     cells,
     flightsRef,
+    eliminationPenaltyRef,
     scoreSlotIds,
     localPlayerId,
     roomCode,
@@ -396,7 +464,7 @@ export function GameCanvas({
     gameOutcome !== "draw";
 
   useOfflineBotLoop({
-    enabled: offlineBotsEnabled,
+    enabled: offlineBotsEnabled && pageVisible,
     sessionMap: session.map,
     cellsRef,
     flightsRef,
@@ -423,9 +491,13 @@ export function GameCanvas({
     () => (
       <GameSettingsPanel
         mapId={settingsMapId}
-        onMapIdChange={onMapIdChange}
+        onMapIdChange={
+          roomCode ? room.handleRoomMapIdChange : onMapIdChange
+        }
         mapSelectHint={mapSelectHint}
-        mapCatalogDisabled={Boolean(roomCode && !room.isHost)}
+        mapCatalogDisabled={
+          Boolean(roomCode && (!room.isHost || room.roomBusy))
+        }
         randomMapOnStart={
           roomCode ? room.roomRandomMapOnStart : randomMapOnStart
         }
@@ -455,9 +527,11 @@ export function GameCanvas({
     [
       settingsMapId,
       onMapIdChange,
+      room.handleRoomMapIdChange,
       mapSelectHint,
       roomCode,
       room.isHost,
+      room.roomBusy,
       displayName,
       patchDisplayName,
       controlledAppearance.fighter,
@@ -578,6 +652,7 @@ export function GameCanvas({
   const handleCommitAttacks = useCallback(
     (froms: readonly CellPos[], to: CellPos) => {
       if (froms.length === 0) return;
+      if (!pageVisible) return;
       if (gameOutcome || room.matchCountdown !== null) return;
       setFirstMoveHintDismissed(true);
       if (roomCode) {
@@ -610,6 +685,7 @@ export function GameCanvas({
     [
       gameOutcome,
       room.matchCountdown,
+      pageVisible,
       roomCode,
       room.wsConnected,
       session.map,
@@ -626,7 +702,12 @@ export function GameCanvas({
       <div className={styles.wrap} aria-label={UI.gameField}>
         <div
           className={styles.mapSurface}
-          style={{ aspectRatio: mapAspectRatio(liveMap) }}
+          style={
+            {
+              aspectRatio: mapAspectRatio(liveMap),
+              "--map-ar": mapAspectRatioValue(liveMap),
+            } as React.CSSProperties
+          }
         >
           <MapView
             key={layoutRevision}
@@ -648,6 +729,7 @@ export function GameCanvas({
             onCommitAttacks={handleCommitAttacks}
             onCancelPendingFrom={handleCancelPendingFrom}
             onCancelAllPending={handleCancelAllPending}
+            onMapFlightMetricsChange={onMapFlightMetricsChange}
           />
         </div>
         {room.matchCountdown !== null ? (

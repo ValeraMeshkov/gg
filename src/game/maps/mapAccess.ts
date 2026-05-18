@@ -43,6 +43,12 @@ export function mapAspectRatio(map: GameMap): string {
   return `${vb.width} / ${vb.height}`;
 }
 
+/** Ширина / высота viewBox — для CSS `min(100cqw, 100cqh * ar)`. */
+export function mapAspectRatioValue(map: GameMap): number {
+  const vb = map.viewBox;
+  return vb.height > 0 ? vb.width / vb.height : 1;
+}
+
 export function mapDotCenter(
   map: GameMap,
   pos: CellPos

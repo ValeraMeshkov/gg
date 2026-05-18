@@ -1,4 +1,5 @@
 import type { FighterSkinId } from "@/game/appearance";
+import type { WeaponId } from "@/shared/weaponStats";
 import { fighterFlightRotation } from "@/components/map/glyphs/fighterSkinGlyphs";
 import { buildingSpinSkinForFighter } from "./fighterSkinToSpinSheet";
 import { drawProjectileSpinSheetOnCanvas } from "./projectileSpinSheetCanvas";
@@ -51,29 +52,6 @@ function drawStarGlyph(
   ctx.fill();
 }
 
-function fillRoundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number
-): void {
-  const rad = Math.min(r, w / 2, h / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + rad, y);
-  ctx.lineTo(x + w - rad, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
-  ctx.lineTo(x + w, y + h - rad);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
-  ctx.lineTo(x + rad, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - rad);
-  ctx.lineTo(x, y + rad);
-  ctx.quadraticCurveTo(x, y, x + rad, y);
-  ctx.closePath();
-  ctx.fill();
-}
-
 /** Глиф бойца вокруг (0,0), масштаб `s` как в renderFighterGlyph (не путать с projR). */
 export function fillFighterGlyphCanvas(
   ctx: CanvasRenderingContext2D,
@@ -119,36 +97,6 @@ export function fillFighterGlyphCanvas(
     case "star":
       drawStarGlyph(ctx, s * 0.85, fill);
       break;
-    case "diamond": {
-      ctx.beginPath();
-      ctx.moveTo(0, -s * 0.85);
-      ctx.lineTo(s * 0.55, 0);
-      ctx.lineTo(0, s * 0.85);
-      ctx.lineTo(-s * 0.55, 0);
-      ctx.closePath();
-      ctx.fillStyle = fill;
-      ctx.fill();
-      break;
-    }
-    case "ghost": {
-      const d = `M0 ${-s * 0.72} A${s * 0.55} ${s * 0.55} 0 1 1 0 ${
-        -s * 0.72
-      } Z M${-s * 0.55} ${-s * 0.2} L${-s * 0.55} ${s * 0.55} L${
-        -s * 0.28
-      } ${s * 0.35} L0 ${s * 0.62} L${s * 0.28} ${s * 0.35} L${s * 0.55} ${
-        s * 0.55
-      } L${s * 0.55} ${-s * 0.2} Z`;
-      ctx.fillStyle = fill;
-      ctx.fill(new Path2D(d));
-      ctx.fillStyle = "#fff";
-      ctx.beginPath();
-      ctx.arc(-s * 0.2, -s * 0.15, s * 0.1, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(s * 0.2, -s * 0.15, s * 0.1, 0, Math.PI * 2);
-      ctx.fill();
-      break;
-    }
     case "rocket": {
       ctx.fillStyle = fill;
       ctx.beginPath();
@@ -175,21 +123,6 @@ export function fillFighterGlyphCanvas(
       ctx.fill();
       break;
     }
-    case "clover": {
-      ctx.fillStyle = fill;
-      for (const [cx, cy] of [
-        [0, -s * 0.32],
-        [-s * 0.32, 0],
-        [s * 0.32, 0],
-        [0, s * 0.32],
-      ] as const) {
-        ctx.beginPath();
-        ctx.arc(cx, cy, s * 0.28, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      fillRoundRect(ctx, -s * 0.08, s * 0.2, s * 0.16, s * 0.45, s * 0.04);
-      break;
-    }
     case "bomb": {
       ctx.fillStyle = fill;
       ctx.beginPath();
@@ -208,32 +141,10 @@ export function fillFighterGlyphCanvas(
       ctx.fill();
       break;
     }
-    case "ufo": {
-      ctx.fillStyle = fill;
-      ctx.beginPath();
-      ctx.ellipse(0, s * 0.15, s * 0.72, s * 0.28, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(0, -s * 0.18, s * 0.32, s * 0.28, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "rgba(255,255,255,0.8)";
-      for (const ox of [-s * 0.28, 0, s * 0.28]) {
-        ctx.beginPath();
-        ctx.arc(ox, s * 0.18, s * 0.06, 0, Math.PI * 2);
-        ctx.fill();
-      }
+    case "poison":
+    case "potion":
+    case "dagger":
       break;
-    }
-    case "shield": {
-      const d = `M0 ${-s * 0.75} L${s * 0.62} ${-s * 0.35} L${s * 0.55} ${
-        s * 0.25
-      } Q0 ${s * 0.85} 0 ${s * 0.85} Q0 ${s * 0.85} ${-s * 0.55} ${
-        s * 0.25
-      } L${-s * 0.62} ${-s * 0.35} Z`;
-      ctx.fillStyle = fill;
-      ctx.fill(new Path2D(d));
-      break;
-    }
     case "triangle":
       break;
     default: {
@@ -252,7 +163,8 @@ export function drawMapProjectileOnCanvas(
   mapX: number,
   mapY: number,
   flightAngle: number,
-  phaseKey: string
+  phaseKey: string,
+  attackAnimation: WeaponId
 ): void {
   const spinBuilding = buildingSpinSkinForFighter(skin);
   if (
@@ -263,7 +175,9 @@ export function drawMapProjectileOnCanvas(
       mapX,
       mapY,
       projR,
-      phaseKey
+      flightAngle,
+      phaseKey,
+      attackAnimation
     )
   ) {
     return;

@@ -1,4 +1,3 @@
-import bannerUrl from "@/assets/buildings/banner.glb?url";
 import bombUrl from "@/assets/buildings/bomb.glb?url";
 import castleAltUrl from "@/assets/buildings/castle-alt.glb?url";
 import castleUrl from "@/assets/buildings/castle.glb?url";
@@ -11,12 +10,9 @@ import planetIconUrl from "@/assets/buildings/planet-icon.glb?url";
 import planetShieldUrl from "@/assets/buildings/planet-shield.glb?url";
 import planetStarUrl from "@/assets/buildings/planet-star.glb?url";
 import poisonBottleUrl from "@/assets/buildings/poison-bottle.glb?url";
-import potionBottleAltUrl from "@/assets/buildings/potion-bottle-alt.glb?url";
 import sharkUrl from "@/assets/buildings/shark.glb?url";
 import signpostUrl from "@/assets/buildings/signpost.glb?url";
 import skullPotionUrl from "@/assets/buildings/skull-potion.glb?url";
-import skullUrl from "@/assets/buildings/skull.glb?url";
-import slimeUrl from "@/assets/buildings/slime.glb?url";
 import towerAltUrl from "@/assets/buildings/tower-alt.glb?url";
 import towerUrl from "@/assets/buildings/tower.glb?url";
 import undeadUrl from "@/assets/buildings/undead.glb?url";
@@ -40,15 +36,12 @@ export type GlbBuildingSkinId =
   | "pixellabsSignpost"
   | "pixellabs3402"
   | "pixellabsPoisonBottle"
-  | "pixellabsSkull"
   | "pixellabsSkullPotion"
-  | "pixellabsSlime"
-  | "pixellabsBanner"
   | "pixellabsBomb"
-  | "pixellabsPotionBottleAlt"
   | "pixellabsUndead"
   | "pixellabsZombie"
   | "pixellabsGrimReaper3011"
+  | "pixellabsDagger3178"
   | "tinyPlanetBoy"
   | "tinyPlanetDefective"
   | "tinyPlanetEnergy"
@@ -68,7 +61,8 @@ export type GlbBuildingCatalogEntry = {
   glbFile: string;
   /** Подпись в селекторе настроек. */
   label: string;
-  url: string;
+  /** Нет url — только spin-лист (fighter-only, тяжёлый GLB не в бандле). */
+  url?: string;
   /**
    * Масштаб при запекании PNG (размер модели в спрайт-листе).
    * После смены — npm run glb:bake-spin.
@@ -84,14 +78,14 @@ export { DEFAULT_BUILDING_SKIN };
 function glbEntry(
   id: GlbBuildingSkinId,
   glbFile: string,
-  url: string,
+  url?: string,
   mapPinScale?: number
 ): GlbBuildingCatalogEntry {
   return {
     id,
     glbFile,
     label: buildingGlbShortLabel(id),
-    url,
+    ...(url ? { url } : {}),
     ...(mapPinScale !== undefined ? { mapPinScale } : {}),
   };
 }
@@ -103,12 +97,8 @@ export const GLB_BUILDING_CATALOG: readonly GlbBuildingCatalogEntry[] = [
   glbEntry("pixellabsSignpost", "signpost.glb", signpostUrl),
   glbEntry("pixellabs3402", "crystal-tree.glb", crystalTreeUrl),
   glbEntry("pixellabsPoisonBottle", "poison-bottle.glb", poisonBottleUrl),
-  glbEntry("pixellabsSkull", "skull.glb", skullUrl),
   glbEntry("pixellabsSkullPotion", "skull-potion.glb", skullPotionUrl),
-  glbEntry("pixellabsSlime", "slime.glb", slimeUrl),
-  glbEntry("pixellabsBanner", "banner.glb", bannerUrl),
   glbEntry("pixellabsBomb", "bomb.glb", bombUrl),
-  glbEntry("pixellabsPotionBottleAlt", "potion-bottle-alt.glb", potionBottleAltUrl),
   glbEntry("pixellabsUndead", "undead.glb", undeadUrl, 1.2),
   glbEntry("pixellabsZombie", "zombie.glb", zombieUrl, 1.3),
   glbEntry(
@@ -117,6 +107,7 @@ export const GLB_BUILDING_CATALOG: readonly GlbBuildingCatalogEntry[] = [
     grimReaper3011Url,
     1.1
   ),
+  glbEntry("pixellabsDagger3178", "pixellabs-dagger-3178.glb", undefined, 0.9),
   glbEntry("tinyPlanetBoy", "planet-boy.glb", planetBoyUrl, 1.2),
   glbEntry("tinyPlanetDefective", "planet-defective.glb", planetDefectiveUrl),
   glbEntry("tinyPlanetEnergy", "planet-energy.glb", planetEnergyUrl, 1),
@@ -137,8 +128,8 @@ export const GLB_BUILDING_SKIN_IDS: readonly GlbBuildingSkinId[] =
   GLB_BUILDING_CATALOG.map((e) => e.id);
 
 const URL_BY_SKIN = Object.fromEntries(
-  GLB_BUILDING_CATALOG.map((e) => [e.id, e.url])
-) as Record<GlbBuildingSkinId, string>;
+  GLB_BUILDING_CATALOG.flatMap((e) => (e.url ? [[e.id, e.url]] : []))
+) as Partial<Record<GlbBuildingSkinId, string>>;
 
 /** Только отличия от 1 — как раньше GLB_MAP_PIN_SCALE в isoConstants. */
 export const GLB_MAP_PIN_SCALE: Record<GlbBuildingSkinId, number> =
@@ -152,14 +143,22 @@ export const GLB_MAP_PIN_SCALE: Record<GlbBuildingSkinId, number> =
 
 export const GLB_MAP_SIZE_SCALE = MAP_PIN_SIZE;
 
+/** GLB-здание из каталога, доступное как скин точки (не скрытый «только для бойца»). */
+export type PlayableGlbBuildingSkinId = Extract<
+  GlbBuildingSkinId,
+  BuildingSkinId
+>;
+
 export function isGlbBuildingSkin(
   skin: BuildingSkinId
-): skin is GlbBuildingSkinId {
+): skin is PlayableGlbBuildingSkinId {
   return (GLB_BUILDING_SKIN_IDS as readonly string[]).includes(skin);
 }
 
 export function getGlbBuildingUrl(skin: GlbBuildingSkinId): string {
-  return URL_BY_SKIN[skin];
+  const url = URL_BY_SKIN[skin];
+  if (!url) throw new Error(`No GLB url for skin: ${skin}`);
+  return url;
 }
 
 export function getGlbBuildingCatalogEntry(
@@ -173,5 +172,5 @@ export function getGlbMapScale(skin: GlbBuildingSkinId): number {
 }
 
 export function allGlbBuildingUrls(): string[] {
-  return GLB_BUILDING_CATALOG.map((e) => e.url);
+  return GLB_BUILDING_CATALOG.flatMap((e) => (e.url ? [e.url] : []));
 }

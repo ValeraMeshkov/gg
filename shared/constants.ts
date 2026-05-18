@@ -4,6 +4,8 @@ export const CELL = {
   playerStart: 100,
   ownedCap: 100,
   growthMs: 650,
+  /** После попадания по нейтрали/врагу пассивный +1 не идёт столько мс. */
+  growthPauseMs: 1000,
 } as const;
 
 /** Снаряд / выстрел (синхронно на клиенте и сервере). */
@@ -15,6 +17,10 @@ export const SHOT = {
   neighborCenterDistBallDiameters: 1.1,
   wedgeAlongBallDiametersPerRank: 0.45,
   explosionDurationMs: 420,
+  /** Красная рамка 1px вокруг каждой волны залпа (отладка). */
+  debugWaveBorders: false,
+  /** Синяя рамка 1px вокруг каждого снаряда (отладка). */
+  debugProjectileBorders: false,
 } as const;
 
 /**
@@ -29,10 +35,20 @@ export const MAP_SHOT_SPEED_PER_MS =
 export const TERRITORY_DOT_RADIUS = 14 / 1.5;
 
 /**
- * Размер пули: диаметр точки ÷ это число (меньше — крупнее).
- * Меняйте только здесь — клиент, сервер и залп используют одно значение.
+ * Базовый делитель: диаметр точки ÷ это число (меньше — крупнее).
+ * Итоговый размер = базовый ÷ `TERRITORY_PROJECTILE_SIZE_MULTIPLIER`.
  */
-export const TERRITORY_PROJECTILE_DIAMETER_RATIO = 1.5;
+const TERRITORY_PROJECTILE_DIAMETER_RATIO_BASE = 1.5;
+
+/** Во сколько раз крупнее пули/бойцы в полёте (1 = размер до увеличения). */
+export const TERRITORY_PROJECTILE_SIZE_MULTIPLIER = 3;
+
+/**
+ * Размер пули в viewBox. Меняйте multiplier или BASE — клиент, сервер и залп синхронны.
+ */
+export const TERRITORY_PROJECTILE_DIAMETER_RATIO =
+  TERRITORY_PROJECTILE_DIAMETER_RATIO_BASE /
+  TERRITORY_PROJECTILE_SIZE_MULTIPLIER;
 
 /** Радиус пули в viewBox для радиуса точки `dotRadius`. */
 export function projectileRadiusFromDot(dotRadius: number): number {

@@ -232,10 +232,13 @@ export function attachRoomWebSocket(server: HttpServer): void {
       }
 
       if (msg.type === "attack") {
+        const profile = getProfile(ctx.userId);
+        const fighter = profile?.fighter ?? DEFAULT_FIGHTER;
         processAttack(
           ctx.roomCode,
           game,
           ctx.slotId,
+          fighter,
           msg.fromIndices,
           msg.toIndex,
           (launch) => {

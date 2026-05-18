@@ -8,7 +8,7 @@ import {
 
 export { BUILDING_SKINS, FIGHTER_SKINS, type BuildingSkinId, type FighterSkinId };
 
-export const DEFAULT_FIGHTER = "triangle";
+export const DEFAULT_FIGHTER = "dagger";
 export const DEFAULT_BUILDING = DEFAULT_BUILDING_SKIN;
 
 export {

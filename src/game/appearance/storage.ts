@@ -5,7 +5,12 @@ import {
 } from "@/shared/skinIds";
 import { isGlbBuildingSkin, isGlbBuildingVisible } from "@/components/map/buildingGlb";
 import { normalizeDisplayColor } from "./displayColors";
-import { PLAYER_SLOT_IDS } from "@/shared/playerSlots";
+import {
+  coerceWeaponFighterSkin,
+  defaultFighterForSlotIndex,
+  LEGACY_FIGHTER_SKIN_MAP,
+} from "@/shared/defaultFighters";
+import { PLAYER_SLOT_IDS, slotIndexFromId } from "@/shared/playerSlots";
 import {
   BUILDING_SKINS,
   DEFAULT_PLAYER_APPEARANCE,
@@ -41,14 +46,40 @@ const REMOVED_FIGHTER_SKINS = new Set([
   "flame",
   "skull",
   "smile",
+  "diamond",
+  "ghost",
+  "clover",
+  "ufo",
+  "shield",
 ]);
 
 /** Устаревшие id из localStorage → актуальный скин. */
-export function normalizeFighterSkin(v: unknown): FighterSkinId | null {
+export function normalizeFighterSkin(
+  v: unknown,
+  playerId?: string
+): FighterSkinId | null {
   if (typeof v === "string" && REMOVED_FIGHTER_SKINS.has(v)) {
-    return DEFAULT_PLAYER_APPEARANCE.fighter;
+    return playerId != null
+      ? defaultFighterForSlotIndex(slotIndexFromId(playerId))
+      : DEFAULT_PLAYER_APPEARANCE.fighter;
   }
-  return isFighterSkin(v) ? v : null;
+  if (typeof v === "string" && LEGACY_FIGHTER_SKIN_MAP[v]) {
+    return playerId != null
+      ? defaultFighterForSlotIndex(slotIndexFromId(playerId))
+      : LEGACY_FIGHTER_SKIN_MAP[v];
+  }
+  if (isFighterSkin(v)) {
+    return coerceWeaponFighterSkin(v, DEFAULT_PLAYER_APPEARANCE.fighter);
+  }
+  return null;
+}
+
+function defaultAppearanceForPlayer(playerId: string): PlayerAppearance {
+  return {
+    fighter: defaultFighterForSlotIndex(slotIndexFromId(playerId)),
+    building: DEFAULT_BUILDING_SKIN,
+    displayColor: DEFAULT_PLAYER_APPEARANCE.displayColor,
+  };
 }
 
 export function normalizeBuildingSkin(v: unknown): BuildingSkinId | null {
@@ -70,9 +101,15 @@ export function normalizeBuildingSkin(v: unknown): BuildingSkinId | null {
 /** Любой id → актуальное здание с 3D на карте (удалённые → дефолт). */
 export const coerceBuildingSkin = coerceBuildingSkinId;
 
-function sanitizeAppearance(raw: PlayerAppearance): PlayerAppearance {
+function sanitizeAppearance(
+  raw: PlayerAppearance,
+  playerId?: string
+): PlayerAppearance {
   const fighter =
-    normalizeFighterSkin(raw.fighter) ?? DEFAULT_PLAYER_APPEARANCE.fighter;
+    normalizeFighterSkin(raw.fighter, playerId) ??
+    (playerId != null
+      ? defaultFighterForSlotIndex(slotIndexFromId(playerId))
+      : DEFAULT_PLAYER_APPEARANCE.fighter);
   const building = coerceBuildingSkin(raw.building);
   const displayColor =
     normalizeDisplayColor(raw.displayColor) ??
@@ -95,13 +132,16 @@ function sanitizeAppearance(raw: PlayerAppearance): PlayerAppearance {
   return { fighter, building, displayColor };
 }
 
-function parseAppearance(raw: unknown): PlayerAppearance | null {
+function parseAppearance(
+  raw: unknown,
+  playerId: string
+): PlayerAppearance | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   const fighter = o.fighter;
   const building = o.building;
   const buildingNorm = normalizeBuildingSkin(building);
-  const fighterNorm = normalizeFighterSkin(fighter);
+  const fighterNorm = normalizeFighterSkin(fighter, playerId);
   if (!fighterNorm || !buildingNorm) return null;
   return {
     fighter: fighterNorm,
@@ -113,7 +153,7 @@ function parseAppearance(raw: unknown): PlayerAppearance | null {
 export function loadPlayerAppearances(): PlayerAppearancesMap {
   const defaults: PlayerAppearancesMap = {};
   for (const id of PLAYER_SLOT_IDS) {
-    defaults[id] = { ...DEFAULT_PLAYER_APPEARANCE };
+    defaults[id] = defaultAppearanceForPlayer(id);
   }
 
   try {
@@ -125,7 +165,7 @@ export function loadPlayerAppearances(): PlayerAppearancesMap {
     for (const [playerId, value] of Object.entries(
       parsed as Record<string, unknown>
     )) {
-      const appearance = parseAppearance(value);
+      const appearance = parseAppearance(value, playerId);
       if (appearance) out[playerId] = appearance;
     }
     return out;
@@ -147,6 +187,10 @@ export function appearanceForPlayer(
   playerId: string
 ): PlayerAppearance {
   const raw = map[playerId];
-  if (!raw) return DEFAULT_PLAYER_APPEARANCE;
-  return sanitizeAppearance(raw);
+  if (!raw) {
+    return playerId != null
+      ? defaultAppearanceForPlayer(playerId)
+      : DEFAULT_PLAYER_APPEARANCE;
+  }
+  return sanitizeAppearance(raw, playerId);
 }

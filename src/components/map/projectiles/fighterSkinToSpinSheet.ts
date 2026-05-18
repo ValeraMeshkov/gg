@@ -5,20 +5,15 @@ import {
 } from "@/components/map/buildingGlb/spin/buildingSpinSheets";
 import type { FighterSkinId } from "@/game/appearance";
 
-/** Боец → 3D-спрайт-лист (тот же bake, что у зданий на карте). */
+/** Скин бойца → 3D-спрайт (пуля = «Энергия», бомба = бомба). */
 const FIGHTER_TO_BUILDING_SPIN: Partial<
   Record<FighterSkinId, GlbBuildingSkinId>
 > = {
   bomb: "pixellabsBomb",
-  star: "tinyPlanetStar",
+  poison: "pixellabsPoisonBottle",
+  potion: "pixellabsSkullPotion",
+  dagger: "pixellabsDagger3178",
   rocket: "tinyPlanetEnergy",
-  shield: "tinyPlanetShield",
-  bear: "freedomShark",
-  ghost: "pixellabsUndead",
-  ufo: "tinyPlanetIcon",
-  diamond: "pixellabs3402",
-  clover: "pixellabsBanner",
-  heart: "pixellabsSlime",
 };
 
 export function buildingSpinSkinForFighter(

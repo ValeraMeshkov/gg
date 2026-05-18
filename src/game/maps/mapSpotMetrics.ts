@@ -1,4 +1,5 @@
 import { computeSvgMeetTransform } from "@/components/map";
+import { REFERENCE_MEET_SCALE } from "@/shared/mapGameplayScale";
 import {
   NEUTRAL_SPOT_DOT_RADIUS,
   TERRITORY_DOT_HIT_PADDING,
@@ -14,7 +15,6 @@ import type { GameMap } from "./world/types";
  * Эталонный размер цветного кольца на экране (px), подобран под Азию при ~900px ширины.
  * Кольцо = TERRITORY_DOT_RADIUS + TERRITORY_DOT_RING_PADDING в viewBox × типичный meet-scale.
  */
-const REFERENCE_MEET_SCALE = 900 / 753.6;
 export const MAP_SPOT_RING_RADIUS_PX =
   TERRITORY_SPOT_RING_RADIUS * REFERENCE_MEET_SCALE;
 export const MAP_NEUTRAL_DOT_RADIUS_PX =

@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { fetchRoom, patchRoomSettings, restartRoom } from "@/api/roomApi";
+import { fetchRoom, restartRoom } from "@/api/roomApi";
 import { fetchRemoteProfile } from "@/api/profileApi";
 import {
   appearancesFromSync,
@@ -54,6 +54,8 @@ type UseRoomSessionOpts = {
   displayName: string;
   patchMyAppearance: (patch: MyAppearancePatch) => void;
   onFirstMoveHintReset?: () => void;
+  /** false — не опрашивать REST, пока вкладка в фоне. */
+  pageVisible?: boolean;
 };
 
 export function useRoomSession({
@@ -73,10 +75,13 @@ export function useRoomSession({
   displayName,
   patchMyAppearance,
   onFirstMoveHintReset,
+  pageVisible = true,
 }: UseRoomSessionOpts) {
   const { setRoomChromeActions } = useGameShell();
   const onMapIdChangeRef = useRef(onMapIdChange);
   onMapIdChangeRef.current = onMapIdChange;
+  const mapIdPropRef = useRef(mapIdProp);
+  mapIdPropRef.current = mapIdProp;
   const controlledAppearanceRef = useRef(controlledAppearance);
   controlledAppearanceRef.current = controlledAppearance;
   const displayNameRef = useRef(displayName);
@@ -242,7 +247,7 @@ export function useRoomSession({
   ]);
 
   useEffect(() => {
-    if (!roomCode) return;
+    if (!roomCode || !pageVisible) return;
     let cancelled = false;
     const poll = async () => {
       const room = await fetchRoom(roomCode);
@@ -262,7 +267,7 @@ export function useRoomSession({
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [roomCode, roomSlotIds.length, cellsRef, applyCellsFromServer]);
+  }, [roomCode, roomSlotIds.length, cellsRef, applyCellsFromServer, pageVisible]);
 
   const onChatHistory = useCallback(
     (
@@ -384,6 +389,43 @@ export function useRoomSession({
     [patchMyAppearance, roomCode, wsConnected, sendAppearance]
   );
 
+  const restartRoomAsHost = useCallback(
+    async (options: { mapId?: string; randomMapOnStart?: boolean }) => {
+      if (!roomCode || !isHost) return;
+      setRoomBusy(true);
+      setRoomActionError(null);
+      try {
+        await restartRoom(roomCode, userId, options);
+      } catch (e) {
+        setRoomActionError(
+          e instanceof Error ? e.message : UI.roomNewGameFailed
+        );
+        throw e;
+      } finally {
+        setRoomBusy(false);
+      }
+    },
+    [roomCode, isHost, userId]
+  );
+
+  const handleRoomMapIdChange = useCallback(
+    async (nextMapId: string) => {
+      if (!roomCode || !isHost) return;
+      onMapIdChangeRef.current(nextMapId);
+      const prevRandom = roomRandomMapOnStart;
+      setRoomRandomMapOnStart(false);
+      try {
+        await restartRoomAsHost({
+          mapId: nextMapId,
+          randomMapOnStart: false,
+        });
+      } catch {
+        setRoomRandomMapOnStart(prevRandom);
+      }
+    },
+    [roomCode, isHost, roomRandomMapOnStart, restartRoomAsHost]
+  );
+
   const handleRandomMapOnStartChange = useCallback(
     async (value: boolean, onOfflineChange?: (value: boolean) => void) => {
       if (roomCode) {
@@ -391,7 +433,12 @@ export function useRoomSession({
         const prev = roomRandomMapOnStart;
         setRoomRandomMapOnStart(value);
         try {
-          await patchRoomSettings(roomCode, userId, value);
+          await restartRoomAsHost({
+            randomMapOnStart: value,
+            mapId: value
+              ? undefined
+              : mapIdPropRef.current ?? roomMapId ?? undefined,
+          });
         } catch {
           setRoomRandomMapOnStart(prev);
         }
@@ -399,27 +446,22 @@ export function useRoomSession({
       }
       onOfflineChange?.(value);
     },
-    [roomCode, isHost, userId, roomRandomMapOnStart]
+    [roomCode, isHost, roomRandomMapOnStart, roomMapId, restartRoomAsHost]
   );
 
   const handleNewGame = useCallback(async () => {
     if (!roomCode || !isHost) return;
-    setRoomBusy(true);
-    setRoomActionError(null);
     try {
-      await restartRoom(
-        roomCode,
-        userId,
-        roomRandomMapOnStart ? undefined : mapIdProp
-      );
-    } catch (e) {
-      setRoomActionError(
-        e instanceof Error ? e.message : UI.roomNewGameFailed
-      );
-    } finally {
-      setRoomBusy(false);
+      await restartRoomAsHost({
+        randomMapOnStart: roomRandomMapOnStart,
+        mapId: roomRandomMapOnStart
+          ? undefined
+          : mapIdPropRef.current ?? roomMapId ?? undefined,
+      });
+    } catch {
+      /* ошибка уже в roomActionError */
     }
-  }, [roomCode, isHost, mapIdProp, roomRandomMapOnStart, userId]);
+  }, [roomCode, isHost, roomRandomMapOnStart, roomMapId, restartRoomAsHost]);
 
   useLayoutEffect(() => {
     if (!roomCode) {
@@ -466,6 +508,7 @@ export function useRoomSession({
     reconnect,
     patchMyAppearanceRoom,
     handleRandomMapOnStartChange,
+    handleRoomMapIdChange,
     handleNewGame,
   };
 }

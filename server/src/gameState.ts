@@ -1,4 +1,5 @@
 import { CELL } from "@/shared/constants.js";
+import { sanitizeCombatCell } from "@/shared/cellUnits.js";
 import {
   addPlayerSpawnToCells,
   createRoomSession,
@@ -90,7 +91,7 @@ export function spawnJoinedPlayerInRoom(
 }
 
 export function cloneCells(cells: readonly SyncCell[]): SyncCell[] {
-  return cells.map((c) => ({ ...c }));
+  return cells.map((c) => sanitizeCombatCell({ ...c }));
 }
 
 export function listActiveGames(): { code: string; state: RoomGameState }[] {

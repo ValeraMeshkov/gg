@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { CELL } from "@/shared/constants.js";
-import { applyIncrementalLandHit } from "@/shared/combat.js";
+import { applyLandHitWithPower } from "@/shared/combat.js";
+import { readCellUnits } from "@/shared/cellUnits.js";
+import { mapGameplayScaleForMapId } from "@/shared/mapGameplayScale.js";
 import { buildFlightPlan } from "@/shared/flightSchedule.js";
 import {
   projectileHitRadius2,
@@ -9,6 +11,17 @@ import {
   type ProjectilePath,
 } from "@/shared/projectileMotion.js";
 import { projectileCollisionShowsExplosion } from "@/shared/collisionFx.js";
+import {
+  applyMutualProjectileCollision,
+  isProjectileSpent,
+} from "@/shared/projectileCombat.js";
+import { applySpawnFromSourceCell } from "@/shared/launchPower.js";
+import {
+  projectileCountForLaunchBudget,
+  reservedLaunchPower,
+} from "@/shared/launchPower.js";
+import { weaponStatsForFighter } from "@/shared/weaponStats.js";
+import type { FighterSkinId } from "./skins.js";
 import type { SyncCell } from "@/shared/wsProtocol.js";
 import { enqueueRoomCellUpdate } from "./cellUpdateQueue.js";
 import { cloneCells, getGameForRoom, updateRoomCells, type RoomGameState } from "./gameState.js";
@@ -17,6 +30,7 @@ import { dotCenter } from "./mapDots.js";
 type PendingSim = {
   releaseWave: number;
   path: ProjectilePath;
+  power: number;
   spawnApplied: boolean;
   landApplied: boolean;
   destroyed: boolean;
@@ -183,12 +197,20 @@ function tickProjectileCollisions(key: string): void {
         );
       }
       if (!collides) continue;
+
+      const slotA = a.flight.sims[a.idx]!;
+      const slotB = b.flight.sims[b.idx]!;
+      const { aDestroyed, bDestroyed } = applyMutualProjectileCollision(
+        slotA,
+        slotB
+      );
+
       let bx = pa && pb ? (pa.x + pb.x) / 2 : pa?.x ?? pb?.x ?? 0;
       let by = pa && pb ? (pa.y + pb.y) / 2 : pa?.y ?? pb?.y ?? 0;
       if (!pa || !pb) {
         const ts = (t0 + now) / 2;
-        const qa = projectilePositionAt(a.flight.sims[a.idx]!.path, ts);
-        const qb = projectilePositionAt(b.flight.sims[b.idx]!.path, ts);
+        const qa = projectilePositionAt(slotA.path, ts);
+        const qb = projectilePositionAt(slotB.path, ts);
         if (qa && qb) {
           bx = (qa.x + qb.x) / 2;
           by = (qa.y + qb.y) / 2;
@@ -202,18 +224,21 @@ function tickProjectileCollisions(key: string): void {
       }
       const idA = `proj-${a.flight.attackId}-${a.idx}`;
       const idB = `proj-${b.flight.attackId}-${b.idx}`;
-      if (projectileCollisionShowsExplosion(idA, idB)) {
+      if (
+        (aDestroyed || bDestroyed) &&
+        projectileCollisionShowsExplosion(idA, idB)
+      ) {
         explosionsBroadcast.push({ x: bx, y: by });
       }
 
-      if (!a.flight.sims[a.idx]!.destroyed) {
+      if (aDestroyed && !slotA.destroyed) {
         destroySim(a.flight, a.idx);
         destroyedBroadcast.push({
           attackId: a.flight.attackId,
           simIndex: a.idx,
         });
       }
-      if (!b.flight.sims[b.idx]!.destroyed) {
+      if (bDestroyed && !slotB.destroyed) {
         destroySim(b.flight, b.idx);
         destroyedBroadcast.push({
           attackId: b.flight.attackId,
@@ -221,6 +246,17 @@ function tickProjectileCollisions(key: string): void {
         });
       }
     }
+  }
+
+  for (const a of active) {
+    const slot = a.flight.sims[a.idx]!;
+    if (slot.destroyed || slot.landApplied) continue;
+    if (!isProjectileSpent(slot.power)) continue;
+    destroySim(a.flight, a.idx);
+    destroyedBroadcast.push({
+      attackId: a.flight.attackId,
+      simIndex: a.idx,
+    });
   }
 
   if (destroyedBroadcast.length > 0 && onProjectileCollision) {
@@ -246,15 +282,16 @@ export function sourcesWithPendingLaunch(roomCode: string): Set<number> {
   return out;
 }
 
-function countUnspawned(fromI: number, flights: PendingFlight[]): number {
-  let n = 0;
+function reservedPowerOnSource(
+  fromI: number,
+  flights: PendingFlight[]
+): number {
+  const sims: PendingSim[] = [];
   for (const f of flights) {
     if (f.fromIndex !== fromI) continue;
-    for (const s of f.sims) {
-      if (!s.spawnApplied && !s.landApplied) n += 1;
-    }
+    sims.push(...f.sims);
   }
-  return n;
+  return reservedLaunchPower(sims);
 }
 
 function compactFlights(flights: PendingFlight[]): void {
@@ -332,6 +369,7 @@ export function cancelPendingFromSource(
 export type AttackLaunch = {
   attackId: string;
   attackerId: string;
+  fighter: FighterSkinId;
   fromIndex: number;
   toIndex: number;
   amount: number;
@@ -343,6 +381,7 @@ export function processAttack(
   roomCode: string,
   state: RoomGameState,
   attackerId: string,
+  fighter: FighterSkinId,
   fromIndices: number[],
   toIndex: number,
   onLaunch: (launch: AttackLaunch) => void,
@@ -365,9 +404,13 @@ export function processAttack(
     stripPendingTailTowardsOtherTargets(fromIndex, toIndex, flights);
     onPendingTailStrip?.(fromIndex, toIndex);
 
-    const reserved = countUnspawned(fromIndex, flights);
-    const u = state.cells[fromIndex]?.units ?? 0;
-    const amount = Math.max(0, u - reserved);
+    const weapon = weaponStatsForFighter(fighter);
+    const u = readCellUnits(state.cells[fromIndex]);
+    const reserved = reservedPowerOnSource(fromIndex, flights);
+    const amount = projectileCountForLaunchBudget(
+      Math.max(0, u - reserved),
+      weapon.power
+    );
     if (amount <= 0) continue;
 
     const from = dotCenter(state.mapId, fromIndex);
@@ -383,7 +426,9 @@ export function processAttack(
       to.x,
       to.y,
       issuedAt,
-      attackId
+      attackId,
+      weapon,
+      mapGameplayScaleForMapId(state.mapId)
     );
 
     const pending: PendingFlight = {
@@ -400,7 +445,10 @@ export function processAttack(
           sy: sim.sy,
           tx: sim.tx,
           ty: sim.ty,
+          arcPerpX: sim.arcPerpX,
+          arcPerpY: sim.arcPerpY,
         },
+        power: sim.power,
         spawnApplied: false,
         landApplied: false,
         destroyed: false,
@@ -413,6 +461,7 @@ export function processAttack(
     onLaunch({
       attackId,
       attackerId,
+      fighter,
       fromIndex,
       toIndex,
       amount,
@@ -420,18 +469,17 @@ export function processAttack(
       serverTime: Date.now(),
     });
 
-    const byWave = new Map<number, number[]>();
+    const bySpawn = new Map<number, number[]>();
     plan.sims.forEach((sim, idx) => {
-      const arr = byWave.get(sim.releaseWave);
+      const arr = bySpawn.get(sim.spawnTime);
       if (arr) arr.push(idx);
-      else byWave.set(sim.releaseWave, [idx]);
+      else bySpawn.set(sim.spawnTime, [idx]);
     });
 
-    for (const [wave, indices] of byWave) {
-      const first = plan.sims[indices[0]!]!;
-      const delay = Math.max(0, first.spawnTime - issuedAt);
+    for (const [spawnAt, indices] of bySpawn) {
+      const delay = Math.max(0, spawnAt - issuedAt);
       const spawnTimer = setTimeout(() => {
-        pending.waveSpawnTimers.delete(wave);
+        pending.waveSpawnTimers.delete(spawnAt);
         enqueueRoomCellUpdate(key, () => {
           const flightsLive = pendingByRoom.get(key);
           if (!flightsLive?.includes(pending)) return;
@@ -447,15 +495,16 @@ export function processAttack(
             pending.sims[idx]!.spawnApplied = true;
           }
           const cur = cloneCells(g.cells);
-          const u0 = cur[fromIndex]?.units ?? 0;
-          cur[fromIndex] = {
-            ...cur[fromIndex]!,
-            units: Math.max(0, u0 - pendingIndices.length),
-          };
+          const spawning = pendingIndices.map((idx) => pending.sims[idx]!);
+          cur[fromIndex] = applySpawnFromSourceCell(
+            cur[fromIndex] ?? { units: CELL.neutralStart },
+            spawning,
+            Date.now()
+          );
           commitCells(key, cur, onCells);
         });
       }, delay);
-      pending.waveSpawnTimers.set(wave, spawnTimer);
+      pending.waveSpawnTimers.set(spawnAt, spawnTimer);
     }
 
     plan.sims.forEach((sim, idx) => {
@@ -466,11 +515,17 @@ export function processAttack(
           if (!g) return;
           const slot = pending.sims[idx];
           if (!slot || slot.landApplied || slot.destroyed) return;
+          if (isProjectileSpent(slot.power)) {
+            destroySim(pending, idx);
+            return;
+          }
           slot.landApplied = true;
           const cur = cloneCells(g.cells);
-          cur[toIndex] = applyIncrementalLandHit(
+          cur[toIndex] = applyLandHitWithPower(
             targetCell(cur, toIndex),
-            attackerId
+            attackerId,
+            slot.power,
+            Date.now()
           );
           commitCells(key, cur, onCells);
           const flightsLive = pendingByRoom.get(key);

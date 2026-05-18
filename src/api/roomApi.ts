@@ -91,16 +91,27 @@ export async function startRoom(code: string, hostUserId: string): Promise<Room>
   );
 }
 
+export type RestartRoomOptions = {
+  mapId?: string;
+  randomMapOnStart?: boolean;
+};
+
 export async function restartRoom(
   code: string,
   hostUserId: string,
-  mapId?: string
+  options?: RestartRoomOptions
 ): Promise<Room> {
   return parseJson(
     await apiFetch(`/api/rooms/${encodeURIComponent(code)}/restart`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ hostUserId, ...(mapId ? { mapId } : {}) }),
+      body: JSON.stringify({
+        hostUserId,
+        ...(options?.mapId ? { mapId: options.mapId } : {}),
+        ...(options?.randomMapOnStart !== undefined
+          ? { randomMapOnStart: options.randomMapOnStart }
+          : {}),
+      }),
     })
   );
 }

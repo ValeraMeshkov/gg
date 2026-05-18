@@ -17,6 +17,9 @@ import {
   getGlbMapScale,
   type GlbBuildingCatalogEntry,
 } from "@/components/map/buildingGlb/catalog/buildingGlbCatalog";
+/** Только для dev-запекания (GLB не в git — положить локально для rebake). */
+const BAKE_ONLY_GLB_URLS: Record<string, string> = {};
+
 import {
   SPIN_SHEET_BAKE_FRAME_PAD_Y,
   SPIN_SHEET_BAKE_FRUSTUM_MARGIN,
@@ -38,7 +41,9 @@ export {
   SPIN_SHEET_FRAME_PX,
 } from "@/components/map/buildingGlb/spin/buildingSpinSheetConstants";
 
-const TARGET_MAX_EXTENT = 1.85;
+/** Нормализация GLB; итоговый размер задаёт постобработка по альфе. */
+const BAKE_TARGET_MAX_EXTENT = 1.85;
+
 const _center = new Vector3();
 const _size = new Vector3();
 const _projected = new Vector3();
@@ -69,7 +74,7 @@ function fitScale(root: Group): number {
   if (box.isEmpty()) return 1;
   box.getSize(_size);
   const maxDim = Math.max(_size.x, _size.y, _size.z, 1e-6);
-  return TARGET_MAX_EXTENT / maxDim;
+  return BAKE_TARGET_MAX_EXTENT / maxDim;
 }
 
 function fitOrthoToUnionBox(
@@ -112,31 +117,137 @@ function centerFrustumOnWorldPoint(
   camera.updateProjectionMatrix();
 }
 
-const ALPHA_THRESHOLD = 12;
+/** Порог альфы для обрезки (низкий — не рвать тонкую середину у вытянутых моделей). */
+const BAKE_OPAQUE_ALPHA_MIN = 10;
+
+/** Целевая доля кадра под контент (итоговый scale ещё ограничивается без обрезки). */
+const BAKE_CONTENT_FILL = 0.9;
 let frameShiftCanvas: HTMLCanvasElement | null = null;
 
-function measureOpaqueVerticalBounds(
+type OpaqueBounds = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+};
+
+/** AABB всего непрозрачного слоя. */
+function measureOpaqueBounds(
   data: Uint8ClampedArray,
   width: number,
   height: number
-): { minY: number; maxY: number } | null {
+): OpaqueBounds | null {
+  let minX = width;
   let minY = height;
+  let maxX = -1;
   let maxY = -1;
   for (let y = 0; y < height; y++) {
     const row = y * width * 4;
     for (let x = 0; x < width; x++) {
-      if (data[row + x * 4 + 3]! > ALPHA_THRESHOLD) {
+      if (data[row + x * 4 + 3]! > BAKE_OPAQUE_ALPHA_MIN) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
         if (y < minY) minY = y;
-        maxY = y;
-        break;
+        if (y > maxY) maxY = y;
       }
     }
   }
-  if (maxY < minY) return null;
-  return { minY, maxY };
+  if (maxX < minX || maxY < minY) return null;
+  return { minX, minY, maxX, maxY };
 }
 
-/** Один и тот же сдвиг для всех кадров листа — без «подпрыгивания» при вращении. */
+/** Макс. scale от центра кадра, чтобы bbox кадра не вылез за pad. */
+function maxCenterScaleForBounds(
+  bounds: OpaqueBounds,
+  framePx: number,
+  pad: number
+): number {
+  const c = framePx * 0.5;
+  const lo = pad;
+  const hi = framePx - pad;
+  let cap = Infinity;
+  const { minX, maxX, minY, maxY } = bounds;
+
+  if (minX < c) cap = Math.min(cap, (lo - c) / (minX - c));
+  if (maxX > c) cap = Math.min(cap, (hi - c) / (maxX - c));
+  if (minY < c) cap = Math.min(cap, (lo - c) / (minY - c));
+  if (maxY > c) cap = Math.min(cap, (hi - c) / (maxY - c));
+  return cap;
+}
+
+/**
+ * Единый scale от центра кадра (ось вращения 3D уже в центре).
+ * Без покадрового crop/центрирования — иначе «дёргается» при spin.
+ */
+function fitSheetOpaqueContentToFrames(
+  sheetCtx: CanvasRenderingContext2D,
+  framePx: number,
+  frameCount: number
+): void {
+  const pad = SPIN_SHEET_BAKE_FRAME_PAD_Y;
+  const inner = framePx - 2 * pad;
+  const center = framePx * 0.5;
+  const allBounds: OpaqueBounds[] = [];
+
+  for (let i = 0; i < frameCount; i += 1) {
+    const slotX = i * framePx;
+    const { data, width, height } = sheetCtx.getImageData(slotX, 0, framePx, framePx);
+    const bounds = measureOpaqueBounds(data, width, height);
+    if (bounds) allBounds.push(bounds);
+  }
+  if (allBounds.length === 0) return;
+
+  let globalMaxW = 0;
+  let globalMaxH = 0;
+  for (const bounds of allBounds) {
+    globalMaxW = Math.max(globalMaxW, bounds.maxX - bounds.minX + 1);
+    globalMaxH = Math.max(globalMaxH, bounds.maxY - bounds.minY + 1);
+  }
+  if (globalMaxW <= 0 || globalMaxH <= 0) return;
+
+  const desiredScale =
+    Math.min(inner / globalMaxW, inner / globalMaxH) * BAKE_CONTENT_FILL;
+
+  let scaleCap = Infinity;
+  for (const bounds of allBounds) {
+    scaleCap = Math.min(scaleCap, maxCenterScaleForBounds(bounds, framePx, pad));
+  }
+
+  const scale = Math.min(desiredScale, scaleCap);
+  if (scale <= 1.01 || !Number.isFinite(scale)) return;
+
+  if (!frameShiftCanvas) {
+    frameShiftCanvas = document.createElement("canvas");
+  }
+  frameShiftCanvas.width = framePx;
+  frameShiftCanvas.height = framePx;
+  const tempCtx = frameShiftCanvas.getContext("2d", { alpha: true });
+  if (!tempCtx) return;
+
+  for (let i = 0; i < frameCount; i += 1) {
+    const slotX = i * framePx;
+    tempCtx.clearRect(0, 0, framePx, framePx);
+    tempCtx.drawImage(
+      sheetCtx.canvas,
+      slotX,
+      0,
+      framePx,
+      framePx,
+      0,
+      0,
+      framePx,
+      framePx
+    );
+    sheetCtx.clearRect(slotX, 0, framePx, framePx);
+    sheetCtx.save();
+    sheetCtx.translate(slotX + center, center);
+    sheetCtx.scale(scale, scale);
+    sheetCtx.drawImage(frameShiftCanvas, -center, -center, framePx, framePx);
+    sheetCtx.restore();
+  }
+}
+
+/** Один и тот же сдвиг для всех кадров — без «подпрыгивания». */
 function shiftFrameSlot(
   sheetCtx: CanvasRenderingContext2D,
   slotX: number,
@@ -168,24 +279,26 @@ function shiftFrameSlot(
   sheetCtx.drawImage(frameShiftCanvas, 0, 0, framePx, framePx, slotX, shift, framePx, framePx);
 }
 
+/** Один и тот же сдвиг по Y для всех кадров (как до пост-скейла). */
 function centerSheetPixelsVertically(
   sheetCtx: CanvasRenderingContext2D,
   framePx: number,
   frameCount: number
 ): void {
+  const pad = SPIN_SHEET_BAKE_FRAME_PAD_Y;
   let globalMinY = framePx;
   let globalMaxY = -1;
+
   for (let i = 0; i < frameCount; i += 1) {
     const slotX = i * framePx;
     const { data, width, height } = sheetCtx.getImageData(slotX, 0, framePx, framePx);
-    const bounds = measureOpaqueVerticalBounds(data, width, height);
+    const bounds = measureOpaqueBounds(data, width, height);
     if (!bounds) continue;
     globalMinY = Math.min(globalMinY, bounds.minY);
     globalMaxY = Math.max(globalMaxY, bounds.maxY);
   }
   if (globalMaxY < globalMinY) return;
 
-  const pad = SPIN_SHEET_BAKE_FRAME_PAD_Y;
   const innerH = framePx - 2 * pad;
   const contentH = globalMaxY - globalMinY + 1;
   const shift = Math.round((innerH - contentH) / 2) + pad - globalMinY;
@@ -200,7 +313,6 @@ function centerSheetPixelsVertically(
 function buildSpinPivot(model: Group): {
   root: Group;
   rotateGroup: Group;
-  spinAnchor: Vector3;
 } {
   const box = new Box3().setFromObject(model);
   box.getCenter(_center);
@@ -213,8 +325,7 @@ function buildSpinPivot(model: Group): {
   offsetGroup.position.y = PREVIEW_MODEL_Y;
   offsetGroup.add(rotateGroup);
 
-  const spinAnchor = new Vector3(0, PREVIEW_MODEL_Y, 0);
-  return { root: offsetGroup, rotateGroup, spinAnchor };
+  return { root: offsetGroup, rotateGroup };
 }
 
 function unionBoxOverSpin(rotateGroup: Group): Box3 {
@@ -225,6 +336,14 @@ function unionBoxOverSpin(rotateGroup: Group): Box3 {
   }
   rotateGroup.rotation.y = 0;
   return union;
+}
+
+function glbUrlForBake(entry: GlbBuildingCatalogEntry): string {
+  const url = entry.url ?? BAKE_ONLY_GLB_URLS[entry.glbFile];
+  if (!url) {
+    throw new Error(`Нет URL для запекания: ${entry.glbFile}`);
+  }
+  return url;
 }
 
 async function loadModel(url: string): Promise<Group> {
@@ -242,12 +361,12 @@ function spinBoundsMargin(): number {
 export async function bakeBuildingSpinSheet(
   entry: GlbBuildingCatalogEntry
 ): Promise<BakedSpinSheet> {
-  const model = await loadModel(entry.url);
+  const model = await loadModel(glbUrlForBake(entry));
   const mapScale = getGlbMapScale(entry.id);
   const displayScale = fitScale(model) * MAP_PREVIEW_MODEL_BOOST * mapScale;
   model.scale.setScalar(displayScale);
 
-  const { root, rotateGroup, spinAnchor } = buildSpinPivot(model);
+  const { root, rotateGroup } = buildSpinPivot(model);
 
   const scene = new Scene();
   scene.add(root);
@@ -268,7 +387,8 @@ export async function bakeBuildingSpinSheet(
 
   const spinUnion = unionBoxOverSpin(rotateGroup);
   fitOrthoToUnionBox(camera, spinUnion, spinBoundsMargin());
-  centerFrustumOnWorldPoint(camera, scene, spinAnchor);
+  spinUnion.getCenter(_center);
+  centerFrustumOnWorldPoint(camera, scene, _center);
 
   const renderer = new WebGLRenderer({
     alpha: true,
@@ -315,6 +435,7 @@ export async function bakeBuildingSpinSheet(
     );
   }
 
+  fitSheetOpaqueContentToFrames(ctx, SPIN_SHEET_FRAME_PX, SPIN_SHEET_FRAMES);
   centerSheetPixelsVertically(ctx, SPIN_SHEET_FRAME_PX, SPIN_SHEET_FRAMES);
 
   renderer.dispose();

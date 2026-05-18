@@ -6,15 +6,14 @@ import {
   type MutableRefObject,
   type ReactElement,
 } from "react";
-import {
-  appearanceForPlayer,
-  type DisplayColorId,
-  type PlayerAppearancesMap,
-} from "@/game/appearance";
+import type { DisplayColorId, PlayerAppearancesMap } from "@/game/appearance";
 import type { TerritoryGameMap } from "@/game/maps";
 import { projectileColorsForPlayer } from "@/game/playerColors";
 import type { MapProjectileDraw } from "./mapProjectileTypes";
 import { drawMapProjectileOnCanvas } from "./projectileCanvasGlyphs";
+import { SHOT } from "@/shared/constants";
+import { fighterSkinForWeapon, weaponStatsById } from "@/shared/weaponStats";
+import { drawProjectileWaveDebugBorders } from "./drawProjectileWaveDebugBorders";
 import { preloadProjectileSpinSheets } from "./projectileSpinSheetCanvas";
 import { computeSvgMeetTransform } from "@/components/map/utils/viewBoxMeetTransform";
 import styles from "@/components/map/styles/MapView.module.scss";
@@ -99,16 +98,26 @@ export const MapProjectilesCanvas = forwardRef<
         appearances,
         lc
       );
-      const skin = appearanceForPlayer(appearances, p.attackerId).fighter;
+      const skin = fighterSkinForWeapon(p.attackAnimation);
+      const drawR = projR * weaponStatsById(p.attackAnimation).visualScale;
       drawMapProjectileOnCanvas(
         ctx,
         skin,
         fill,
-        projR,
+        drawR,
         p.x,
         p.y,
         p.angle,
-        p.id
+        p.id,
+        p.attackAnimation
+      );
+    }
+
+    if (SHOT.debugWaveBorders || SHOT.debugProjectileBorders) {
+      drawProjectileWaveDebugBorders(ctx, projectiles, projR, scale, dpr, {
+          waveBorders: SHOT.debugWaveBorders,
+          projectileBorders: SHOT.debugProjectileBorders,
+        }
       );
     }
   };

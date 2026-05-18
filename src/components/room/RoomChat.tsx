@@ -20,7 +20,20 @@ type RoomChatProps = {
   onSend: (text: string) => void;
 };
 
+type PreviewToast = {
+  id: string;
+  line: RoomChatLine;
+  hiding: boolean;
+};
+
 const MAX_INPUT = 200;
+const PREVIEW_VISIBLE_MS = 3_000;
+const PREVIEW_FADE_MS = 320;
+const MAX_PREVIEW_STACK = 8;
+
+function isHistoryLineKey(key: string): boolean {
+  return key.startsWith("hist-");
+}
 
 export function RoomChat({
   lines,
@@ -33,40 +46,157 @@ export function RoomChat({
   const [draft, setDraft] = useState("");
   const inputId = useId();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const readUpToRef = useRef(0);
-  const prevLenRef = useRef(0);
+  const knownKeysRef = useRef<Set<string>>(new Set());
+  const readKeysRef = useRef<Set<string>>(new Set());
   const [unreadCount, setUnreadCount] = useState(0);
   const [inputFocused, setInputFocused] = useState(false);
+  const [previewToasts, setPreviewToasts] = useState<readonly PreviewToast[]>([]);
+  const previewTimersRef = useRef(
+    new Map<string, { hide: number; clear: number }>()
+  );
+
+  const clearPreviewTimer = useCallback((id: string) => {
+    const timers = previewTimersRef.current.get(id);
+    if (!timers) return;
+    window.clearTimeout(timers.hide);
+    window.clearTimeout(timers.clear);
+    previewTimersRef.current.delete(id);
+  }, []);
+
+  const clearAllPreviewTimers = useCallback(() => {
+    for (const id of previewTimersRef.current.keys()) {
+      clearPreviewTimer(id);
+    }
+  }, [clearPreviewTimer]);
+
+  const dismissAllPreviews = useCallback(() => {
+    clearAllPreviewTimers();
+    setPreviewToasts([]);
+  }, [clearAllPreviewTimers]);
+
+  const schedulePreviewRemoval = useCallback(
+    (id: string) => {
+      clearPreviewTimer(id);
+      const hide = window.setTimeout(() => {
+        setPreviewToasts((prev) =>
+          prev.map((t) => (t.id === id ? { ...t, hiding: true } : t))
+        );
+        const clear = window.setTimeout(() => {
+          setPreviewToasts((prev) => prev.filter((t) => t.id !== id));
+          previewTimersRef.current.delete(id);
+        }, PREVIEW_FADE_MS);
+        previewTimersRef.current.set(id, { hide: 0, clear });
+      }, PREVIEW_VISIBLE_MS);
+      previewTimersRef.current.set(id, { hide, clear: 0 });
+    },
+    [clearPreviewTimer]
+  );
+
+  const pushPreview = useCallback(
+    (line: RoomChatLine) => {
+      const id = line.key;
+      setPreviewToasts((prev) => {
+        if (prev.some((t) => t.id === id)) return prev;
+        const next: PreviewToast[] = [...prev, { id, line, hiding: false }];
+        if (next.length > MAX_PREVIEW_STACK) {
+          const dropped = next.shift();
+          if (dropped) clearPreviewTimer(dropped.id);
+        }
+        return next;
+      });
+      schedulePreviewRemoval(id);
+    },
+    [clearPreviewTimer, schedulePreviewRemoval]
+  );
+
+  const markAllRead = useCallback(() => {
+    for (const line of lines) {
+      readKeysRef.current.add(line.key);
+    }
+    setUnreadCount(0);
+  }, [lines]);
+
+  const recomputeUnread = useCallback(() => {
+    let n = 0;
+    for (const line of lines) {
+      if (line.slotId === localPlayerId) continue;
+      if (!readKeysRef.current.has(line.key)) n += 1;
+    }
+    setUnreadCount(n);
+  }, [lines, localPlayerId]);
+
+  useEffect(() => () => clearAllPreviewTimers(), [clearAllPreviewTimers]);
 
   useEffect(() => {
-    const prevLen = prevLenRef.current;
-    const newLen = lines.length;
-    if (newLen === 0) {
-      prevLenRef.current = 0;
-      readUpToRef.current = 0;
+    const liveKeys = new Set(lines.map((l) => l.key));
+    for (const key of knownKeysRef.current) {
+      if (!liveKeys.has(key)) knownKeysRef.current.delete(key);
+    }
+    for (const key of readKeysRef.current) {
+      if (!liveKeys.has(key)) readKeysRef.current.delete(key);
+    }
+
+    if (lines.length === 0) {
+      knownKeysRef.current.clear();
+      readKeysRef.current.clear();
       setUnreadCount(0);
+      dismissAllPreviews();
       return;
     }
-    prevLenRef.current = newLen;
-    if (newLen < readUpToRef.current) {
-      readUpToRef.current = newLen;
-    }
+
     if (inputFocused) {
-      readUpToRef.current = newLen;
+      for (const line of lines) {
+        knownKeysRef.current.add(line.key);
+        readKeysRef.current.add(line.key);
+      }
       setUnreadCount(0);
+      dismissAllPreviews();
       return;
     }
-    const bulkAdded = newLen - prevLen > 1;
-    if (bulkAdded) {
-      readUpToRef.current = newLen;
-      setUnreadCount(0);
+
+    const fresh = lines.filter((l) => !knownKeysRef.current.has(l.key));
+    if (fresh.length === 0) {
+      recomputeUnread();
       return;
     }
-    setUnreadCount(Math.max(0, newLen - readUpToRef.current));
-  }, [lines, inputFocused]);
+
+    const historyBatch =
+      fresh.length > 1 && fresh.every((l) => isHistoryLineKey(l.key));
+
+    for (const line of fresh) {
+      knownKeysRef.current.add(line.key);
+      if (historyBatch || isHistoryLineKey(line.key)) {
+        readKeysRef.current.add(line.key);
+        continue;
+      }
+      if (line.slotId === localPlayerId) {
+        readKeysRef.current.add(line.key);
+        continue;
+      }
+      readKeysRef.current.delete(line.key);
+      pushPreview(line);
+    }
+
+    if (historyBatch) {
+      for (const line of lines) {
+        readKeysRef.current.add(line.key);
+      }
+    }
+
+    recomputeUnread();
+  }, [
+    lines,
+    inputFocused,
+    localPlayerId,
+    pushPreview,
+    dismissAllPreviews,
+    recomputeUnread,
+  ]);
+
+  const showMessagesPanel = inputFocused && lines.length > 0;
 
   useLayoutEffect(() => {
-    if (!inputFocused) return;
+    if (!showMessagesPanel) return;
     const el = scrollRef.current;
     if (!el) return;
     const threshold = 48;
@@ -74,7 +204,7 @@ export function RoomChat({
     if (maxScroll - el.scrollTop < threshold) {
       el.scrollTop = maxScroll;
     }
-  }, [lines, inputFocused]);
+  }, [lines, showMessagesPanel]);
 
   const submit = useCallback(() => {
     const t = draft.trim();
@@ -84,15 +214,16 @@ export function RoomChat({
   }, [draft, connected, onSend]);
 
   const showUnread = unreadCount > 0 && !inputFocused;
+  const showPreviewStack = previewToasts.length > 0 && !inputFocused;
 
   return (
     <div className={styles.wrap} aria-label="Чат комнаты">
       <div
         ref={scrollRef}
-        className={`${styles.messages} ${inputFocused ? styles.messagesOpen : styles.messagesCollapsed}`}
+        className={`${styles.messages} ${showMessagesPanel ? styles.messagesOpen : styles.messagesCollapsed}`}
         role="log"
         aria-live="polite"
-        aria-hidden={!inputFocused}
+        aria-hidden={!showMessagesPanel}
       >
         {lines.length > 1 ? (
           <div className={styles.messagesFlexPad} aria-hidden />
@@ -116,6 +247,33 @@ export function RoomChat({
           </p>
         ))}
       </div>
+      {showPreviewStack ? (
+        <div className={styles.previewStack} role="status" aria-live="polite">
+          {previewToasts.map((toast) => (
+            <div
+              key={toast.id}
+              className={`${styles.previewItem} ${toast.hiding ? styles.previewItemHiding : ""}`}
+            >
+              <p className={styles.previewLine}>
+                <span className={styles.previewText}>{toast.line.text}</span>
+                <span
+                  className={styles.previewAuthor}
+                  style={{
+                    color: chatAuthorColor(
+                      toast.line.slotId,
+                      localPlayerId,
+                      appearances,
+                      localDisplayColor
+                    ),
+                  }}
+                >
+                  {toast.line.name}
+                </span>
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className={styles.inputRow}>
         {showUnread ? (
           <span
@@ -139,8 +297,8 @@ export function RoomChat({
           onChange={(e) => setDraft(e.target.value.slice(0, MAX_INPUT))}
           onFocus={() => {
             setInputFocused(true);
-            readUpToRef.current = lines.length;
-            setUnreadCount(0);
+            markAllRead();
+            dismissAllPreviews();
             requestAnimationFrame(() => {
               const el = scrollRef.current;
               if (!el) return;

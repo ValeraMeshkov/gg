@@ -3,6 +3,11 @@ import {
   offlineImmediateOutcomeForLocal,
   roomGameOutcomeForLocal,
 } from "@/game/scoring/gameOutcome";
+import {
+  isPlayerAliveInMatch,
+  matchScoreWithEliminationPenalty,
+} from "@/game/scoring/matchElimination";
+import { playerCanRecoverFromZeroScore } from "@/game/scoring/eliminationStrikes";
 import { playerScoresForRoom } from "@/game/scoring/playerScores";
 import type { RoomGameOutcome } from "@/game/scoring/types";
 import type { MapCell } from "@/game/maps/types";
@@ -11,6 +16,7 @@ import type { FlightPayload } from "@/game/projectiles/types";
 type UseGameScoringOpts = {
   cells: readonly MapCell[];
   flightsRef: MutableRefObject<readonly FlightPayload[]>;
+  eliminationPenaltyRef: MutableRefObject<Map<string, number>>;
   scoreSlotIds: readonly string[];
   localPlayerId: string;
   roomCode: string | null;
@@ -20,15 +26,36 @@ type UseGameScoringOpts = {
 export function useGameScoring({
   cells,
   flightsRef,
+  eliminationPenaltyRef,
   scoreSlotIds,
   localPlayerId,
   roomCode,
   scoreEpoch,
 }: UseGameScoringOpts) {
-  const liveScores = useMemo(
-    () => playerScoresForRoom(cells, flightsRef.current, scoreSlotIds),
-    [cells, scoreSlotIds, scoreEpoch]
-  );
+  const liveScores = useMemo(() => {
+    const flights = flightsRef.current;
+    const raw = playerScoresForRoom(cells, flights, scoreSlotIds);
+    const penalties = eliminationPenaltyRef.current;
+
+    for (const id of scoreSlotIds) {
+      const units = raw.get(id) ?? 0;
+      if (units > 0) {
+        penalties.delete(id);
+      } else if (
+        units === 0 &&
+        !playerCanRecoverFromZeroScore(id, cells, flights)
+      ) {
+        penalties.set(id, 1);
+      }
+    }
+
+    const out = new Map<string, number>();
+    for (const id of scoreSlotIds) {
+      const penalty = penalties.get(id) ?? 0;
+      out.set(id, matchScoreWithEliminationPenalty(raw.get(id) ?? 0, penalty));
+    }
+    return out;
+  }, [cells, scoreSlotIds, scoreEpoch, eliminationPenaltyRef]);
 
   const gameOutcome = useMemo((): RoomGameOutcome | null => {
     if (scoreSlotIds.length < 2) return null;
@@ -45,7 +72,9 @@ export function useGameScoring({
 
   const offlineAliveCount = useMemo(
     () =>
-      scoreSlotIds.filter((id) => (liveScores.get(id) ?? 0) > 0).length,
+      scoreSlotIds.filter((id) =>
+        isPlayerAliveInMatch(liveScores.get(id) ?? 0)
+      ).length,
     [scoreSlotIds, liveScores, scoreEpoch]
   );
 

@@ -44,7 +44,7 @@ function MapGlbPinsInner({
         24,
         Math.round(
           Math.min(
-            Math.round(MAP_PIN_REFERENCE_PX * 1.35),
+            Math.round(MAP_PIN_REFERENCE_PX * 1.15),
             Math.max(28, Math.round(spot.targetMapSize * scale))
           ) * MAP_SPIN_SPRITE_DISPLAY_SCALE
         )

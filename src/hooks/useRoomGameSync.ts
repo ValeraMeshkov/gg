@@ -12,6 +12,7 @@ import { roomWsUrl } from "@/lib/wsUrl";
 export type AttackLaunchEvent = {
   attackId: string;
   attackerId: string;
+  fighter: string;
   fromIndex: number;
   toIndex: number;
   amount: number;
@@ -167,6 +168,7 @@ export function useRoomGameSync({
         handlersRef.current.onAttackLaunch({
           attackId: msg.attackId,
           attackerId: msg.attackerId,
+          fighter: msg.fighter,
           fromIndex: msg.fromIndex,
           toIndex: msg.toIndex,
           amount: msg.amount,

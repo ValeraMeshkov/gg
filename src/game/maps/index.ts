@@ -12,10 +12,15 @@ export {
   mapSizeLabel,
   mapViewBoxString,
   mapAspectRatio,
+  mapAspectRatioValue,
   type CellPos,
 } from './mapAccess'
 export { cellUnderCursorTerritoryDot, territoryCellPos } from './territoryDotPick'
-export { mapProjectileRadius, mapShotSpeedPerMs } from './mapScale'
+export {
+  mapProjectileRadius,
+  mapProjectileRadiusFromDotRadius,
+  mapShotSpeedPerMs,
+} from './mapScale'
 export { TERRITORY_MAPS, WORLD_CONTINENTS, SOUTH_AMERICA } from './world'
 export {
   MAP_CATALOG,

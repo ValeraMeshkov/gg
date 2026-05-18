@@ -28,3 +28,7 @@ node_modules/.tmp/
 
 # Сырые GLB до npm run glb:optimize (положить сюда, в git не коммитить)
 src/assets/buildings-source/
+
+# Локально для glb:bake-spin; в бинарнике бывает ложное срабатывание secret scanning
+src/assets/buildings/pixellabs-dagger-3178.glb
+src/assets/buildings/spin-sheets/_check-*.png

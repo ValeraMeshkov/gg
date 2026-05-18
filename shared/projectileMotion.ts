@@ -8,6 +8,9 @@ export type ProjectilePath = {
   sy: number;
   tx: number;
   ty: number;
+  /** Пик поперечного смещения в середине пути (sin-дуга, 0 на вылете и прилёте). */
+  arcPerpX: number;
+  arcPerpY: number;
 };
 
 export function projectileHitRadius(): number {
@@ -17,6 +20,45 @@ export function projectileHitRadius(): number {
 export function projectileHitRadius2(): number {
   const r = projectileHitRadius();
   return r * r;
+}
+
+/** sin(π·k): 0 в начале и в конце, максимум в середине. */
+export function projectileArcBulgeFactor(k: number): number {
+  return Math.sin(Math.PI * k);
+}
+
+/** Позиция на траектории при доле полёта k ∈ [0, 1]. */
+export function projectilePositionAtProgress(
+  path: ProjectilePath,
+  k: number
+): { x: number; y: number } {
+  const bulge = projectileArcBulgeFactor(k);
+  return {
+    x:
+      path.sx +
+      (path.tx - path.sx) * k +
+      path.arcPerpX * bulge,
+    y:
+      path.sy +
+      (path.ty - path.sy) * k +
+      path.arcPerpY * bulge,
+  };
+}
+
+/** Касательная (не нормирована) для угла спрайта при доле полёта k. */
+export function projectileTangentAtProgress(
+  path: ProjectilePath,
+  k: number
+): { x: number; y: number } {
+  const fd = path.flightDuration;
+  if (fd <= 0) {
+    return { x: path.tx - path.sx, y: path.ty - path.sy };
+  }
+  const bulgeDeriv = Math.PI * Math.cos(Math.PI * k);
+  return {
+    x: (path.tx - path.sx + path.arcPerpX * bulgeDeriv) / fd,
+    y: (path.ty - path.sy + path.arcPerpY * bulgeDeriv) / fd,
+  };
 }
 
 /** Позиция пули в момент now (Unix/perf ms); null — ещё не вылетела или уже прилетела. */
@@ -30,10 +72,7 @@ export function projectilePositionAt(
   if (fd <= 0) return { x: path.tx, y: path.ty };
   if (t >= fd) return null;
   const k = t / fd;
-  return {
-    x: path.sx + (path.tx - path.sx) * k,
-    y: path.sy + (path.ty - path.sy) * k,
-  };
+  return projectilePositionAtProgress(path, k);
 }
 
 function activeTimeWindow(

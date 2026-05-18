@@ -29,7 +29,7 @@ import {
   computeMapSpotMetrics,
   computeMapSpotMetricsFallback,
 } from "@/game/maps/mapSpotMetrics";
-import { mapProjectileRadius } from "@/game/maps/mapScale";
+import { mapProjectileRadiusFromDotRadius } from "@/game/maps/mapScale";
 import { useMapSvgSize } from "@/hooks/useMapSvgSize";
 import type { LandHitFx } from "@/game/hitEffects";
 import type { PlayerAppearancesMap } from "@/game/appearance";
@@ -98,6 +98,10 @@ type TerritoryMapViewProps = {
   syncMapLayout?: boolean;
   showFirstMoveHint?: boolean;
   mapInteractionLocked?: boolean;
+  onMapFlightMetricsChange?: (metrics: {
+    meetScale: number;
+    dotRadius: number;
+  }) => void;
 };
 
 function isMapHotkeyTarget(el: EventTarget | null): boolean {
@@ -257,6 +261,7 @@ export const TerritoryMapView = memo(function TerritoryMapView({
   syncMapLayout = false,
   showFirstMoveHint = false,
   mapInteractionLocked = false,
+  onMapFlightMetricsChange,
 }: TerritoryMapViewProps) {
   const hiddenOpts = useMemo(
     () => (syncMapLayout ? { syncMapLayout: true as const } : undefined),
@@ -301,11 +306,22 @@ export const TerritoryMapView = memo(function TerritoryMapView({
     localPlayerId,
     localDisplayColor
   );
-  const projR = mapProjectileRadius(map);
+  const projR = mapProjectileRadiusFromDotRadius(spotMetrics.dotRadius);
   const aimEnd = dragActive?.aimEnd ?? null;
   const dotR = spotMetrics.dotRadius;
   const aimRingR = spotMetrics.spotRingRadius;
   const arrowTrim = dotR + 3;
+
+  useEffect(() => {
+    onMapFlightMetricsChange?.({
+      meetScale: spotMetrics.meetScale,
+      dotRadius: spotMetrics.dotRadius,
+    });
+  }, [
+    spotMetrics.meetScale,
+    spotMetrics.dotRadius,
+    onMapFlightMetricsChange,
+  ]);
 
   const aimTargetValid = Boolean(
     dragActive &&
@@ -325,15 +341,35 @@ export const TerritoryMapView = memo(function TerritoryMapView({
       ? mapDotCenter(map, territoryCellPos(aimTargetIndex))
       : null;
 
+  const syncHoveredOwnFromPointer = useCallback(
+    (pt: { x: number; y: number } | null) => {
+      if (drag) return;
+      if (!pt) {
+        setHoveredOwnIndex(null);
+        return;
+      }
+      const hover = cellUnderCursorTerritoryDot(map, pt.x, pt.y, hiddenOpts);
+      if (hover && isOwnWithUnits(map, localPlayerId, hover)) {
+        setHoveredOwnIndex(hover.x);
+      } else {
+        setHoveredOwnIndex(null);
+      }
+    },
+    [drag, map, localPlayerId, hiddenOpts]
+  );
+
   const trackPointerOnMap = useCallback(
     (clientX: number, clientY: number) => {
       const svg = svgRef.current;
       if (!svg) return null;
       const pt = clientPointToMapSpace(svg, clientX, clientY);
-      if (pt) lastPointerMapRef.current = pt;
+      if (pt) {
+        lastPointerMapRef.current = pt;
+        syncHoveredOwnFromPointer(pt);
+      }
       return pt;
     },
-    []
+    [syncHoveredOwnFromPointer]
   );
 
   const selectAllOwnTerritories = useCallback(() => {
@@ -482,10 +518,11 @@ export const TerritoryMapView = memo(function TerritoryMapView({
     return lines;
   }, [dragActive, aimEnd, map, aimStroke, aimHead, arrowTrim]);
 
-  const mapCursor = useMemo(
-    () => (drag ? mapCursorCss("grabbing") : mapCursorCss("crosshair")),
-    [drag]
-  );
+  const mapCursor = useMemo(() => {
+    if (drag) return mapCursorCss("grabbing");
+    if (hoveredOwnIndex !== null) return "pointer";
+    return mapCursorCss("crosshair");
+  }, [drag, hoveredOwnIndex]);
 
   return (
     <MapSpotMetricsProvider metrics={spotMetrics}>
@@ -494,6 +531,9 @@ export const TerritoryMapView = memo(function TerritoryMapView({
       style={{ cursor: mapCursor }}
       onPointerMove={(e) => {
         trackPointerOnMap(e.clientX, e.clientY);
+      }}
+      onPointerLeave={() => {
+        if (!drag) setHoveredOwnIndex(null);
       }}
     >
       <div className={styles.mapActionBar} aria-label={UI.mapQuickActions}>

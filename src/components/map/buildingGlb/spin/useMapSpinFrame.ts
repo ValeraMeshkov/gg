@@ -15,22 +15,27 @@ function emit(): void {
   }
 }
 
-function frameIndexAtTime(nowMs: number): number {
-  const phase =
-    ((nowMs / 1000) % MAP_SPIN_SHEET_PERIOD_SEC) / MAP_SPIN_SHEET_PERIOD_SEC;
+/** Кадр спин-листа: `spinSpeed` 1 = эталон, 2 = в 2 раза быстрее. */
+export function spinFrameIndexAt(
+  nowMs: number = performance.now(),
+  spinSpeed = 1
+): number {
+  const speed = Math.max(0.01, spinSpeed);
+  const periodSec = MAP_SPIN_SHEET_PERIOD_SEC / speed;
+  const phase = ((nowMs / 1000) % periodSec) / periodSec;
   return Math.min(
     SPIN_SHEET_FRAMES - 1,
     Math.floor(phase * SPIN_SHEET_FRAMES)
   );
 }
 
-/** Текущий кадр спин-листа без React (canvas-снаряды). */
+/** Текущий кадр спин-листа без React (canvas-снаряды), скорость 1. */
 export function mapSpinFrameIndexAt(nowMs: number = performance.now()): number {
-  return frameIndexAtTime(nowMs);
+  return spinFrameIndexAt(nowMs, 1);
 }
 
 function tick(now: number): void {
-  const next = frameIndexAtTime(now);
+  const next = spinFrameIndexAt(now, 1);
   if (next !== frame) {
     frame = next;
     emit();
@@ -56,15 +61,11 @@ function subscribe(listener: () => void): () => void {
 
 const noopSubscribe = () => () => {};
 
-function getSnapshot(): number {
-  return frame;
-}
-
 /** rAF-такт + дискретные кадры спрайт-листа (плавность = число запечённых кадров). */
-export function useMapSpinFrame(enabled = true): number {
+export function useMapSpinFrame(enabled = true, spinSpeed = 1): number {
   return useSyncExternalStore(
     enabled ? subscribe : noopSubscribe,
-    () => (enabled ? getSnapshot() : 0),
+    () => (enabled ? spinFrameIndexAt(performance.now(), spinSpeed) : 0),
     () => 0
   );
 }

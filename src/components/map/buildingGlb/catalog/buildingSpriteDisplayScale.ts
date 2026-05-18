@@ -3,9 +3,6 @@ import { BUILDING_GLB_SHORT } from "./buildingGlbShortNames";
 
 /**
  * Масштаб отображения спрайта на карте и в настройках.
- * 1 — базовый, 0.9 — на 10% меньше. Перезапекание не нужно.
- *
- * Ключ = id в коде, короткое имя — в buildingGlbShortNames.ts (`label` / `sheet`).
  */
 const defaultSpriteDisplayScale = Object.fromEntries(
   (Object.keys(BUILDING_GLB_SHORT) as GlbBuildingSkinId[]).map((id) => [id, 1])
@@ -14,17 +11,57 @@ const defaultSpriteDisplayScale = Object.fromEntries(
 export const BUILDING_SPRITE_DISPLAY_SCALE: Record<GlbBuildingSkinId, number> =
   {
     ...defaultSpriteDisplayScale,
-    pixellabsPoisonBottle: 0.8, // яд
-    pixellabsPotionBottleAlt: 0.8, // флакон
     pixellabsWatchtower: 0.8, // сторож
     pixellabsSignpost: 0.8, // указ
-    pixellabsSkull: 0.8, // череп
-    pixellabsSkullPotion: 0.8, // зелье
-    pixellabsBanner: 0.8, // баннер
-    pixellabsBomb: 0.8, // бомба
     freedomCastle: 0.8, // замок
+    freedomHouse: 0.8, // дом
+    pixellabs3822: 0.8, // башня 2
+
+    // бойцы
+    pixellabsPoisonBottle: 1.2, // яд
+    pixellabsSkullPotion: 1.2, // зелье
+    pixellabsDagger3178: 1.2, // дагер
+    pixellabsBomb: 1.2, // бомба
   };
 
 export function getBuildingSpriteDisplayScale(skin: GlbBuildingSkinId): number {
   return BUILDING_SPRITE_DISPLAY_SCALE[skin] ?? 1;
+}
+
+/**
+ * Поворот всей spin-анимации при показе (градусы, по часовой).
+ */
+export const SPIN_SHEET_DISPLAY_ROTATION_DEG: Partial<
+  Record<GlbBuildingSkinId, number>
+> = {
+  pixellabsDagger3178: 90,
+};
+
+export function getSpinSheetDisplayRotationRad(
+  skin: GlbBuildingSkinId
+): number {
+  const deg = SPIN_SHEET_DISPLAY_ROTATION_DEG[skin];
+  return deg != null ? (deg * Math.PI) / 180 : 0;
+}
+
+/**
+ * Сдвиг «носа» spin-листа к направлению полёта (градусы).
+ * Лист запечён вертикально: +90° = нос вправо при angle=0, как треугольник.
+ */
+export const SPIN_SHEET_FLIGHT_FORWARD_OFFSET_DEG: Partial<
+  Record<GlbBuildingSkinId, number>
+> = {
+  pixellabsDagger3178: 90,
+};
+
+const DEFAULT_FLIGHT_FORWARD_OFFSET_DEG = 90;
+
+export function getSpinSheetFlightRotationRad(
+  skin: GlbBuildingSkinId,
+  flightAngle: number
+): number {
+  const offsetDeg =
+    SPIN_SHEET_FLIGHT_FORWARD_OFFSET_DEG[skin] ??
+    DEFAULT_FLIGHT_FORWARD_OFFSET_DEG;
+  return flightAngle + (offsetDeg * Math.PI) / 180;
 }

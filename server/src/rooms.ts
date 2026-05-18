@@ -147,19 +147,31 @@ export function startRoom(code: string, hostUserId: string): Room | null {
   return room;
 }
 
+export type RestartRoomOpts = {
+  mapId?: string;
+  randomMapOnStart?: boolean;
+};
+
 export function restartRoom(
   code: string,
   hostUserId: string,
-  mapId?: string
+  opts?: RestartRoomOpts | string
 ): Room | null {
   const room = getRoom(code);
   if (!room || room.status !== "playing") return null;
   if (room.hostUserId !== hostUserId) return null;
 
+  const patch =
+    typeof opts === "string" ? { mapId: opts } : (opts ?? {});
+
+  if (patch.randomMapOnStart !== undefined) {
+    room.randomMapOnStart = patch.randomMapOnStart;
+  }
+
   if (room.randomMapOnStart) {
     room.mapId = pickRandomMapId(room.mapId);
-  } else if (mapId && isValidMapId(mapId)) {
-    room.mapId = mapId;
+  } else if (patch.mapId && isValidMapId(patch.mapId)) {
+    room.mapId = patch.mapId;
   }
 
   room.gameGeneration = (room.gameGeneration ?? 0) + 1;

@@ -6,15 +6,12 @@ import spin_watchtower from "@/assets/buildings/spin-sheets/storozh.png?url";
 import spin_signpost from "@/assets/buildings/spin-sheets/ukaz.png?url";
 import spin_crystal_tree from "@/assets/buildings/spin-sheets/krist.png?url";
 import spin_poison_bottle from "@/assets/buildings/spin-sheets/yad.png?url";
-import spin_skull from "@/assets/buildings/spin-sheets/cherep.png?url";
 import spin_skull_potion from "@/assets/buildings/spin-sheets/zele.png?url";
-import spin_slime from "@/assets/buildings/spin-sheets/slaym.png?url";
-import spin_banner from "@/assets/buildings/spin-sheets/banner.png?url";
 import spin_bomb from "@/assets/buildings/spin-sheets/bomba.png?url";
-import spin_potion_bottle_alt from "@/assets/buildings/spin-sheets/flakon.png?url";
 import spin_undead from "@/assets/buildings/spin-sheets/nezhit.png?url";
 import spin_zombie from "@/assets/buildings/spin-sheets/zombi.png?url";
 import spin_pixellabs_grim_reaper_3d_3011 from "@/assets/buildings/spin-sheets/zhnets.png?url";
+import spin_pixellabs_dagger_3178 from "@/assets/buildings/spin-sheets/dager.png?url";
 import spin_planet_boy from "@/assets/buildings/spin-sheets/malchik.png?url";
 import spin_planet_defective from "@/assets/buildings/spin-sheets/brak.png?url";
 import spin_planet_energy from "@/assets/buildings/spin-sheets/energiya.png?url";
@@ -33,15 +30,12 @@ export const SPIN_SHEET_URL_BY_GLB_FILE: Record<string, string> = {
   "signpost.glb": spin_signpost,
   "crystal-tree.glb": spin_crystal_tree,
   "poison-bottle.glb": spin_poison_bottle,
-  "skull.glb": spin_skull,
   "skull-potion.glb": spin_skull_potion,
-  "slime.glb": spin_slime,
-  "banner.glb": spin_banner,
   "bomb.glb": spin_bomb,
-  "potion-bottle-alt.glb": spin_potion_bottle_alt,
   "undead.glb": spin_undead,
   "zombie.glb": spin_zombie,
   "pixellabs-grim-reaper-3d-3011.glb": spin_pixellabs_grim_reaper_3d_3011,
+  "pixellabs-dagger-3178.glb": spin_pixellabs_dagger_3178,
   "planet-boy.glb": spin_planet_boy,
   "planet-defective.glb": spin_planet_defective,
   "planet-energy.glb": spin_planet_energy,

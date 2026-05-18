@@ -101,6 +101,64 @@
   color: #111c2e;
 }
 
+.previewStack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 3px;
+  width: 100%;
+  max-width: min(220px, 46vw);
+  margin-left: auto;
+  pointer-events: none;
+}
+
+.previewItem {
+  width: 100%;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 0.32s ease,
+    transform 0.32s ease;
+}
+
+.previewItemHiding {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+/* Текст слева, имя справа; блок прижат к правому краю чата */
+.previewLine {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 0.4em;
+  margin: 0;
+  width: 100%;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  text-align: right;
+  text-shadow:
+    0 0 8px rgba(255, 255, 255, 0.98),
+    0 0 14px rgba(255, 255, 255, 0.75),
+    0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.previewText {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #111c2e;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.previewAuthor {
+  flex: 0 0 auto;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .inputRow {
   position: relative;
   pointer-events: auto;

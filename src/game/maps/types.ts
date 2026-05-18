@@ -4,6 +4,8 @@ export type MapCell = {
   units?: number;
   /** Владелец (id игрока); пусто — нейтрал */
   ownerId?: string;
+  /** Unix ms — пауза пассивного +1 после попадания по нейтрали/врагу. */
+  growthPausedUntil?: number;
   /** Подсветка выбора UI (не то же самое, что владение) */
   active?: boolean;
 };

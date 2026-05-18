@@ -1,6 +1,10 @@
 export {
   getBuildingSkinOptions,
+  getFighterSkinOptions,
+  fighterSkinShortLabel,
   FIGHTER_SKIN_OPTIONS,
+  SETTINGS_FIGHTER_SKINS,
+  type SettingsFighterSkinId,
   type SkinOption,
 } from "./catalog";
 export {

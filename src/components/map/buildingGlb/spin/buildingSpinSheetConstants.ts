@@ -15,11 +15,14 @@ export const SPIN_SHEET_FRAME_PX = 160;
 /** Рендер в N× больше, затем даунскейл в SPIN_SHEET_FRAME_PX. */
 export const SPIN_SHEET_BAKE_SUPERSAMPLE = 2;
 
-/** Запас ortho при bake — iso-проекция шире AABB, без него режутся верхушки. */
-export const SPIN_SHEET_BAKE_FRUSTUM_MARGIN = 1.28;
+/**
+ * Запас ortho при bake (iso). Чуть больше 1.2 — вытянутые модели (акула) не режутся;
+ * постобработка заполняет кадр по непрозрачным пикселям.
+ */
+export const SPIN_SHEET_BAKE_FRUSTUM_MARGIN = 1.5;
 
-/** Вертикальный отступ в кадре PNG после выравнивания (px сверху и снизу). */
-export const SPIN_SHEET_BAKE_FRAME_PAD_Y = 8;
+/** Отступ от краёв кадра после подгонки по непрозрачным пикселям (px). */
+export const SPIN_SHEET_BAKE_FRAME_PAD_Y = 6;
 
 /** Один полный оборот на карте — как SPIN_SPEED в 3D-превью (~11 с). */
 export const MAP_SPIN_SHEET_PERIOD_SEC = (Math.PI * 2) / SPIN_SPEED;

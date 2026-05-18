@@ -1,3 +1,5 @@
+import type { AttackAnimationId } from "@/shared/weaponStats";
+
 export type ProjectileSim = {
   id: string;
   flightFid: string;
@@ -8,11 +10,14 @@ export type ProjectileSim = {
   sy: number;
   tx: number;
   ty: number;
-  offX: number;
-  offY: number;
+  arcPerpX: number;
+  arcPerpY: number;
   placeInRow: number;
   rowWidth: number;
   hitAffiliationId: string;
+  /** Текущая сила: падает в столкновениях, уходит в урон по клетке при приземлении. */
+  power: number;
+  attackAnimation: AttackAnimationId;
   destroyed?: boolean;
   spawnApplied?: boolean;
   landApplied?: boolean;
@@ -34,6 +39,7 @@ export type MapProjectileDraw = {
   x: number;
   y: number;
   angle: number;
+  attackAnimation: AttackAnimationId;
   attackerId: string;
   gridRow: number;
   rowWidth: number;

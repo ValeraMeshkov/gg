@@ -2,11 +2,7 @@ import type { ReactElement } from "react";
 import type { FighterSkinId } from "@/game/appearance";
 
 /** Скины, которые поворачиваются по направлению полёта. */
-export const ROTATING_FIGHTER_SKINS = new Set<FighterSkinId>([
-  "star",
-  "diamond",
-  "rocket",
-]);
+export const ROTATING_FIGHTER_SKINS = new Set<FighterSkinId>(["star", "rocket"]);
 
 /** Доп. поворот глифа (рад.): ракета нарисована «вверх», полёт angle=0 — вправо. */
 const FIGHTER_ROTATION_OFFSET: Partial<Record<FighterSkinId, number>> = {
@@ -72,29 +68,6 @@ export function renderFighterGlyph(
       );
     case "star":
       return <polygon points={starPoints(0, 0, s * 0.85, 5)} fill={fill} />;
-    case "diamond":
-      return (
-        <polygon
-          points={`0,${-s * 0.85} ${s * 0.55},0 0,${s * 0.85} ${-s * 0.55},0`}
-          fill={fill}
-        />
-      );
-    case "ghost":
-      return (
-        <g fill={fill}>
-          <path
-            d={`M0 ${-s * 0.72} A${s * 0.55} ${s * 0.55} 0 1 1 0 ${
-              -s * 0.72
-            } Z M${-s * 0.55} ${-s * 0.2} L${-s * 0.55} ${s * 0.55} L${
-              -s * 0.28
-            } ${s * 0.35} L0 ${s * 0.62} L${s * 0.28} ${s * 0.35} L${
-              s * 0.55
-            } ${s * 0.55} L${s * 0.55} ${-s * 0.2} Z`}
-          />
-          <circle cx={-s * 0.2} cy={-s * 0.15} r={s * 0.1} fill="#fff" />
-          <circle cx={s * 0.2} cy={-s * 0.15} r={s * 0.1} fill="#fff" />
-        </g>
-      );
     case "rocket":
       return (
         <g fill={fill}>
@@ -122,22 +95,6 @@ export function renderFighterGlyph(
           />
         </g>
       );
-    case "clover":
-      return (
-        <g fill={fill}>
-          <circle cx={0} cy={-s * 0.32} r={s * 0.28} />
-          <circle cx={-s * 0.32} cy={0} r={s * 0.28} />
-          <circle cx={s * 0.32} cy={0} r={s * 0.28} />
-          <circle cx={0} cy={s * 0.32} r={s * 0.28} />
-          <rect
-            x={-s * 0.08}
-            y={s * 0.2}
-            width={s * 0.16}
-            height={s * 0.45}
-            rx={s * 0.04}
-          />
-        </g>
-      );
     case "bomb":
       return (
         <g fill={fill}>
@@ -154,39 +111,10 @@ export function renderFighterGlyph(
           <circle cx={s * 0.32} cy={-s * 0.78} r={s * 0.1} fill="#ffe082" />
         </g>
       );
-    case "ufo":
-      return (
-        <g fill={fill}>
-          <ellipse cx={0} cy={s * 0.15} rx={s * 0.72} ry={s * 0.28} />
-          <ellipse cx={0} cy={-s * 0.18} rx={s * 0.32} ry={s * 0.28} />
-          <circle
-            cx={-s * 0.28}
-            cy={s * 0.18}
-            r={s * 0.06}
-            fill="#fff"
-            opacity={0.8}
-          />
-          <circle cx={0} cy={s * 0.18} r={s * 0.06} fill="#fff" opacity={0.8} />
-          <circle
-            cx={s * 0.28}
-            cy={s * 0.18}
-            r={s * 0.06}
-            fill="#fff"
-            opacity={0.8}
-          />
-        </g>
-      );
-    case "shield":
-      return (
-        <path
-          d={`M0 ${-s * 0.75} L${s * 0.62} ${-s * 0.35} L${s * 0.55} ${
-            s * 0.25
-          } Q0 ${s * 0.85} 0 ${s * 0.85} Q0 ${s * 0.85} ${-s * 0.55} ${
-            s * 0.25
-          } L${-s * 0.62} ${-s * 0.35} Z`}
-          fill={fill}
-        />
-      );
+    case "poison":
+    case "potion":
+    case "dagger":
+      return null;
     case "triangle":
       return null;
     default: {

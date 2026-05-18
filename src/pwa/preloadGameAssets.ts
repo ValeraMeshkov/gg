@@ -46,20 +46,19 @@ export function preloadGameAssets(
         onProgress?.({ loaded, total, phase });
       };
 
-      tick(UI.preloadBuildings);
+      tick(UI.preloadGame);
 
       for (const url of spinUrls) {
         await preloadImage(url);
         loaded += 1;
-        tick(UI.preloadBuildings);
+        tick(UI.preloadGame);
       }
 
-      tick(UI.preloadUi);
       for (const url of staticUrls) {
         await preloadUrl(url);
         if (url.endsWith(".png")) await preloadImage(url);
         loaded += 1;
-        tick(UI.preloadUi);
+        tick(UI.preloadGame);
       }
 
       onProgress?.({ loaded: total, total, phase: UI.preloadDone });

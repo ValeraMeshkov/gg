@@ -1,8 +1,9 @@
 import {
-  MAP_SHOT_SPEED_PER_MS,
-  TERRITORY_PROJECTILE_R,
-  SHOT,
-} from "./constants.js";
+  mapProjectileRadiusForGameplayScale,
+  mapShotSpeedPerMsForGameplayScale,
+} from "./mapGameplayScale.js";
+import { flightArcBulge, waveSpawnStaggerRank } from "./flightSpread.js";
+import type { WeaponStats } from "./weaponStats.js";
 
 export type FlightSimPlan = {
   id: string;
@@ -15,6 +16,9 @@ export type FlightSimPlan = {
   sy: number;
   tx: number;
   ty: number;
+  arcPerpX: number;
+  arcPerpY: number;
+  power: number;
 };
 
 export type FlightPlan = {
@@ -24,9 +28,9 @@ export type FlightPlan = {
   sims: FlightSimPlan[];
 };
 
-function flightMsForDistance(dist: number): number {
+function flightMsForDistance(dist: number, speedPerMs: number): number {
   if (dist <= 0) return 0;
-  return dist / MAP_SHOT_SPEED_PER_MS;
+  return dist / speedPerMs;
 }
 
 /** План полёта пуль (без координат карты — только тайминги). */
@@ -37,37 +41,33 @@ export function buildFlightPlan(
   tx: number,
   ty: number,
   baseTime: number,
-  idPrefix: string
+  idPrefix: string,
+  weapon: WeaponStats,
+  /** Масштаб карты относительно эталона (Азия); см. `mapGameplayScaleForMapId`. */
+  mapGameplayScale = 1
 ): FlightPlan {
+  const speedPerMs =
+    mapShotSpeedPerMsForGameplayScale(mapGameplayScale) * weapon.speedMultiplier;
   const dx = tx - sx;
   const dy = ty - sy;
   const len = Math.hypot(dx, dy) || 1;
   const px = -dy / len;
   const py = dx / len;
-  const ballD = TERRITORY_PROJECTILE_R * 2;
-  const lateralStep = ballD * SHOT.neighborCenterDistBallDiameters;
-  const ux = dx / len;
-  const uy = dy / len;
-  const wedgeStep = ballD * SHOT.wedgeAlongBallDiametersPerRank;
+  const ballD = mapProjectileRadiusForGameplayScale(mapGameplayScale) * 2;
 
   const sims: FlightSimPlan[] = Array.from({ length: amount }, (_, i) => {
-    const releaseWave = Math.floor(i / SHOT.waveSize);
-    const kInWave = i - releaseWave * SHOT.waveSize;
-    const inWave = Math.min(SHOT.waveSize, amount - releaseWave * SHOT.waveSize);
-    const half = (inWave - 1) / 2;
-    const lateral = (kInWave - half) * lateralStep;
-    const distFromCenter = Math.abs(kInWave - half);
-    const wedgeRank = half - distFromCenter;
-    const along0 = wedgeStep * wedgeRank;
-    const offXL = px * lateral;
-    const offYL = py * lateral;
-    const sxSim = sx + ux * along0 + offXL;
-    const sySim = sy + uy * along0 + offYL;
-    const txSim = tx + offXL;
-    const tySim = ty + offYL;
-    const segLen = Math.hypot(txSim - sxSim, tySim - sySim) || 1;
-    const flightDuration = flightMsForDistance(segLen);
-    const spawnTime = baseTime + releaseWave * SHOT.bulletBatchGapMs;
+    const releaseWave = Math.floor(i / weapon.waveSize);
+    const kInWave = i - releaseWave * weapon.waveSize;
+    const inWave = Math.min(
+      weapon.waveSize,
+      amount - releaseWave * weapon.waveSize
+    );
+    const arc = flightArcBulge(len, ballD, weapon, kInWave, inWave, px, py);
+    const flightDuration = flightMsForDistance(len, speedPerMs);
+    const spawnTime =
+      baseTime +
+      releaseWave * weapon.waveGapMs +
+      waveSpawnStaggerRank(kInWave, inWave) * weapon.spawnStaggerMs;
     return {
       id: `proj-${idPrefix}-${i}`,
       releaseWave,
@@ -75,10 +75,13 @@ export function buildFlightPlan(
       flightDuration,
       spawnDelayMs: Math.max(0, spawnTime - baseTime),
       landDelayMs: Math.max(0, spawnTime + flightDuration - baseTime),
-      sx: sxSim,
-      sy: sySim,
-      tx: txSim,
-      ty: tySim,
+      sx,
+      sy,
+      tx,
+      ty,
+      arcPerpX: arc.arcPerpX,
+      arcPerpY: arc.arcPerpY,
+      power: weapon.power,
     };
   });
 

@@ -1,6 +1,8 @@
 export type SyncCell = {
   ownerId?: string;
   units?: number;
+  /** Unix ms — пауза пассивного роста после обстрела. */
+  growthPausedUntil?: number;
 };
 
 export type SyncAppearance = {
@@ -53,6 +55,8 @@ export type WsServerMessage =
       type: "attack_launch";
       attackId: string;
       attackerId: string;
+      /** Скин бойца / тип оружия на момент выстрела. */
+      fighter: string;
       fromIndex: number;
       toIndex: number;
       amount: number;

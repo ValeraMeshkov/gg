@@ -24,6 +24,10 @@ export type MapViewProps = {
   showFirstMoveHint?: boolean;
   /** Нельзя атаковать (отсчёт, конец партии в комнате и т.д.) — горячие клавиши карты отключены. */
   mapInteractionLocked?: boolean;
+  onMapFlightMetricsChange?: (metrics: {
+    meetScale: number;
+    dotRadius: number;
+  }) => void;
 };
 
 export const MapView = memo(function MapView(props: MapViewProps) {

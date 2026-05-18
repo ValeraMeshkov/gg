@@ -14,6 +14,11 @@ import type { GameMap } from "@/game/maps/types";
 import type { MapCell } from "@/game/maps/types";
 import { normalizeOfflineBotCount } from "@/shared/offlineBotCount";
 import { offlineBotSkillNormalized } from "@/shared/offlineBotDifficulty";
+import {
+  projectileCountForLaunchBudget,
+  reservedLaunchPower,
+} from "@/shared/launchPower";
+import { weaponStatsForFighter } from "@/shared/weaponStats";
 import { MOCK_PLAYERS } from "./user";
 
 /** Id активных ботов по настройке (1–5). */
@@ -40,8 +45,10 @@ export const OFFLINE_BOT_APPEARANCES: Record<string, PlayerAppearance> =
 type FlightLike = {
   readonly fromIndex: number;
   readonly sims: ReadonlyArray<{
+    readonly power: number;
     readonly spawnApplied?: boolean;
     readonly landApplied?: boolean;
+    readonly destroyed?: boolean;
   }>;
 };
 
@@ -53,18 +60,21 @@ function cellLive(cells: readonly MapCell[], index: number): MapCell | undefined
   return cells[index];
 }
 
-function countUnspawnedFromSourceCell(
+function reservedPowerOnSource(
   fromI: number,
   flights: OfflineBotFlightsInput
 ): number {
-  let n = 0;
+  const sims: FlightLike["sims"][number][] = [];
   for (const f of flights) {
     if (f.fromIndex !== fromI) continue;
-    for (const s of f.sims) {
-      if (!s.spawnApplied && !s.landApplied) n += 1;
-    }
+    sims.push(...f.sims);
   }
-  return n;
+  return reservedLaunchPower(sims);
+}
+
+function launchPowerForBot(botId: string): number {
+  const fighter = OFFLINE_BOT_APPEARANCES[botId]?.fighter ?? "bomb";
+  return weaponStatsForFighter(fighter).power;
 }
 
 /** Суммы юнитов по владельцу только по видимым территориям карты. */
@@ -139,16 +149,17 @@ export function pickOfflineBotAttack(
   const skill = offlineBotSkillNormalized(opts?.difficulty ?? 50);
   const hard = skill >= 0.78;
   const elite = skill >= 0.99;
-  type Src = { index: number; avail: number };
+  const launchPower = launchPowerForBot(botId);
+  type Src = { index: number; avail: number; launchPower: number };
   const sources: Src[] = [];
   for (let i = 0; i < map.territories.length; i++) {
     if (isTerritoryIndexHidden(map, i)) continue;
     const cell = cellLive(cells, i);
     if (!cell || cell.ownerId !== botId) continue;
     const u = cell.units ?? 0;
-    const reserved = countUnspawnedFromSourceCell(i, flights);
+    const reserved = reservedPowerOnSource(i, flights);
     const avail = u - reserved;
-    if (avail >= 4) sources.push({ index: i, avail });
+    if (avail >= launchPower * 4) sources.push({ index: i, avail, launchPower });
   }
   if (sources.length === 0) return null;
 
@@ -230,6 +241,7 @@ export function pickOfflineBotAttack(
     fromI: number;
     toI: number;
     avail: number;
+    launchPower: number;
     needApprox: number;
     score: number;
   };
@@ -261,13 +273,16 @@ export function pickOfflineBotAttack(
         score += weak;
         if (t.tu <= minEnemyU + 2) score += 0.45;
       }
-      if (src.avail >= needApprox) score += elite ? 0.85 : 0.5;
-      else score -= (needApprox - src.avail) * (elite ? 0.22 : 0.1 + 0.06 * skill);
+      const needPower = needApprox * src.launchPower;
+      if (src.avail >= needPower) score += elite ? 0.85 : 0.5;
+      else
+        score -= (needPower - src.avail) * (elite ? 0.22 : 0.1 + 0.06 * skill);
 
       cands.push({
         fromI: src.index,
         toI: t.index,
         avail: src.avail,
+        launchPower: src.launchPower,
         needApprox,
         score: elite
           ? score
@@ -283,9 +298,16 @@ export function pickOfflineBotAttack(
 
   if (elite) {
     pick = cands[0]!;
+    const maxByBudget = projectileCountForLaunchBudget(
+      pick.avail,
+      pick.launchPower
+    );
     maxUnits = Math.max(
-      6,
-      Math.min(pick.avail, pick.needApprox + (aheadOfLeader ? 10 : 5))
+      1,
+      Math.min(
+        maxByBudget,
+        pick.needApprox + (aheadOfLeader ? 10 : 5)
+      )
     );
   } else {
     const top = cands[0]!.score;
@@ -296,12 +318,16 @@ export function pickOfflineBotAttack(
     if (skill < 0.97 && rng() < (hard ? (1 - skill) * 0.22 : (1 - skill) * 0.38)) {
       pick = tier[Math.floor(rng() * tier.length)]!;
     }
+    const maxByBudget = projectileCountForLaunchBudget(
+      pick.avail,
+      pick.launchPower
+    );
     const extraBurst = Math.floor(rng() * (7 + skill * 14));
     const aheadBurst = aheadOfLeader ? Math.round(2 + skill * 8) : 0;
     maxUnits = Math.max(
-      6,
+      1,
       Math.min(
-        pick.avail,
+        maxByBudget,
         Math.floor(
           (pick.needApprox + extraBurst + aheadBurst) *
             (hard ? 0.74 + 0.28 * skill : 0.7 + 0.3 * skill)

@@ -1,21 +1,21 @@
 import { useLayoutEffect, useRef } from "react";
-import { centerBuildingInSettingsViewport } from "@/components/map/buildingGlb/settings/BuildingGlbSettingsGrid";
+import { centerAppearanceInSettingsViewport } from "@/components/settings/AppearanceSettingsGrid";
 
-const VIEWPORT_SELECTOR = "[data-buildings-settings-viewport]";
-const SELECTED_SELECTOR = "[data-building-settings-selected]";
+const VIEWPORT_SELECTOR = "[data-appearance-settings-viewport]";
+const SELECTED_SELECTOR = "[data-appearance-settings-selected]";
 
-function findSettingsBuildingScrollTargets(): {
-  root: HTMLElement;
-  el: HTMLElement;
-} | null {
-  const root = document.querySelector<HTMLElement>(VIEWPORT_SELECTOR);
-  const el = root?.querySelector<HTMLElement>(SELECTED_SELECTOR) ?? null;
-  if (!root || !el) return null;
-  return { root, el };
+function findAppearanceScrollTargets(): { root: HTMLElement; el: HTMLElement }[] {
+  const targets: { root: HTMLElement; el: HTMLElement }[] = [];
+  const roots = document.querySelectorAll<HTMLElement>(VIEWPORT_SELECTOR);
+  for (const root of roots) {
+    const el = root.querySelector<HTMLElement>(SELECTED_SELECTOR);
+    if (el) targets.push({ root, el });
+  }
+  return targets;
 }
 
 /**
- * При открытии настроек прокручивает список зданий к выбранному (один раз).
+ * При открытии настроек прокручивает списки зданий и бойцов к выбранным (один раз).
  * Вызывать из AppGameChrome — он гарантированно перерисовывается при settingsOpen.
  */
 export function useCenterSelectedBuildingOnSettingsOpen(
@@ -39,9 +39,13 @@ export function useCenterSelectedBuildingOnSettingsOpen(
 
     const center = (): boolean => {
       if (cancelled || centered) return centered;
-      const targets = findSettingsBuildingScrollTargets();
-      if (!targets) return false;
-      if (centerBuildingInSettingsViewport(targets.root, targets.el)) {
+      const targets = findAppearanceScrollTargets();
+      if (targets.length === 0) return false;
+      let any = false;
+      for (const { root, el } of targets) {
+        if (centerAppearanceInSettingsViewport(root, el)) any = true;
+      }
+      if (any) {
         centered = true;
         ro?.disconnect();
         ro = null;
@@ -50,14 +54,16 @@ export function useCenterSelectedBuildingOnSettingsOpen(
     };
 
     const attachResizeObserver = () => {
-      const targets = findSettingsBuildingScrollTargets();
-      if (!targets || ro) return;
+      const targets = findAppearanceScrollTargets();
+      if (targets.length === 0 || ro) return;
       ro = new ResizeObserver(() => {
         center();
       });
-      ro.observe(targets.root);
-      const grid = targets.root.firstElementChild;
-      if (grid) ro.observe(grid);
+      for (const { root } of targets) {
+        ro.observe(root);
+        const grid = root.firstElementChild;
+        if (grid) ro.observe(grid);
+      }
     };
 
     center();

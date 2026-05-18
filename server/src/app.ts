@@ -416,11 +416,10 @@ export function createApp() {
         400
       );
     }
-    const room = restartRoom(
-      c.req.param("code"),
-      parsed.data.hostUserId,
-      parsed.data.mapId
-    );
+    const room = restartRoom(c.req.param("code"), parsed.data.hostUserId, {
+      mapId: parsed.data.mapId,
+      randomMapOnStart: parsed.data.randomMapOnStart,
+    });
     if (!room) {
       return c.json(
         { error: "Только хост может начать новую игру в активной комнате" },
@@ -432,6 +431,9 @@ export function createApp() {
     const game = ensureGameForRoom(room);
     if (game) {
       clearRoomChatHistory(room.code);
+      if (parsed.data.randomMapOnStart !== undefined) {
+        broadcastRoomSettings(room.code, room.randomMapOnStart);
+      }
       broadcastGameReset(room.code, game, room, { countdown: true });
     }
     return c.json({

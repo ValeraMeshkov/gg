@@ -8,13 +8,11 @@ export const FIGHTER_SKINS = [
   "heart",
   "bear",
   "star",
-  "diamond",
-  "ghost",
   "rocket",
-  "clover",
   "bomb",
-  "ufo",
-  "shield",
+  "poison",
+  "potion",
+  "dagger",
 ] as const;
 
 export type FighterSkinId = (typeof FIGHTER_SKINS)[number];
@@ -25,13 +23,11 @@ export const FIGHTER_SKIN_LABELS: Record<FighterSkinId, string> = {
   heart: "Сердце",
   bear: "Мишка",
   star: "Звезда",
-  diamond: "Ромб",
-  ghost: "Призрак",
-  rocket: "Ракета",
-  clover: "Клевер",
+  rocket: "Энергия",
   bomb: "Бомба",
-  ufo: "НЛО",
-  shield: "Щит",
+  poison: "Яд",
+  potion: "Зелье",
+  dagger: "Дагер",
 };
 
 /** Здание на точке территории. */
@@ -42,13 +38,7 @@ export const BUILDING_SKINS = [
   "pixellabsWatchtower",
   "pixellabsSignpost",
   "pixellabs3402",
-  "pixellabsPoisonBottle",
-  "pixellabsSkull",
-  "pixellabsSkullPotion",
-  "pixellabsSlime",
-  "pixellabsBanner",
   "pixellabsBomb",
-  "pixellabsPotionBottleAlt",
   "pixellabsUndead",
   "pixellabsZombie",
   "pixellabsGrimReaper3011",
@@ -100,8 +90,19 @@ export const LEGACY_BUILDING_SKIN_MAP: Record<string, BuildingSkinId> = {
   heart3d: _legacyBuilding,
   castle3d: _legacyBuilding,
   cube: _legacyBuilding,
-  /** Старое «Зелье» → флакон (3D). */
-  pixellabsPotion: "pixellabsPotionBottleAlt",
+  /** Бомба — только боец (`bomb`), не здание. */
+  pixellabsBomb: _legacyBuilding,
+  /** Удалённые здания → дефолт. */
+  pixellabsPotion: _legacyBuilding,
+  pixellabsSkull: _legacyBuilding,
+  pixellabsSlime: _legacyBuilding,
+  pixellabsBanner: _legacyBuilding,
+  pixellabsPotionBottleAlt: _legacyBuilding,
+  /** Яд и зелье — только бойцы (`poison`, `potion`). */
+  pixellabsPoisonBottle: _legacyBuilding,
+  pixellabsSkullPotion: _legacyBuilding,
+  /** Дагер — только боец (`dagger`). */
+  pixellabsDagger3178: _legacyBuilding,
   earthGlobe: _legacyBuilding,
   magicRingRed: _legacyBuilding,
 };
