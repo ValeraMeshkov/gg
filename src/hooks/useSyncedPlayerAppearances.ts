@@ -179,20 +179,10 @@ export function useSyncedPlayerAppearances(controlledPlayerId: string) {
     [scheduleSave]
   );
 
-  const controlledAppearanceRef = useRef<PlayerAppearance>(myAppearance);
-  const controlledAppearance = useMemo(() => {
-    const next = appearanceForPlayer(playerAppearances, controlledPlayerId);
-    const prev = controlledAppearanceRef.current;
-    if (
-      prev.fighter === next.fighter &&
-      prev.building === next.building &&
-      prev.displayColor === next.displayColor
-    ) {
-      return prev;
-    }
-    controlledAppearanceRef.current = next;
-    return next;
-  }, [playerAppearances, controlledPlayerId]);
+  const controlledAppearance = useMemo(
+    () => appearanceForPlayer(playerAppearances, controlledPlayerId),
+    [playerAppearances, controlledPlayerId]
+  );
 
   return {
     playerAppearances,

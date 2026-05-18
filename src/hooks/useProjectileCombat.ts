@@ -451,16 +451,19 @@ export function useProjectileCombat({
 
   function shiftFlightsAfterPause(deltaMs: number): void {
     if (deltaMs <= 0) return;
-    for (const flight of flightsRef.current) {
-      for (const sim of flight.sims) {
-        if (!sim.landApplied) {
-          sim.spawnTime += deltaMs;
-        }
-      }
-      flight.waveSpawnTids = {};
-      flight.simLandTids = {};
-      const hasPending = flight.sims.some((s) => !s.landApplied);
-      if (hasPending) {
+    const shifted = flightsRef.current.map((flight) => ({
+      ...flight,
+      sims: flight.sims.map((sim) =>
+        !sim.landApplied
+          ? { ...sim, spawnTime: sim.spawnTime + deltaMs }
+          : sim
+      ),
+      waveSpawnTids: {},
+      simLandTids: {},
+    }));
+    flightsRef.current = shifted;
+    for (const flight of shifted) {
+      if (flight.sims.some((s) => !s.landApplied)) {
         scheduleFlightTimeouts(flight);
       }
     }
