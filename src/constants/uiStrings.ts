@@ -67,7 +67,7 @@ export const UI = {
   mapChangeOnlyBetweenRounds:
     "Смена карты только между партиями — сначала «Следующая партия»",
   roomHostInGameDockHint:
-    "Откроется подбор: в партию попадут только отметившиеся «Готов», затем хост нажмёт «Играть»",
+    "Партия идёт. «Следующая партия» — подбор и настройки; «Готов» и «Играть» — как в начале.",
   serverDevHint: "Запустите сервер: npm run dev:server",
   serverNotConfigured: "Сервер не настроен (api-config.json)",
   createRoomFailed: "Не удалось создать комнату",

@@ -671,9 +671,10 @@ export function GameCanvas({
     !room.isHost &&
     room.roomStatus === "playing" &&
     (!room.myInMatch || !localAlive);
+  const roomInSetup = !room.syncReady || room.inRoomSetup;
   const roomDockVariant = !roomCode
     ? "solo"
-    : room.inRoomSetup
+    : roomInSetup
       ? room.isHost
         ? "roomHost"
         : "roomGuest"
@@ -1249,7 +1250,9 @@ export function GameCanvas({
             mapCatalogDisabled={room.roomStatus === "playing"}
             startDisabled={room.roomBusy}
             roomCode={roomCode}
-            roomLifecycle={room.roomStatus}
+            roomLifecycle={
+              room.syncReady ? room.roomStatus : "lobby"
+            }
             roomDockPlayers={room.roomDockPlayers}
             roomPlayerCount={room.roomDockPlayers.length}
             roomMaxPlayers={room.roomMaxPlayers}

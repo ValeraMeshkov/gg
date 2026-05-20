@@ -343,7 +343,8 @@ export function SoloPlayDock({
                 roomLifecycle === "playing" &&
                 gameOutcome == null
               ) {
-                onExpandedChange(false);
+                if (startDisabled) return;
+                onStartGame();
                 return;
               }
               if (mapLocked || startDisabled) return;
@@ -377,7 +378,7 @@ export function SoloPlayDock({
                       : isRoomGuest
                         ? UI.roomGuestDockWaitingHost
                         : isRoomHostVariant && roomLifecycle === "playing"
-                          ? UI.soloDockCollapse
+                          ? UI.roomNextRound
                           : isRoomHostVariant
                             ? UI.roomNextRound
                             : UI.soloDockStartNewGame}

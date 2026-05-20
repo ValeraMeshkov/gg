@@ -124,7 +124,7 @@ export function useRoomSession({
   const [roomSlotIds, setRoomSlotIds] = useState<string[]>([]);
   const [myInMatch, setMyInMatch] = useState(true);
   const [myReady, setMyReady] = useState(false);
-  const [roomStatus, setRoomStatus] = useState<RoomStatus>("playing");
+  const [roomStatus, setRoomStatus] = useState<RoomStatus>("lobby");
   const [roomMaxPlayers, setRoomMaxPlayers] = useState(10);
   const [roomPlayerLabels, setRoomPlayerLabels] = useState<
     Record<string, string>
@@ -143,7 +143,7 @@ export function useRoomSession({
   const countdownTimersRef = useRef<number[]>([]);
   /** Не перезапускать отсчёт по WS, если хост уже запустил его локально. */
   const countdownSkipUntilRef = useRef(0);
-  const roomStatusRef = useRef<RoomStatus>("playing");
+  const roomStatusRef = useRef<RoomStatus>("lobby");
   roomStatusRef.current = roomStatus;
 
   useEffect(() => {
