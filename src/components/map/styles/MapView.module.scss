@@ -13,7 +13,8 @@
   left: max(8px, env(safe-area-inset-left, 0px));
   top: 50%;
   transform: translateY(-50%);
-  z-index: 55;
+  /* Выше дока «Перед боем» (z-index 61), иначе панель перехватывает клики */
+  z-index: 70;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -38,7 +39,7 @@
   position: fixed;
   left: max(8px, env(safe-area-inset-left, 0px));
   bottom: max(8px, env(safe-area-inset-bottom, 0px));
-  z-index: 55;
+  z-index: 70;
   display: flex;
   flex-direction: column;
   gap: 8px;

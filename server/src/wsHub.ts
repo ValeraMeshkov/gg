@@ -141,6 +141,7 @@ export function broadcastGameReset(
   room: Room,
   options?: { countdown?: boolean }
 ): void {
+  syncClientSlotsForRoom(room);
   broadcastAll(roomCode.toUpperCase(), {
     type: "game_reset",
     mapId: game.mapId,
@@ -190,7 +191,24 @@ function roomStatusMessage(room: Room): WsServerMessage {
   };
 }
 
+/** После старта партии обновить slotId у уже подключённых WS (без перезагрузки страницы). */
+function syncClientSlotsForRoom(room: Room): void {
+  const set = roomClients.get(room.code.toUpperCase());
+  if (!set) return;
+  for (const ws of set) {
+    const ctx = clientCtx.get(ws);
+    if (!ctx) continue;
+    const player = room.players.find((p) => p.userId === ctx.userId);
+    const inMatch = player ? player.inMatch !== false : false;
+    ctx.slotId =
+      room.status === "playing" && inMatch && player?.slotId
+        ? player.slotId
+        : null;
+  }
+}
+
 export function broadcastRoomStatus(room: Room): void {
+  syncClientSlotsForRoom(room);
   broadcastAll(room.code.toUpperCase(), roomStatusMessage(room));
 }
 

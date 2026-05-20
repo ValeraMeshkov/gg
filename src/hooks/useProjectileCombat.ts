@@ -825,6 +825,13 @@ export function useProjectileCombat({
         );
         if (existing) {
           existing.attackId = launch.attackId;
+          if (
+            !Object.keys(existing.waveSpawnTids).length &&
+            !Object.keys(existing.simLandTids).length
+          ) {
+            scheduleFlightTimeouts(existing);
+          }
+          ensureDrawLoop();
           return;
         }
       }

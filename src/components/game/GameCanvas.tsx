@@ -532,8 +532,7 @@ export function GameCanvas({
     (room.roomStatus === "playing" &&
       room.roomMatchParticipantCount >= 2 &&
       room.roomSlotIds.length >= 2 &&
-      room.myInMatch &&
-      room.roomDockLifecycle === "playing");
+      room.myInMatch);
   scoreSlotIdsRef.current = scoreSlotIds;
 
   useEffect(() => {
@@ -579,8 +578,10 @@ export function GameCanvas({
     !outcomeModalDismissed;
 
   useEffect(() => {
-    if (room.inRoomSetup) setOutcomeModalDismissed(true);
-  }, [room.inRoomSetup]);
+    if (roomCode && room.roomStatus === "playing") {
+      setOutcomeModalDismissed(false);
+    }
+  }, [roomCode, room.roomStatus]);
 
   useEffect(() => {
     if (!showOutcomeModal) return;
