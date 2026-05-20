@@ -37,6 +37,7 @@ import {
 import {
   createRoom,
   getRoom,
+  repairStuckPlayingRoom,
   joinRoom,
   openMatchmaking,
   patchRoomSettings,
@@ -344,8 +345,10 @@ export function createApp() {
   });
 
   app.get("/api/rooms/:code", (c) => {
-    const room = getRoom(c.req.param("code"));
-    if (!room) return c.json({ error: "Комната не найдена" }, 404);
+    const raw = getRoom(c.req.param("code"));
+    if (!raw) return c.json({ error: "Комната не найдена" }, 404);
+    const { room, repaired } = repairStuckPlayingRoom(raw);
+    if (repaired) broadcastRoomStatus(room);
     const game = ensureGameForRoom(room);
     if (game) {
       return c.json({

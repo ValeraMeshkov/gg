@@ -6,6 +6,7 @@ import {
   playerSlotId,
   PLAYER_SLOT_IDS,
 } from "@/shared/playerSlots.js";
+import { countActiveMatchParticipants } from "@/shared/roomRoster.js";
 import { canPlayerSetReady } from "./roomAccess.js";
 import { deleteGameForRoom, initGameForRoom } from "./gameState.js";
 
@@ -114,6 +115,35 @@ export function createRoom(
 export function getRoom(code: string): Room | null {
   const key = code.toUpperCase();
   return rooms.get(key) ?? null;
+}
+
+/**
+ * «Партия» без двух участников на карте — сброс в подбор (залипание на Render).
+ */
+export function repairStuckPlayingRoom(room: Room): {
+  room: Room;
+  repaired: boolean;
+} {
+  if (room.status !== "playing") {
+    return { room, repaired: false };
+  }
+  if (countActiveMatchParticipants(room.players) >= 2) {
+    return { room, repaired: false };
+  }
+
+  deleteGameForRoom(room.code);
+
+  for (const p of room.players) {
+    if (p.inMatch !== false) {
+      p.inMatch = false;
+      delete p.slotId;
+    }
+    p.ready = false;
+  }
+  delete room.startedAt;
+  room.status = "matchmaking";
+  ensureHostReadyInMatchmaking(room);
+  return { room, repaired: true };
 }
 
 export function joinRoom(code: string, userId: string): JoinRoomResult | null {

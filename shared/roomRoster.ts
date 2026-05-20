@@ -22,6 +22,34 @@ export function matchParticipantSlotIds(
     .map((p) => p.slotId!);
 }
 
+export function countActiveMatchParticipants(
+  players: readonly RoomPlayerPublic[]
+): number {
+  return matchParticipantSlotIds(players).length;
+}
+
+/** На карте реально идёт бой — двое в партии и статус playing. */
+export function isRealActiveMatch(
+  status: RoomLifecycleStatus,
+  players: readonly RoomPlayerPublic[]
+): boolean {
+  return status === "playing" && countActiveMatchParticipants(players) >= 2;
+}
+
+/**
+ * Статус для дока/кнопок: «playing» без двух участников — как подбор
+ * (на Render часто залипает после ухода второго игрока).
+ */
+export function roomLifecycleForDock(
+  status: RoomLifecycleStatus,
+  players: readonly RoomPlayerPublic[]
+): RoomLifecycleStatus {
+  if (status === "playing" && countActiveMatchParticipants(players) < 2) {
+    return "matchmaking";
+  }
+  return status;
+}
+
 export function waitingRoomPlayers(
   players: readonly RoomPlayerPublic[]
 ): RoomPlayerPublic[] {

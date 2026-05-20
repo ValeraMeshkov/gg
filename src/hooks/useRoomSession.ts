@@ -34,6 +34,7 @@ import {
   matchParticipantSlotIds,
   playerInMatch,
   queueRoomPlayers,
+  roomLifecycleForDock,
 } from "@/shared/roomRoster";
 import type { RoomDockPlayerRow } from "@/components/room/RoomDockPlayerList";
 import type { SyncAppearance } from "@/shared/wsProtocol";
@@ -756,9 +757,26 @@ export function useRoomSession({
       roomPlayersRaw.filter((p) => playerInMatch(p) && p.slotId).length,
     [roomPlayersRaw]
   );
+
+  const roomDockLifecycle = useMemo(
+    () =>
+      roomLifecycleForDock(
+        roomStatus,
+        roomPlayersRaw.map((p) => ({
+          userId: p.userId,
+          joinedAt: p.joinedAt,
+          slotId: p.slotId,
+          inMatch: p.inMatch,
+          joinedDuringMatch: p.joinedDuringMatch,
+          ready: p.ready,
+        }))
+      ),
+    [roomStatus, roomPlayersRaw]
+  );
+
   const canStartMatch =
     isHost &&
-    roomStatus === "matchmaking" &&
+    roomDockLifecycle === "matchmaking" &&
     roomReadyCount >= MIN_ROOM_PLAYERS;
 
   const handleOpenSearchRef = useRef(handleOpenSearch);
@@ -783,19 +801,19 @@ export function useRoomSession({
     }
 
     const primaryLabel =
-      roomStatus === "lobby"
+      roomDockLifecycle === "lobby"
         ? UI.roomSearchGame
-        : roomStatus === "matchmaking"
+        : roomDockLifecycle === "matchmaking"
           ? UI.roomPlay
           : UI.roomNextRound;
     const primaryDisabled =
-      roomStatus === "matchmaking"
+      roomDockLifecycle === "matchmaking"
         ? roomBusy || !canStartMatch
         : roomBusy;
     const onPrimary =
-      roomStatus === "lobby"
+      roomDockLifecycle === "lobby"
         ? () => void handleOpenSearchRef.current()
-        : roomStatus === "matchmaking"
+        : roomDockLifecycle === "matchmaking"
           ? () => void handleStartMatchRef.current()
           : () => void openNextRoundRef.current();
 
@@ -809,7 +827,14 @@ export function useRoomSession({
       }
       return { primaryLabel, primaryDisabled, onPrimary };
     });
-  }, [roomCode, isHost, roomBusy, roomStatus, canStartMatch, setRoomChromeActions]);
+  }, [
+    roomCode,
+    isHost,
+    roomBusy,
+    roomDockLifecycle,
+    canStartMatch,
+    setRoomChromeActions,
+  ]);
 
   useEffect(() => {
     return () => setRoomChromeActions(null);
@@ -851,6 +876,8 @@ export function useRoomSession({
     roomReadyCount,
     canStartMatch,
     roomMatchParticipantCount,
-    inRoomSetup: roomStatus === "lobby" || roomStatus === "matchmaking",
+    roomDockLifecycle,
+    inRoomSetup:
+      roomDockLifecycle === "lobby" || roomDockLifecycle === "matchmaking",
   };
 }

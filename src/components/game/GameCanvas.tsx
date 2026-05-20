@@ -532,7 +532,8 @@ export function GameCanvas({
     (room.roomStatus === "playing" &&
       room.roomMatchParticipantCount >= 2 &&
       room.roomSlotIds.length >= 2 &&
-      room.myInMatch);
+      room.myInMatch &&
+      room.roomDockLifecycle === "playing");
   scoreSlotIdsRef.current = scoreSlotIds;
 
   useEffect(() => {
@@ -1251,7 +1252,7 @@ export function GameCanvas({
             startDisabled={room.roomBusy}
             roomCode={roomCode}
             roomLifecycle={
-              room.syncReady ? room.roomStatus : "lobby"
+              room.syncReady ? room.roomDockLifecycle : "lobby"
             }
             roomDockPlayers={room.roomDockPlayers}
             roomPlayerCount={room.roomDockPlayers.length}
