@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { createRoom, isRoomApiEnabled } from "./api/roomApi";
-import { gameHref } from "./appUrl";
 import {
   AppGameChrome,
   GameCanvas,
   MapDotEditor,
   RoomJoinRedirect,
   RoomLobby,
+  RoomsList,
 } from "./components";
 import { GameShellProvider } from "./context/GameShellContext";
 import { readAppRoute, writeAppRoute, type AppRoute } from "./appUrl";
@@ -26,12 +25,17 @@ import {
 import { writeSelectedMapId } from "./lib/selectedMapStorage";
 import { useAuth } from "./context/AuthContext";
 import { useSyncedUserPreferences } from "./hooks/useSyncedUserPreferences";
-import { useUserId } from "./hooks/useUserId";
 import { UI } from "./constants/uiStrings";
 import styles from "./App.module.scss";
 
 function isSoloPlayRoute(r: AppRoute): boolean {
-  return !r.edit && !r.roomLobby && !r.roomWaiting && !r.roomCode;
+  return (
+    !r.edit &&
+    !r.roomList &&
+    !r.roomLobby &&
+    !r.roomWaiting &&
+    !r.roomCode
+  );
 }
 
 function initialRoute(): AppRoute {
@@ -45,12 +49,9 @@ function initialRoute(): AppRoute {
 }
 
 function App() {
-  const userId = useUserId();
   const auth = useAuth();
   const { scheduleSave: schedulePrefsSave } = useSyncedUserPreferences();
   const [route, setRoute] = useState<AppRoute>(initialRoute);
-  const [createBusy, setCreateBusy] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
   const [soloSessionKey, setSoloSessionKey] = useState(0);
   const [randomMapOnStart, setRandomMapOnStart] = useState(readRandomMapOnStart);
   const [offlineBotDifficulty, setOfflineBotDifficulty] = useState(
@@ -154,32 +155,34 @@ function App() {
     [schedulePrefsSave, restartSoloSession]
   );
 
-  const handleCreateRoom = useCallback(async () => {
-    if (!isRoomApiEnabled()) {
-      setCreateError(
-        import.meta.env.DEV ? UI.serverDevHint : UI.serverNotConfigured
-      );
-      return;
-    }
-    setCreateBusy(true);
-    setCreateError(null);
-    try {
-      const room = await createRoom(userId, route.mapId);
-      window.location.assign(gameHref(room.mapId, room.code));
-    } catch (e) {
-      setCreateError(
-        e instanceof Error ? e.message : UI.createRoomFailed
-      );
-    } finally {
-      setCreateBusy(false);
-    }
-  }, [route.mapId, userId]);
+  const goToRoomsList = useCallback(() => {
+    const next: AppRoute = {
+      edit: false,
+      mapId: route.mapId,
+      roomList: true,
+      roomLobby: false,
+      roomWaiting: false,
+      roomCode: null,
+    };
+    setRoute(next);
+    writeAppRoute(next);
+  }, [route.mapId]);
 
   if (route.edit) {
     return (
       <div className={styles.app}>
         <main className={styles.main}>
           <MapDotEditor mapId={route.mapId} onMapIdChange={setEditorMapId} />
+        </main>
+      </div>
+    );
+  }
+
+  if (route.roomList) {
+    return (
+      <div className={styles.app}>
+        <main className={styles.main}>
+          <RoomsList mapId={route.mapId} />
         </main>
       </div>
     );
@@ -211,9 +214,7 @@ function App() {
         <AppGameChrome
           route={route}
           setRoute={setRoute}
-          createBusy={createBusy}
-          createError={createError}
-          onCreateRoom={handleCreateRoom}
+          onGoToRooms={goToRoomsList}
           onNewSoloGame={route.roomCode ? undefined : bumpSoloSession}
         />
         <main className={styles.main}>

@@ -48,6 +48,8 @@ import { SoloPlayDock } from "./SoloPlayDock";
 import { MapView } from "./MapView";
 import { isPlayerAliveInMatch } from "@/game/scoring/matchElimination";
 import { canEditAppearanceInRoom } from "@/shared/roomRoster";
+import { isMatchWon } from "@/shared/matchOutcome";
+import { isRoomPlaying, ROOM_STATUS } from "@/shared/roomStatus";
 import { serverNowMs } from "@/game/serverClock";
 import type { MapProjectilesCanvasHandle } from "@/components/map";
 import { RoomChat } from "@/components/room/RoomChat";
@@ -529,7 +531,7 @@ export function GameCanvas({
   );
   const matchScoringActive =
     !roomCode ||
-    (room.roomStatus === "playing" &&
+    (isRoomPlaying(room.roomStatus) &&
       room.roomMatchParticipantCount >= 2 &&
       room.roomSlotIds.length >= 2 &&
       room.myInMatch);
@@ -561,7 +563,7 @@ export function GameCanvas({
   });
 
   useEffect(() => {
-    if (roomCode && room.roomStatus !== "playing") {
+    if (roomCode && !isRoomPlaying(room.roomStatus)) {
       eliminationPenaltyRef.current.clear();
       bumpScoreDisplay();
     }
@@ -578,7 +580,7 @@ export function GameCanvas({
     !outcomeModalDismissed;
 
   useEffect(() => {
-    if (roomCode && room.roomStatus === "playing") {
+    if (roomCode && isRoomPlaying(room.roomStatus)) {
       setOutcomeModalDismissed(false);
     }
   }, [roomCode, room.roomStatus]);
@@ -671,7 +673,7 @@ export function GameCanvas({
   const showReadyForNext =
     Boolean(roomCode) &&
     !room.isHost &&
-    room.roomStatus === "playing" &&
+    isRoomPlaying(room.roomStatus) &&
     (!room.myInMatch || !localAlive);
   const roomInSetup = !room.syncReady || room.inRoomSetup;
   const roomDockVariant = !roomCode
@@ -761,7 +763,7 @@ export function GameCanvas({
     room.syncReady &&
     room.matchCountdown === null &&
     offlineAliveCount >= 2 &&
-    gameOutcome !== "won";
+    gameOutcome != null && !isMatchWon(gameOutcome);
 
   useOfflineBotLoop({
     enabled: offlineBotsEnabled && pageVisible,
@@ -1249,11 +1251,11 @@ export function GameCanvas({
               room.isHost ? handleRandomMapOnStartChange : undefined
             }
             randomMapLabel={UI.randomMapInRoom}
-            mapCatalogDisabled={room.roomStatus === "playing"}
+            mapCatalogDisabled={isRoomPlaying(room.roomStatus)}
             startDisabled={room.roomBusy}
             roomCode={roomCode}
             roomLifecycle={
-              room.syncReady ? room.roomDockLifecycle : "lobby"
+              room.syncReady ? room.roomDockLifecycle : ROOM_STATUS.LOBBY
             }
             roomDockPlayers={room.roomDockPlayers}
             roomPlayerCount={room.roomDockPlayers.length}

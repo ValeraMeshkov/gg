@@ -1,3 +1,5 @@
+import type { RoomStatus } from "./roomStatus.js";
+
 export type SyncCell = {
   ownerId?: string;
   units?: number;
@@ -43,7 +45,7 @@ export type RoomStatusPlayer = {
 export type WsServerMessage =
   | {
       type: "room_status";
-      status: "lobby" | "matchmaking" | "playing";
+      status: RoomStatus;
       mapId: string;
       randomMapOnStart: boolean;
       hostUserId: string;

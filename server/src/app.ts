@@ -33,10 +33,12 @@ import {
   broadcastRoomSettings,
   broadcastRoomStatus,
   clearRoomChatHistory,
+  countRoomOnlineClients,
 } from "./wsHub.js";
 import {
   createRoom,
   getRoom,
+  listRooms,
   repairStuckPlayingRoom,
   joinRoom,
   openMatchmaking,
@@ -283,6 +285,20 @@ export function createApp() {
 
     const updated = updateProfile(authUserId, parsed.data);
     return c.json(updated);
+  });
+
+  /** Список активных комнат (код, статус, игроки, онлайн по WS). */
+  app.get("/api/rooms", (c) => {
+    const rooms = listRooms().map((entry) => ({
+      ...entry,
+      onlineCount: countRoomOnlineClients(entry.code),
+    }));
+    rooms.sort((a, b) => {
+      if (b.onlineCount !== a.onlineCount) return b.onlineCount - a.onlineCount;
+      if (b.playerCount !== a.playerCount) return b.playerCount - a.playerCount;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+    return c.json(rooms);
   });
 
   /** Создать комнату (2–10 игроков). */

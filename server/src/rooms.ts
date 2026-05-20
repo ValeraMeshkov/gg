@@ -7,12 +7,19 @@ import {
   PLAYER_SLOT_IDS,
 } from "@/shared/playerSlots.js";
 import { countActiveMatchParticipants } from "@/shared/roomRoster.js";
+import {
+  isRoomMatchmaking,
+  isRoomPlaying,
+  isRoomSetupPhase,
+  ROOM_STATUS,
+  type RoomStatus,
+} from "@/shared/roomStatus.js";
 import { canPlayerSetReady } from "./roomAccess.js";
 import { deleteGameForRoom, initGameForRoom } from "./gameState.js";
 
 const DEFAULT_MAP_ID = "world-large";
 
-export type RoomStatus = "lobby" | "matchmaking" | "playing";
+export type { RoomStatus };
 
 export type RoomPlayer = {
   userId: string;
@@ -69,7 +76,7 @@ function resetReadyFlags(room: Room): void {
 
 /** Хост не жмёт «Готов» в UI — считаем готовым в фазе подбора. */
 function ensureHostReadyInMatchmaking(room: Room): void {
-  if (room.status !== "matchmaking") return;
+  if (!isRoomMatchmaking(room.status)) return;
   const host = room.players.find((p) => p.userId === room.hostUserId);
   if (host) host.ready = true;
 }
@@ -96,7 +103,7 @@ export function createRoom(
     hostUserId,
     mapId: mapId ?? DEFAULT_MAP_ID,
     randomMapOnStart,
-    status: "lobby",
+    status: ROOM_STATUS.LOBBY,
     maxPlayers: cap,
     createdAt: now,
     players: [
@@ -117,6 +124,27 @@ export function getRoom(code: string): Room | null {
   return rooms.get(key) ?? null;
 }
 
+/** Публичная сводка для каталога комнат. */
+export type RoomListEntry = {
+  code: string;
+  mapId: string;
+  status: RoomStatus;
+  playerCount: number;
+  maxPlayers: number;
+  createdAt: string;
+};
+
+export function listRooms(): RoomListEntry[] {
+  return Array.from(rooms.values()).map((room) => ({
+    code: room.code,
+    mapId: room.mapId,
+    status: room.status,
+    playerCount: room.players.length,
+    maxPlayers: room.maxPlayers,
+    createdAt: room.createdAt,
+  }));
+}
+
 /**
  * «Партия» без двух участников на карте — сброс в подбор (залипание на Render).
  */
@@ -124,7 +152,7 @@ export function repairStuckPlayingRoom(room: Room): {
   room: Room;
   repaired: boolean;
 } {
-  if (room.status !== "playing") {
+  if (!isRoomPlaying(room.status)) {
     return { room, repaired: false };
   }
   if (countActiveMatchParticipants(room.players) >= 2) {
@@ -141,7 +169,7 @@ export function repairStuckPlayingRoom(room: Room): {
     p.ready = false;
   }
   delete room.startedAt;
-  room.status = "matchmaking";
+  room.status = ROOM_STATUS.MATCHMAKING;
   ensureHostReadyInMatchmaking(room);
   return { room, repaired: true };
 }
@@ -160,7 +188,7 @@ export function joinRoom(code: string, userId: string): JoinRoomResult | null {
 
   const now = new Date().toISOString();
 
-  if (room.status === "lobby" || room.status === "matchmaking") {
+  if (isRoomSetupPhase(room.status)) {
     room.players.push({
       userId,
       joinedAt: now,
@@ -170,7 +198,7 @@ export function joinRoom(code: string, userId: string): JoinRoomResult | null {
     return { room, playerAdded: true };
   }
 
-  if (room.status === "playing") {
+  if (isRoomPlaying(room.status)) {
     room.players.push({
       userId,
       joinedAt: now,
@@ -191,8 +219,8 @@ export function openMatchmaking(
 ): Room | null {
   const room = getRoom(code);
   if (!room || room.hostUserId !== hostUserId) return null;
-  if (room.status === "playing") return null;
-  room.status = "matchmaking";
+  if (isRoomPlaying(room.status)) return null;
+  room.status = ROOM_STATUS.MATCHMAKING;
   resetReadyFlags(room);
   ensureHostReadyInMatchmaking(room);
   return room;
@@ -214,7 +242,7 @@ export function setPlayerReady(
 export function startRoom(code: string, hostUserId: string): Room | null {
   const room = getRoom(code);
   if (!room || room.hostUserId !== hostUserId) return null;
-  if (room.status !== "matchmaking") return null;
+  if (!isRoomMatchmaking(room.status)) return null;
 
   const readyPlayers = room.players.filter((p) => p.ready === true);
   if (readyPlayers.length < MIN_ROOM_PLAYERS) return null;
@@ -231,7 +259,7 @@ export function startRoom(code: string, hostUserId: string): Room | null {
     }
   }
 
-  room.status = "playing";
+  room.status = ROOM_STATUS.PLAYING;
   room.startedAt = new Date().toISOString();
   room.gameGeneration = (room.gameGeneration ?? 0) + 1;
   initGameForRoom(room);
@@ -250,7 +278,7 @@ export function endRoundToMatchmaking(
   opts?: RestartRoomOpts | string
 ): Room | null {
   const room = getRoom(code);
-  if (!room || room.status !== "playing") return null;
+  if (!room || !isRoomPlaying(room.status)) return null;
   if (room.hostUserId !== hostUserId) return null;
 
   const patch =
@@ -277,7 +305,7 @@ export function endRoundToMatchmaking(
   }
   clearSlotsForNonParticipants(room);
 
-  room.status = "matchmaking";
+  room.status = ROOM_STATUS.MATCHMAKING;
   delete room.startedAt;
   ensureHostReadyInMatchmaking(room);
   return room;
@@ -290,7 +318,7 @@ export function patchRoomSettings(
 ): Room | null {
   const room = getRoom(code);
   if (!room || room.hostUserId !== hostUserId) return null;
-  if (room.status === "playing") return null;
+  if (isRoomPlaying(room.status)) return null;
   if (patch.randomMapOnStart !== undefined) {
     room.randomMapOnStart = patch.randomMapOnStart;
   }

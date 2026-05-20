@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { createPortal } from "react-dom";
 import { UI } from "@/constants/uiStrings";
 import type { RoomGameOutcome } from "@/game/scoring/types";
+import { isMatchWon } from "@/shared/matchOutcome";
 import styles from "./MatchOutcomeModal.module.scss";
 
 export type MatchOutcomeModalProps = {
@@ -25,7 +26,7 @@ function outcomeCopy(outcome: RoomGameOutcome): {
   subtitle: string;
   icon: string;
 } {
-  if (outcome === "won") {
+  if (isMatchWon(outcome)) {
     return {
       eyebrow: UI.outcomeModalEyebrowWon,
       headline: UI.outcomeWon,

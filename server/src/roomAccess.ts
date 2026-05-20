@@ -1,5 +1,9 @@
 import { readCellUnits } from "@/shared/cellUnits.js";
 import { playerInMatch, type RoomPlayerPublic } from "@/shared/roomRoster.js";
+import {
+  isRoomMatchmaking,
+  isRoomPlaying,
+} from "@/shared/roomStatus.js";
 import { getGameForRoom, type RoomGameState } from "./gameState.js";
 import { sourcesWithPendingLaunch } from "./roomAttack.js";
 import type { Room } from "./rooms.js";
@@ -39,7 +43,7 @@ export function canPlayerPatchAppearance(
   };
 
   if (!playerInMatch(roster)) return true;
-  if (room.status !== "playing" || !player.slotId) return true;
+  if (!isRoomPlaying(room.status) || !player.slotId) return true;
 
   const game = getGameForRoom(room.code);
   if (!game) return true;
@@ -58,7 +62,7 @@ export function isPlayerEliminatedFromMatch(
 ): boolean {
   const player = room.players.find((p) => p.userId === userId);
   if (!player?.slotId || !playerInMatch(player)) return false;
-  if (room.status !== "playing") return false;
+  if (!isRoomPlaying(room.status)) return false;
 
   const game = getGameForRoom(room.code);
   if (!game) return false;
@@ -72,8 +76,8 @@ export function isPlayerEliminatedFromMatch(
 export function canPlayerSetReady(room: Room, userId: string): boolean {
   const player = room.players.find((p) => p.userId === userId);
   if (!player) return false;
-  if (room.status === "matchmaking") return true;
-  if (room.status === "playing") {
+  if (isRoomMatchmaking(room.status)) return true;
+  if (isRoomPlaying(room.status)) {
     if (!playerInMatch(player)) return true;
     return isPlayerEliminatedFromMatch(room, userId);
   }

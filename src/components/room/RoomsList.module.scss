@@ -1,0 +1,141 @@
+.root {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 24px 16px 32px;
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+  color: #1a2740;
+}
+
+.lead {
+  margin: 0 0 16px;
+  font-size: 0.9rem;
+  color: #5c6478;
+  line-height: 1.45;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.btn {
+  font: inherit;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid #2a6bb8;
+  background: #2a6bb8;
+  color: #fff;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnSecondary {
+  font: inherit;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid #2a6bb8;
+  background: #fff;
+  color: #2a6bb8;
+  cursor: pointer;
+}
+
+.btnSecondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hint {
+  font-size: 0.9rem;
+  color: #5c6478;
+  margin: 12px 0;
+}
+
+.error {
+  color: #c62828;
+  font-size: 0.85rem;
+  margin: 0 0 12px;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+  display: block;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(20, 35, 60, 0.08);
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow 0.15s ease;
+}
+
+.card:hover {
+  box-shadow: 0 4px 14px rgba(20, 35, 60, 0.12);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.code {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #2a6bb8;
+}
+
+.status {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6a758c;
+}
+
+.meta {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #5c6478;
+  line-height: 1.4;
+}
+
+.back {
+  display: inline-block;
+  margin-top: 20px;
+  color: #2a6bb8;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.footerNote {
+  margin: 16px 0 0;
+  font-size: 0.75rem;
+  color: #8a92a4;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.footerNote a {
+  color: #2a6bb8;
+}

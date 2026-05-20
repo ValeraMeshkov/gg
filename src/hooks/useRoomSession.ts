@@ -36,6 +36,13 @@ import {
   queueRoomPlayers,
   roomLifecycleForDock,
 } from "@/shared/roomRoster";
+import {
+  isRoomLobby,
+  isRoomMatchmaking,
+  isRoomPlaying,
+  isRoomSetupPhase,
+  ROOM_STATUS,
+} from "@/shared/roomStatus";
 import type { RoomDockPlayerRow } from "@/components/room/RoomDockPlayerList";
 import type { SyncAppearance } from "@/shared/wsProtocol";
 import {
@@ -125,7 +132,7 @@ export function useRoomSession({
   const [roomSlotIds, setRoomSlotIds] = useState<string[]>([]);
   const [myInMatch, setMyInMatch] = useState(true);
   const [myReady, setMyReady] = useState(false);
-  const [roomStatus, setRoomStatus] = useState<RoomStatus>("lobby");
+  const [roomStatus, setRoomStatus] = useState<RoomStatus>(ROOM_STATUS.LOBBY);
   const [roomMaxPlayers, setRoomMaxPlayers] = useState(10);
   const [roomPlayerLabels, setRoomPlayerLabels] = useState<
     Record<string, string>
@@ -144,7 +151,7 @@ export function useRoomSession({
   const countdownTimersRef = useRef<number[]>([]);
   /** Не перезапускать отсчёт по WS, если хост уже запустил его локально. */
   const countdownSkipUntilRef = useRef(0);
-  const roomStatusRef = useRef<RoomStatus>("lobby");
+  const roomStatusRef = useRef<RoomStatus>(ROOM_STATUS.LOBBY);
   roomStatusRef.current = roomStatus;
 
   useEffect(() => {
@@ -301,7 +308,7 @@ export function useRoomSession({
           cellsRef.current = next;
           applyCellsFromServer(cloneCells(next));
         }
-        if (room.status === "lobby" || room.status === "matchmaking") {
+        if (isRoomSetupPhase(room.status)) {
           requestExpandSoloBattleDock();
         }
       } catch {
@@ -422,8 +429,8 @@ export function useRoomSession({
     onPendingTailStrip: stripPendingTail,
     onGameReset: (mapId, snapCells, appearances, countdown) => {
       if (countdown) {
-        setRoomStatus("playing");
-        roomStatusRef.current = "playing";
+        setRoomStatus(ROOM_STATUS.PLAYING);
+        roomStatusRef.current = ROOM_STATUS.PLAYING;
       }
       const skipCountdown =
         countdown && Date.now() < countdownSkipUntilRef.current;
@@ -469,7 +476,7 @@ export function useRoomSession({
         }))
       );
       syncRoomSlotIds(msg.players);
-      if (msg.status === "lobby" || msg.status === "matchmaking") {
+      if (isRoomSetupPhase(msg.status)) {
         requestExpandSoloBattleDock();
       }
     },
@@ -516,7 +523,7 @@ export function useRoomSession({
 
   const patchRoomSettingsAsHost = useCallback(
     async (patch: { mapId?: string; randomMapOnStart?: boolean }) => {
-      if (!roomCode || !isHost || roomStatusRef.current === "playing") {
+      if (!roomCode || !isHost || isRoomPlaying(roomStatusRef.current)) {
         return null;
       }
       setRoomBusy(true);
@@ -542,7 +549,7 @@ export function useRoomSession({
   const handleRoomMapIdChange = useCallback(
     async (nextMapId: string) => {
       if (!roomCode || !isHost) return;
-      if (roomStatusRef.current === "playing") {
+      if (isRoomPlaying(roomStatusRef.current)) {
         setRoomActionError(UI.mapChangeOnlyBetweenRounds);
         return;
       }
@@ -563,7 +570,7 @@ export function useRoomSession({
     async (value: boolean, onOfflineChange?: (value: boolean) => void) => {
       if (roomCode) {
         if (!isHost) return;
-        if (roomStatusRef.current === "playing") {
+        if (isRoomPlaying(roomStatusRef.current)) {
           setRoomActionError(UI.mapChangeOnlyBetweenRounds);
           return;
         }
@@ -623,7 +630,7 @@ export function useRoomSession({
     try {
       const r = await startRoom(roomCode, userId);
       await hydrateRoomFromServer(r);
-      if (r.status === "playing" && r.game?.cells?.length) {
+      if (isRoomPlaying(r.status) && r.game?.cells?.length) {
         const me = r.players.find((p) => p.userId === userId);
         if (me?.slotId && playerInMatch(me)) {
           setLocalPlayerId(me.slotId);
@@ -653,7 +660,7 @@ export function useRoomSession({
   ]);
 
   const handleLobbyReady = useCallback(async () => {
-    if (!roomCode || roomStatusRef.current !== "matchmaking") return;
+    if (!roomCode || !isRoomMatchmaking(roomStatusRef.current)) return;
     setRoomBusy(true);
     setRoomActionError(null);
     try {
@@ -670,7 +677,7 @@ export function useRoomSession({
 
   const openNextRound = useCallback(async () => {
     if (!roomCode || !isHost) return;
-    if (roomStatusRef.current !== "playing") {
+    if (!isRoomPlaying(roomStatusRef.current)) {
       requestExpandSoloBattleDock();
       return;
     }
@@ -713,7 +720,7 @@ export function useRoomSession({
       ready: p.ready,
     }));
     const list =
-      roomStatus === "matchmaking"
+      isRoomMatchmaking(roomStatus)
         ? [
             ...lobbyPoolPlayers(publicPlayers, roomStatus),
             ...queueRoomPlayers(publicPlayers),
@@ -732,13 +739,12 @@ export function useRoomSession({
       isYou: p.userId === userId,
       ready:
         p.ready === true ||
-        (roomStatus === "matchmaking" && p.userId === roomHostUserId),
+        (isRoomMatchmaking(roomStatus) && p.userId === roomHostUserId),
       inQueue: p.joinedDuringMatch === true,
     }));
   }, [roomPlayersRaw, roomPlayerLabels, roomStatus, roomHostUserId, userId]);
 
-  const roomReadyCount =
-    roomStatus === "matchmaking"
+  const roomReadyCount = isRoomMatchmaking(roomStatus)
       ? countMatchmakingReady(
           roomPlayersRaw.map((p) => ({
             userId: p.userId,
@@ -776,7 +782,7 @@ export function useRoomSession({
 
   const canStartMatch =
     isHost &&
-    roomDockLifecycle === "matchmaking" &&
+    isRoomMatchmaking(roomDockLifecycle) &&
     roomReadyCount >= MIN_ROOM_PLAYERS;
 
   const handleOpenSearchRef = useRef(handleOpenSearch);
@@ -801,19 +807,19 @@ export function useRoomSession({
     }
 
     const primaryLabel =
-      roomDockLifecycle === "lobby"
+      isRoomLobby(roomDockLifecycle)
         ? UI.roomSearchGame
-        : roomDockLifecycle === "matchmaking"
+        : isRoomMatchmaking(roomDockLifecycle)
           ? UI.roomPlay
           : UI.roomNextRound;
     const primaryDisabled =
-      roomDockLifecycle === "matchmaking"
+      isRoomMatchmaking(roomDockLifecycle)
         ? roomBusy || !canStartMatch
         : roomBusy;
     const onPrimary =
-      roomDockLifecycle === "lobby"
+      isRoomLobby(roomDockLifecycle)
         ? () => void handleOpenSearchRef.current()
-        : roomDockLifecycle === "matchmaking"
+        : isRoomMatchmaking(roomDockLifecycle)
           ? () => void handleStartMatchRef.current()
           : () => void openNextRoundRef.current();
 
@@ -877,7 +883,6 @@ export function useRoomSession({
     canStartMatch,
     roomMatchParticipantCount,
     roomDockLifecycle,
-    inRoomSetup:
-      roomDockLifecycle === "lobby" || roomDockLifecycle === "matchmaking",
+    inRoomSetup: isRoomSetupPhase(roomDockLifecycle),
   };
 }

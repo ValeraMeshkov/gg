@@ -2,6 +2,7 @@ import type { MapCell } from "@/game/maps/types";
 import type { FlightPayload } from "@/game/projectiles/types";
 import { playerHadMatchPresence, playerScoresForRoom } from "./playerScores";
 import { isPlayerAliveInMatch } from "./matchElimination";
+import { MATCH_OUTCOME } from "@/shared/matchOutcome";
 import type { RoomGameOutcome } from "./types";
 
 function rivalContestedInMatch(
@@ -39,19 +40,19 @@ export function roomGameOutcomeForLocal(
   );
 
   if (localAlive && rivalsAlive.length === 0) {
-    return "won";
+    return MATCH_OUTCOME.WON;
   }
   if (!localAlive && rivalsAlive.length > 0) {
-    return "lost";
+    return MATCH_OUTCOME.LOST;
   }
 
   const alive = roomSlotIds.filter((id) =>
     isPlayerAliveInMatch(scores.get(id) ?? 0)
   );
   if (alive.length > 1) return null;
-  if (alive.length === 0) return "lost";
+  if (alive.length === 0) return MATCH_OUTCOME.LOST;
   const winnerId = alive[0]!;
-  return winnerId === localPlayerId ? "won" : "lost";
+  return winnerId === localPlayerId ? MATCH_OUTCOME.WON : MATCH_OUTCOME.LOST;
 }
 
 /**
@@ -70,9 +71,9 @@ export function offlineImmediateOutcomeForLocal(
       id !== localPlayerId && isPlayerAliveInMatch(scores.get(id) ?? 0)
   );
   if (isPlayerAliveInMatch(my)) {
-    if (rivalAlive.length === 0 && slotIds.length > 1) return "won";
+    if (rivalAlive.length === 0 && slotIds.length > 1) return MATCH_OUTCOME.WON;
     return null;
   }
-  if (rivalAlive.length > 0) return "lost";
-  return "lost";
+  if (rivalAlive.length > 0) return MATCH_OUTCOME.LOST;
+  return MATCH_OUTCOME.LOST;
 }

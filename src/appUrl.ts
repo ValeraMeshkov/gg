@@ -8,6 +8,8 @@ const EDITOR_MAP_SESSION_KEY = STORAGE_KEYS.mapDotEditorMap;
 export type AppRoute = {
   mapId: string;
   edit: boolean;
+  /** Каталог комнат /rooms. */
+  roomList: boolean;
   /** Страница /room — создать или ввести код. */
   roomLobby: boolean;
   /** /room/ABC123 — лобби ожидания. */
@@ -46,6 +48,11 @@ function isRoomLobbyPath(pathname: string): boolean {
   return p === "/room" || p.endsWith("/room");
 }
 
+function isRoomsListPath(pathname: string): boolean {
+  const p = normalizePathname(pathname);
+  return p === "/rooms" || p.endsWith("/rooms");
+}
+
 function readEditorMapId(): string {
   try {
     const stored = sessionStorage.getItem(EDITOR_MAP_SESSION_KEY);
@@ -75,6 +82,7 @@ export function readAppRoute(): AppRoute {
     const route: AppRoute = {
       edit: true,
       mapId,
+      roomList: false,
       roomLobby: false,
       roomWaiting: false,
       roomCode: null,
@@ -87,6 +95,7 @@ export function readAppRoute(): AppRoute {
     return {
       edit: true,
       mapId: readEditorMapId(),
+      roomList: false,
       roomLobby: false,
       roomWaiting: false,
       roomCode: null,
@@ -100,9 +109,21 @@ export function readAppRoute(): AppRoute {
     return {
       edit: false,
       mapId: preferredMapId,
+      roomList: false,
       roomLobby: false,
       roomWaiting: true,
       roomCode: pathRoomCode,
+    };
+  }
+
+  if (isRoomsListPath(pathname)) {
+    return {
+      edit: false,
+      mapId: preferredMapId,
+      roomList: true,
+      roomLobby: false,
+      roomWaiting: false,
+      roomCode: null,
     };
   }
 
@@ -110,6 +131,7 @@ export function readAppRoute(): AppRoute {
     return {
       edit: false,
       mapId: preferredMapId,
+      roomList: false,
       roomLobby: true,
       roomWaiting: false,
       roomCode: null,
@@ -121,6 +143,7 @@ export function readAppRoute(): AppRoute {
   return {
     edit: false,
     mapId: preferredMapId,
+    roomList: false,
     roomLobby: false,
     roomWaiting: false,
     roomCode: queryRoom,
@@ -133,6 +156,11 @@ export function writeAppRoute(next: AppRoute): void {
   if (next.edit) {
     writeEditorMapId(next.mapId);
     window.history.replaceState(null, "", `${base}/edit`);
+    return;
+  }
+
+  if (next.roomList) {
+    window.history.replaceState(null, "", `${base}/rooms`);
     return;
   }
 
@@ -172,6 +200,11 @@ export function editorHref(): string {
 export function roomLobbyHref(): string {
   const base = appBasePath();
   return `${base}/room`;
+}
+
+export function roomsListHref(): string {
+  const base = appBasePath();
+  return `${base}/rooms`;
 }
 
 export function roomHref(code: string): string {

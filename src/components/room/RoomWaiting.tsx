@@ -18,6 +18,11 @@ import {
   queueRoomPlayers,
 } from "@/shared/roomRoster";
 import { MIN_ROOM_PLAYERS } from "@/shared/playerSlots";
+import {
+  isRoomLobby,
+  isRoomMatchmaking,
+  isRoomPlaying,
+} from "@/shared/roomStatus";
 import { useRoomGameSync } from "@/hooks/useRoomGameSync";
 import { useUserId } from "@/hooks/useUserId";
 import styles from "./RoomPage.module.scss";
@@ -37,7 +42,7 @@ type PlayerRow = {
 
 function applyRoomFromServer(setRoom: (r: Room) => void, r: Room): void {
   setRoom(r);
-  if (r.status === "playing") {
+  if (isRoomPlaying(r.status)) {
     window.location.assign(gameHref(r.mapId, r.code));
   }
 }
@@ -105,7 +110,7 @@ export function RoomWaiting({ roomCode }: RoomWaitingProps) {
             joinedDuringMatch: p.joinedDuringMatch,
           })),
         };
-        if (next.status === "playing") {
+        if (isRoomPlaying(next.status)) {
           window.location.assign(gameHref(next.mapId, next.code));
         }
         return next;
@@ -138,14 +143,14 @@ export function RoomWaiting({ roomCode }: RoomWaitingProps) {
 
   const poolRows = useMemo(() => {
     if (!room) return [];
-    if (room.status === "matchmaking") {
+    if (isRoomMatchmaking(room.status)) {
       return buildRows(lobbyPoolPlayers(room.players, room.status));
     }
     return buildRows(room.players);
   }, [room, buildRows]);
 
   const queueRows = useMemo(() => {
-    if (!room || room.status !== "matchmaking") return [];
+    if (!room || !isRoomMatchmaking(room.status)) return [];
     return buildRows(queueRoomPlayers(room.players));
   }, [room, buildRows]);
 
@@ -157,18 +162,19 @@ export function RoomWaiting({ roomCode }: RoomWaitingProps) {
       {row.inQueue ? (
         <span className={styles.queueBadge}> · {UI.roomQueueBadge}</span>
       ) : null}
-      {room?.status === "matchmaking" && row.ready ? (
+      {room && isRoomMatchmaking(room.status) && row.ready ? (
         <span className={styles.readyBadge}> ✓ {UI.roomReadyBadge}</span>
       ) : null}
     </li>
   );
 
-  const canOpenSearch = isHost && room?.status === "lobby";
+  const canOpenSearch = isHost && room != null && isRoomLobby(room.status);
   const canStartMatch =
     isHost &&
-    room?.status === "matchmaking" &&
+    room != null &&
+    isRoomMatchmaking(room.status) &&
     readyCount >= MIN_ROOM_PLAYERS;
-  const canToggleReady = room?.status === "matchmaking";
+  const canToggleReady = room != null && isRoomMatchmaking(room.status);
 
   const handleOpenSearch = async () => {
     setBusy(true);
@@ -246,11 +252,11 @@ export function RoomWaiting({ roomCode }: RoomWaitingProps) {
   };
 
   const statusHint =
-    room?.status === "lobby"
+    room && isRoomLobby(room.status)
       ? isHost
         ? UI.roomLobbyHostHint
         : UI.roomLobbyGuestHint
-      : room?.status === "matchmaking"
+      : room && isRoomMatchmaking(room.status)
         ? isHost
           ? UI.roomMatchmakingHostHint(readyCount, MIN_ROOM_PLAYERS)
           : UI.roomMatchmakingGuestHint
@@ -262,7 +268,7 @@ export function RoomWaiting({ roomCode }: RoomWaitingProps) {
       <p className={styles.code}>{roomCode}</p>
       <p className={styles.hint}>{statusHint}</p>
 
-      {room && isHost && room.status !== "playing" ? (
+      {room && isHost && !isRoomPlaying(room.status) ? (
         <section className={styles.panel}>
           <h2 className={styles.panelTitle}>{UI.mapSection}</h2>
           <MapSideMapPicker
@@ -322,7 +328,7 @@ export function RoomWaiting({ roomCode }: RoomWaitingProps) {
             </button>
           ) : null}
 
-          {isHost && room.status === "matchmaking" ? (
+          {isHost && isRoomMatchmaking(room.status) ? (
             <button
               type="button"
               className={styles.btn}

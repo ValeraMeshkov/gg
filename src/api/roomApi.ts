@@ -1,3 +1,4 @@
+import type { RoomStatus } from "@/shared/roomStatus";
 import { apiFetch } from "./fetchApi";
 import { isApiEnabled } from "./config";
 
@@ -18,7 +19,8 @@ export type RoomGameSnapshot = {
   cells: { ownerId?: string; units?: number }[];
 };
 
-export type RoomStatus = "lobby" | "matchmaking" | "playing";
+export type { RoomStatus };
+export { ROOM_STATUS } from "@/shared/roomStatus";
 
 export type Room = {
   code: string;
@@ -31,6 +33,16 @@ export type Room = {
   createdAt: string;
   startedAt?: string;
   game?: RoomGameSnapshot;
+};
+
+export type RoomListEntry = {
+  code: string;
+  mapId: string;
+  status: RoomStatus;
+  playerCount: number;
+  onlineCount: number;
+  maxPlayers: number;
+  createdAt: string;
 };
 
 async function parseJson<T>(res: Response): Promise<T> {
@@ -103,6 +115,10 @@ export async function setRoomReady(
       body: JSON.stringify({ userId, ready }),
     })
   );
+}
+
+export async function fetchRoomsList(): Promise<RoomListEntry[]> {
+  return parseJson(await apiFetch("/api/rooms"));
 }
 
 export async function fetchRoom(code: string): Promise<Room | null> {

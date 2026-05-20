@@ -13,6 +13,10 @@ import { canPlayerPatchAppearance } from "./roomAccess.js";
 import { getRoom, type Room } from "./rooms.js";
 import { slotIndexFromId } from "@/shared/playerSlots.js";
 import {
+  isRoomPlaying,
+  isRoomSetupPhase,
+} from "@/shared/roomStatus.js";
+import {
   preferredDisplayColorForSlot,
   resolveRoomDisplayColor,
   sortSyncAppearancesBySlot,
@@ -53,6 +57,11 @@ const roomChatHistory = new Map<string, ChatHistoryEntry[]>();
 
 export function clearRoomChatHistory(roomCode: string): void {
   roomChatHistory.delete(roomCode.toUpperCase());
+}
+
+/** Число открытых WS-подключений к комнате (игроки на странице игры). */
+export function countRoomOnlineClients(roomCode: string): number {
+  return roomClients.get(roomCode.toUpperCase())?.size ?? 0;
 }
 
 function appendRoomChatHistory(
@@ -201,7 +210,7 @@ function syncClientSlotsForRoom(room: Room): void {
     const player = room.players.find((p) => p.userId === ctx.userId);
     const inMatch = player ? player.inMatch !== false : false;
     ctx.slotId =
-      room.status === "playing" && inMatch && player?.slotId
+      isRoomPlaying(room.status) && inMatch && player?.slotId
         ? player.slotId
         : null;
   }
@@ -271,7 +280,7 @@ export function attachRoomWebSocket(server: HttpServer): void {
 
       const room = getRoom(ctx.roomCode);
       const game = room ? ensureGameForRoom(room) : getGameForRoom(ctx.roomCode);
-      if (!room || room.status !== "playing" || !game) {
+      if (!room || !isRoomPlaying(room.status) || !game) {
         send(ws, { type: "error", message: "Игра не активна" });
         return;
       }
@@ -426,7 +435,7 @@ function handleJoin(ws: WebSocket, roomCode: string, userId: string): void {
 
   const inMatch = player.inMatch !== false;
   const slotId =
-    room.status === "playing" && inMatch && player.slotId
+    isRoomPlaying(room.status) && inMatch && player.slotId
       ? player.slotId
       : null;
 
@@ -443,7 +452,7 @@ function handleJoin(ws: WebSocket, roomCode: string, userId: string): void {
     slotId,
   });
 
-  if (room.status === "lobby" || room.status === "matchmaking") {
+  if (isRoomSetupPhase(room.status)) {
     send(ws, roomStatusMessage(room));
     return;
   }

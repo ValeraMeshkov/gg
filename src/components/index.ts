@@ -11,6 +11,7 @@ export { MapDotEditor } from "./editor/MapDotEditor";
 export { RoomChat } from "./room/RoomChat";
 export { RoomJoinRedirect } from "./room/RoomJoinRedirect";
 export { RoomLobby } from "./room/RoomLobby";
+export { RoomsList } from "./room/RoomsList";
 export { RoomWaiting } from "./room/RoomWaiting";
 
 export { PlayerAppearanceSelect } from "./settings/PlayerAppearanceSelect";

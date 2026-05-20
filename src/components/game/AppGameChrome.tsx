@@ -9,9 +9,7 @@ import styles from "./AppGameChrome.module.scss";
 type AppGameChromeProps = {
   route: AppRoute;
   setRoute: (next: AppRoute) => void;
-  createBusy: boolean;
-  createError: string | null;
-  onCreateRoom: () => void;
+  onGoToRooms: () => void;
   /** Одиночная игра: показать кнопку «Новая игра» → разворот дока «Перед боем». */
   onNewSoloGame?: () => void;
 };
@@ -19,9 +17,7 @@ type AppGameChromeProps = {
 export function AppGameChrome({
   route,
   setRoute,
-  createBusy,
-  createError,
-  onCreateRoom,
+  onGoToRooms,
   onNewSoloGame,
 }: AppGameChromeProps) {
   const inRoom = Boolean(route.roomCode);
@@ -59,6 +55,7 @@ export function AppGameChrome({
     const next: AppRoute = {
       edit: false,
       mapId: route.mapId,
+      roomList: false,
       roomLobby: false,
       roomWaiting: false,
       roomCode: null,
@@ -139,18 +136,14 @@ export function AppGameChrome({
               <button
                 type="button"
                 className={styles.createRoomBtn}
-                disabled={createBusy}
-                onClick={() => void onCreateRoom()}
+                onClick={() => onGoToRooms()}
               >
-                {createBusy ? UI.creatingRoom : UI.createRoom}
+                {UI.roomsNav}
               </button>
             )}
           </div>
         </div>
       </header>
-      {!inRoom && createError ? (
-        <p className={styles.createRoomError}>{createError}</p>
-      ) : null}
     </div>
   );
 }

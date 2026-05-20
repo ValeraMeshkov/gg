@@ -1,3 +1,7 @@
+import { isRoomPlaying, ROOM_STATUS, type RoomStatus } from "./roomStatus.js";
+
+export type { RoomLifecycleStatus, RoomStatus } from "./roomStatus.js";
+
 /** Игрок в комнате (REST / общая модель). */
 export type RoomPlayerPublic = {
   userId: string;
@@ -30,10 +34,10 @@ export function countActiveMatchParticipants(
 
 /** На карте реально идёт бой — двое в партии и статус playing. */
 export function isRealActiveMatch(
-  status: RoomLifecycleStatus,
+  status: RoomStatus,
   players: readonly RoomPlayerPublic[]
 ): boolean {
-  return status === "playing" && countActiveMatchParticipants(players) >= 2;
+  return isRoomPlaying(status) && countActiveMatchParticipants(players) >= 2;
 }
 
 /**
@@ -41,11 +45,11 @@ export function isRealActiveMatch(
  * (на Render часто залипает после ухода второго игрока).
  */
 export function roomLifecycleForDock(
-  status: RoomLifecycleStatus,
+  status: RoomStatus,
   players: readonly RoomPlayerPublic[]
-): RoomLifecycleStatus {
-  if (status === "playing" && countActiveMatchParticipants(players) < 2) {
-    return "matchmaking";
+): RoomStatus {
+  if (isRoomPlaying(status) && countActiveMatchParticipants(players) < 2) {
+    return ROOM_STATUS.MATCHMAKING;
   }
   return status;
 }
@@ -55,8 +59,6 @@ export function waitingRoomPlayers(
 ): RoomPlayerPublic[] {
   return players.filter((p) => !playerInMatch(p));
 }
-
-export type RoomLifecycleStatus = "lobby" | "matchmaking" | "playing";
 
 export function queueRoomPlayers(
   players: readonly RoomPlayerPublic[]
@@ -69,9 +71,9 @@ export function queueRoomPlayers(
 /** Игроки «в зале» (не очередь с mid-match join) для списка в лобби. */
 export function lobbyPoolPlayers(
   players: readonly RoomPlayerPublic[],
-  roomStatus: RoomLifecycleStatus
+  roomStatus: RoomStatus
 ): RoomPlayerPublic[] {
-  if (roomStatus === "playing") {
+  if (isRoomPlaying(roomStatus)) {
     return players.filter((p) => playerInMatch(p));
   }
   return players.filter((p) => !p.joinedDuringMatch);
@@ -86,21 +88,21 @@ export function lobbyPoolPlayers(
 
 export function canEditAppearanceInRoom(opts: {
   inMatch: boolean;
-  roomStatus: RoomLifecycleStatus;
+  roomStatus: RoomStatus;
   /** Итоговые очки слота с учётом штрафа выбывания. */
   matchDisplayScore: number;
 }): boolean {
   if (!opts.inMatch) return true;
-  if (opts.roomStatus !== "playing") return true;
+  if (!isRoomPlaying(opts.roomStatus)) return true;
   return opts.matchDisplayScore < 0;
 }
 
 /** Карту и «случайную карту» меняет только хост вне активной партии. */
 export function canHostEditRoomMap(opts: {
   isHost: boolean;
-  roomStatus: RoomLifecycleStatus;
+  roomStatus: RoomStatus;
 }): boolean {
-  return opts.isHost && opts.roomStatus !== "playing";
+  return opts.isHost && !isRoomPlaying(opts.roomStatus);
 }
 
 export function countReadyPlayers(
@@ -112,7 +114,7 @@ export function countReadyPlayers(
 /** Готовые в «зале» подбора; хост считается готовым (кнопки «Готов» у него нет). */
 export function countMatchmakingReady(
   players: readonly RoomPlayerPublic[],
-  roomStatus: RoomLifecycleStatus,
+  roomStatus: RoomStatus,
   hostUserId?: string
 ): number {
   const pool = lobbyPoolPlayers(players, roomStatus);

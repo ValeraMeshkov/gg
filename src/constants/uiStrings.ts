@@ -127,4 +127,20 @@ export const UI = {
   linkCopy: "Ссылка",
   creatingRoom: "Создаём…",
   createRoom: "Создать комнату",
+  roomsNav: "Комнаты",
+  roomsTitle: "Комнаты",
+  roomsLead:
+    "Активные комнаты на сервере. «Онлайн» — игроки с открытой страницей игры.",
+  roomListEmpty: "Сейчас нет открытых комнат. Создайте свою.",
+  roomListLoading: "Загружаем список…",
+  roomListLoadFailed: "Не удалось загрузить комнаты",
+  roomListRefresh: "Обновить",
+  roomListBackToGame: "← К игре",
+  roomListStatusLobby: "Лобби",
+  roomListStatusMatchmaking: "Подбор",
+  roomListStatusPlaying: "Партия",
+  roomListOnline: (n: number) =>
+    n === 1 ? "1 онлайн" : `${n} онлайн`,
+  roomListPlayers: (count: number, max: number) =>
+    `${count} / ${max} в комнате`,
 } as const;

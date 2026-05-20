@@ -13,6 +13,7 @@ import { seededRandom } from "@/shared/seededRandom.js";
 import type { SyncCell } from "@/shared/wsProtocol.js";
 import { buildingForSlot } from "./roomBuilding.js";
 import { matchParticipantSlotIds } from "@/shared/roomRoster.js";
+import { isRoomPlaying } from "@/shared/roomStatus.js";
 import type { Room } from "./rooms.js";
 
 export type RoomGameState = {
@@ -128,7 +129,7 @@ export function getGameForRoom(code: string): RoomGameState | null {
 }
 
 export function ensureGameForRoom(room: Room): RoomGameState | null {
-  if (room.status !== "playing") return null;
+  if (!isRoomPlaying(room.status)) return null;
   const key = room.code.toUpperCase();
   let g = games.get(key);
   if (!g) {

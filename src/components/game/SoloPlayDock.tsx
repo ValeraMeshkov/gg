@@ -15,6 +15,13 @@ import { useCenterSelectedBuildingOnSettingsOpen } from "@/hooks/useCenterSelect
 import { UI } from "@/constants/uiStrings";
 import { MIN_ROOM_PLAYERS } from "@/shared/playerSlots";
 import type { RoomStatus } from "@/api/roomApi";
+import {
+  isRoomLobby,
+  isRoomMatchmaking,
+  isRoomPlaying,
+  isRoomSetupPhase,
+  ROOM_STATUS,
+} from "@/shared/roomStatus";
 import type { RoomGameOutcome } from "@/game/scoring/types";
 import styles from "./SoloPlayDock.module.scss";
 
@@ -123,12 +130,13 @@ export function SoloPlayDock({
 }: SoloPlayDockProps): ReactElement {
   useCenterSelectedBuildingOnSettingsOpen(expanded);
 
+  const dockLifecycle = roomLifecycle ?? ROOM_STATUS.LOBBY;
+
   const isRoomHostVariant = variant === "roomHost";
   const isRoomGuest = variant === "roomGuest";
   const isRoomWaiting = variant === "roomWaiting";
   const isRoom = isRoomHostVariant || isRoomGuest || isRoomWaiting;
-  const inRoomSetup =
-    roomLifecycle === "lobby" || roomLifecycle === "matchmaking";
+  const inRoomSetup = isRoomSetupPhase(dockLifecycle);
   const mapLocked = isRoom && !isRoomHostVariant;
   const dockTitle =
     inRoomSetup || !isRoom
@@ -145,7 +153,7 @@ export function SoloPlayDock({
     onOfflineBotDifficultyChange != null;
   const readyToStart = awaitingStart || gameOutcome != null;
   const guestPlayingCollapse =
-    isRoomGuest && roomLifecycle === "playing" && gameOutcome == null;
+    isRoomGuest && isRoomPlaying(dockLifecycle) && gameOutcome == null;
   const statusText =
     gameOutcome != null
       ? null
@@ -153,13 +161,13 @@ export function SoloPlayDock({
         ? readyForNext
           ? UI.roomReadyForNextDone
           : UI.roomReadyForNextHint
-        : inRoomSetup && isRoomHost && roomLifecycle === "lobby"
+        : inRoomSetup && isRoomHost && isRoomLobby(dockLifecycle)
           ? UI.roomLobbyHostHint
-          : inRoomSetup && !isRoomHost && roomLifecycle === "lobby"
+          : inRoomSetup && !isRoomHost && isRoomLobby(dockLifecycle)
             ? UI.roomLobbyGuestHint
-            : inRoomSetup && isRoomHost && roomLifecycle === "matchmaking"
+            : inRoomSetup && isRoomHost && isRoomMatchmaking(dockLifecycle)
               ? UI.roomMatchmakingHostHint(roomReadyCount, MIN_ROOM_PLAYERS)
-              : inRoomSetup && !isRoomHost && roomLifecycle === "matchmaking"
+              : inRoomSetup && !isRoomHost && isRoomMatchmaking(dockLifecycle)
                 ? UI.roomMatchmakingGuestHint
                 : isRoomHostVariant && isRoom
               ? UI.roomHostInGameDockHint
@@ -234,7 +242,7 @@ export function SoloPlayDock({
               players={roomDockPlayers}
               playerCount={roomPlayerCount}
               maxPlayers={roomMaxPlayers}
-              showReady={roomLifecycle === "matchmaking"}
+              showReady={isRoomMatchmaking(dockLifecycle)}
             />
           ) : null}
 
@@ -310,9 +318,9 @@ export function SoloPlayDock({
             disabled={
               showReadyForNext
                 ? readyForNextBusy
-                : inRoomSetup && isRoomHost && roomLifecycle === "matchmaking"
+                : inRoomSetup && isRoomHost && isRoomMatchmaking(dockLifecycle)
                   ? startDisabled || !canStartMatch
-                  : inRoomSetup && !isRoomHost && roomLifecycle === "lobby"
+                  : inRoomSetup && !isRoomHost && isRoomLobby(dockLifecycle)
                     ? true
                   : inRoomSetup
                     ? startDisabled
@@ -323,14 +331,14 @@ export function SoloPlayDock({
                 onToggleReadyForNext?.();
                 return;
               }
-              if (inRoomSetup && isRoomHost && roomLifecycle === "lobby") {
+              if (inRoomSetup && isRoomHost && isRoomLobby(dockLifecycle)) {
                 onRoomSearch?.();
                 return;
               }
               if (
                 inRoomSetup &&
                 isRoomHost &&
-                roomLifecycle === "matchmaking"
+                isRoomMatchmaking(dockLifecycle)
               ) {
                 if (!canStartMatch || startDisabled) return;
                 onRoomStart?.();
@@ -342,7 +350,7 @@ export function SoloPlayDock({
               }
               if (
                 isRoomHostVariant &&
-                roomLifecycle === "playing" &&
+                isRoomPlaying(dockLifecycle) &&
                 gameOutcome == null
               ) {
                 if (startDisabled) return;
@@ -367,17 +375,17 @@ export function SoloPlayDock({
               ? readyForNext
                 ? UI.roomReadyForNextCancel
                 : UI.roomReadyForNext
-              : inRoomSetup && isRoomHost && roomLifecycle === "lobby"
+              : inRoomSetup && isRoomHost && isRoomLobby(dockLifecycle)
                 ? UI.roomSearchGame
-                : inRoomSetup && isRoomHost && roomLifecycle === "matchmaking"
+                : inRoomSetup && isRoomHost && isRoomMatchmaking(dockLifecycle)
                   ? UI.roomPlay
                   : inRoomSetup &&
                       !isRoomHost &&
-                      roomLifecycle === "matchmaking"
+                      isRoomMatchmaking(dockLifecycle)
                     ? roomLobbyReady
                       ? UI.roomReadyCancel
                       : UI.roomReady
-                    : inRoomSetup && !isRoomHost && roomLifecycle === "lobby"
+                    : inRoomSetup && !isRoomHost && isRoomLobby(dockLifecycle)
                       ? UI.roomGuestDockWaitingHost
                     : isRoomWaiting
                       ? UI.roomWaitingQueue
@@ -385,7 +393,7 @@ export function SoloPlayDock({
                         ? UI.soloDockCollapse
                         : isRoomGuest
                           ? UI.roomGuestDockWaitingHost
-                          : isRoomHostVariant && roomLifecycle === "playing"
+                          : isRoomHostVariant && isRoomPlaying(dockLifecycle)
                           ? UI.roomNextRound
                           : isRoomHostVariant
                             ? UI.roomNextRound
