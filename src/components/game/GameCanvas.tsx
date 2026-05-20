@@ -48,7 +48,6 @@ import { SoloPlayDock } from "./SoloPlayDock";
 import { MapView } from "./MapView";
 import { isPlayerAliveInMatch } from "@/game/scoring/matchElimination";
 import { canEditAppearanceInRoom } from "@/shared/roomRoster";
-import { isMatchWon } from "@/shared/matchOutcome";
 import {
   isRoomPlaying,
   ROOM_STATUS,
@@ -766,7 +765,7 @@ export function GameCanvas({
     room.syncReady &&
     room.matchCountdown === null &&
     offlineAliveCount >= 2 &&
-    gameOutcome != null && !isMatchWon(gameOutcome);
+    gameOutcome == null;
 
   useOfflineBotLoop({
     enabled: offlineBotsEnabled && pageVisible,
