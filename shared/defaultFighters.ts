@@ -1,4 +1,4 @@
-import type { FighterSkinId } from "./skinIds.js";
+import { FIGHTER_SKINS, type FighterSkinId } from "./skinIds.js";
 
 /** Бойцы с 3D spin-спрайтами в полёте (настройки и дефолты). */
 export const WEAPON_FIGHTER_SKINS = [
@@ -35,6 +35,21 @@ export function coerceWeaponFighterSkin(
     const legacy = LEGACY_FIGHTER_SKIN_MAP[skin];
     if (legacy) return legacy;
     if ((WEAPON_FIGHTER_SKINS as readonly string[]).includes(skin)) {
+      return skin as FighterSkinId;
+    }
+  }
+  return fallback;
+}
+
+/** Любой id бойца из WS/профиля → допустимый FighterSkinId. */
+export function coerceFighterSkinId(
+  skin: unknown,
+  fallback: FighterSkinId = "dagger"
+): FighterSkinId {
+  if (typeof skin === "string") {
+    const legacy = LEGACY_FIGHTER_SKIN_MAP[skin];
+    if (legacy) return legacy;
+    if ((FIGHTER_SKINS as readonly string[]).includes(skin)) {
       return skin as FighterSkinId;
     }
   }

@@ -486,8 +486,12 @@ export function createApp() {
         400
       );
     }
+    const code = c.req.param("code");
+    if (!code) {
+      return c.json({ error: "Код комнаты не указан" }, 400);
+    }
     const room = endRoundToMatchmaking(
-      c.req.param("code"),
+      code,
       parsed.data.hostUserId,
       {
         mapId: parsed.data.mapId,

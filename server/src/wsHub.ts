@@ -17,6 +17,8 @@ import {
   resolveRoomDisplayColor,
   sortSyncAppearancesBySlot,
 } from "@/shared/roomPlayerColors.js";
+import { coerceFighterSkinId } from "@/shared/defaultFighters.js";
+import { coerceBuildingSkinId } from "@/shared/skinIds.js";
 import {
   DEFAULT_BUILDING,
   DEFAULT_FIGHTER,
@@ -267,8 +269,8 @@ export function attachRoomWebSocket(server: HttpServer): void {
           }
           const color = normalizeDisplayColor(msg.displayColor);
           updateProfile(ctx.userId, {
-            fighter: msg.fighter,
-            building: msg.building,
+            fighter: coerceFighterSkinId(msg.fighter),
+            building: coerceBuildingSkinId(msg.building),
             ...(color ? { displayColor: color } : {}),
             ...(typeof msg.displayName === "string"
               ? { displayName: msg.displayName.trim().slice(0, 32) }
