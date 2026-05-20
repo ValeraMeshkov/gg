@@ -120,7 +120,6 @@ export function SoloPlayDock({
   roomDockPlayers = [],
   roomPlayerCount = 0,
   roomMaxPlayers = 10,
-  isRoomHost = false,
   onRoomSearch,
   onRoomStart,
   onRoomLobbyReady,
@@ -136,7 +135,8 @@ export function SoloPlayDock({
   const isRoomGuest = variant === "roomGuest";
   const isRoomWaiting = variant === "roomWaiting";
   const isRoom = isRoomHostVariant || isRoomGuest || isRoomWaiting;
-  const inRoomSetup = isRoomSetupPhase(dockLifecycle);
+  /** Только мультиплеер: в соло не подставляем «лобби» и тексты про хоста. */
+  const inRoomSetup = isRoom && isRoomSetupPhase(dockLifecycle);
   const mapLocked = isRoom && !isRoomHostVariant;
   const dockTitle =
     inRoomSetup || !isRoom
@@ -161,13 +161,13 @@ export function SoloPlayDock({
         ? readyForNext
           ? UI.roomReadyForNextDone
           : UI.roomReadyForNextHint
-        : inRoomSetup && isRoomHost && isRoomLobby(dockLifecycle)
+        : inRoomSetup && isRoomHostVariant && isRoomLobby(dockLifecycle)
           ? UI.roomLobbyHostHint
-          : inRoomSetup && !isRoomHost && isRoomLobby(dockLifecycle)
+          : inRoomSetup && isRoomGuest && isRoomLobby(dockLifecycle)
             ? UI.roomLobbyGuestHint
-            : inRoomSetup && isRoomHost && isRoomMatchmaking(dockLifecycle)
+            : inRoomSetup && isRoomHostVariant && isRoomMatchmaking(dockLifecycle)
               ? UI.roomMatchmakingHostHint(roomReadyCount, MIN_ROOM_PLAYERS)
-              : inRoomSetup && !isRoomHost && isRoomMatchmaking(dockLifecycle)
+              : inRoomSetup && isRoomGuest && isRoomMatchmaking(dockLifecycle)
                 ? UI.roomMatchmakingGuestHint
                 : isRoomHostVariant && isRoom
               ? UI.roomHostInGameDockHint
@@ -318,9 +318,9 @@ export function SoloPlayDock({
             disabled={
               showReadyForNext
                 ? readyForNextBusy
-                : inRoomSetup && isRoomHost && isRoomMatchmaking(dockLifecycle)
+                : inRoomSetup && isRoomHostVariant && isRoomMatchmaking(dockLifecycle)
                   ? startDisabled || !canStartMatch
-                  : inRoomSetup && !isRoomHost && isRoomLobby(dockLifecycle)
+                  : inRoomSetup && isRoomGuest && isRoomLobby(dockLifecycle)
                     ? true
                   : inRoomSetup
                     ? startDisabled
@@ -331,20 +331,20 @@ export function SoloPlayDock({
                 onToggleReadyForNext?.();
                 return;
               }
-              if (inRoomSetup && isRoomHost && isRoomLobby(dockLifecycle)) {
+              if (inRoomSetup && isRoomHostVariant && isRoomLobby(dockLifecycle)) {
                 onRoomSearch?.();
                 return;
               }
               if (
                 inRoomSetup &&
-                isRoomHost &&
+                isRoomHostVariant &&
                 isRoomMatchmaking(dockLifecycle)
               ) {
                 if (!canStartMatch || startDisabled) return;
                 onRoomStart?.();
                 return;
               }
-              if (inRoomSetup && !isRoomHost) {
+              if (inRoomSetup && isRoomGuest) {
                 onRoomLobbyReady?.();
                 return;
               }
@@ -375,17 +375,17 @@ export function SoloPlayDock({
               ? readyForNext
                 ? UI.roomReadyForNextCancel
                 : UI.roomReadyForNext
-              : inRoomSetup && isRoomHost && isRoomLobby(dockLifecycle)
+              : inRoomSetup && isRoomHostVariant && isRoomLobby(dockLifecycle)
                 ? UI.roomSearchGame
-                : inRoomSetup && isRoomHost && isRoomMatchmaking(dockLifecycle)
+                : inRoomSetup && isRoomHostVariant && isRoomMatchmaking(dockLifecycle)
                   ? UI.roomPlay
                   : inRoomSetup &&
-                      !isRoomHost &&
+                      isRoomGuest &&
                       isRoomMatchmaking(dockLifecycle)
                     ? roomLobbyReady
                       ? UI.roomReadyCancel
                       : UI.roomReady
-                    : inRoomSetup && !isRoomHost && isRoomLobby(dockLifecycle)
+                    : inRoomSetup && isRoomGuest && isRoomLobby(dockLifecycle)
                       ? UI.roomGuestDockWaitingHost
                     : isRoomWaiting
                       ? UI.roomWaitingQueue
