@@ -144,6 +144,8 @@ export function SoloPlayDock({
     offlineBotDifficulty != null &&
     onOfflineBotDifficultyChange != null;
   const readyToStart = awaitingStart || gameOutcome != null;
+  const guestPlayingCollapse =
+    isRoomGuest && roomLifecycle === "playing" && gameOutcome == null;
   const statusText =
     gameOutcome != null
       ? null
@@ -347,6 +349,10 @@ export function SoloPlayDock({
                 onStartGame();
                 return;
               }
+              if (guestPlayingCollapse) {
+                onExpandedChange(false);
+                return;
+              }
               if (mapLocked || startDisabled) return;
               if (isRoomHostVariant || readyToStart) {
                 onStartGame();
@@ -375,9 +381,11 @@ export function SoloPlayDock({
                       ? UI.roomGuestDockWaitingHost
                     : isRoomWaiting
                       ? UI.roomWaitingQueue
-                      : isRoomGuest
-                        ? UI.roomGuestDockWaitingHost
-                        : isRoomHostVariant && roomLifecycle === "playing"
+                      : guestPlayingCollapse
+                        ? UI.soloDockCollapse
+                        : isRoomGuest
+                          ? UI.roomGuestDockWaitingHost
+                          : isRoomHostVariant && roomLifecycle === "playing"
                           ? UI.roomNextRound
                           : isRoomHostVariant
                             ? UI.roomNextRound
