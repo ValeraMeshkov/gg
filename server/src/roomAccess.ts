@@ -27,7 +27,16 @@ function slotHasPendingLaunches(roomCode: string, slotId: string): boolean {
   return false;
 }
 
-/** Серверная проверка перед WS appearance. */
+/** Смена оружия (fighter) на карте — разрешена участнику активной партии. */
+export function canPlayerPatchFighter(room: Room, userId: string): boolean {
+  const player = room.players.find((p) => p.userId === userId);
+  if (!player) return false;
+  if (!playerInMatch(player)) return true;
+  if (!isRoomPlaying(room.status)) return true;
+  return Boolean(player.slotId);
+}
+
+/** Серверная проверка перед WS appearance (скин здания, цвет, имя). */
 export function canPlayerPatchAppearance(
   room: Room,
   userId: string

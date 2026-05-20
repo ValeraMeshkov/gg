@@ -49,7 +49,10 @@ import { MapView } from "./MapView";
 import { isPlayerAliveInMatch } from "@/game/scoring/matchElimination";
 import { canEditAppearanceInRoom } from "@/shared/roomRoster";
 import { isMatchWon } from "@/shared/matchOutcome";
-import { isRoomPlaying, ROOM_STATUS } from "@/shared/roomStatus";
+import {
+  isRoomPlaying,
+  ROOM_STATUS,
+} from "@/shared/roomStatus";
 import { serverNowMs } from "@/game/serverClock";
 import type { MapProjectilesCanvasHandle } from "@/components/map";
 import { RoomChat } from "@/components/room/RoomChat";
@@ -790,10 +793,18 @@ export function GameCanvas({
     [room.handleRandomMapOnStartChange, onRandomMapOnStartChange]
   );
 
+  const canPickFighterInRoom =
+    Boolean(roomCode) &&
+    room.myInMatch &&
+    isRoomPlaying(room.roomStatus);
+
   const handleFighterChange = useCallback(
     (fighter: FighterSkinId) => {
       if (roomCode) {
-        room.patchMyAppearanceRoom({ fighter }, roomCanEditAppearance);
+        room.patchMyAppearanceRoom(
+          { fighter },
+          roomCanEditAppearance || canPickFighterInRoom
+        );
       } else {
         patchMyAppearance({ fighter });
       }
@@ -803,6 +814,7 @@ export function GameCanvas({
       room.patchMyAppearanceRoom,
       patchMyAppearance,
       roomCanEditAppearance,
+      canPickFighterInRoom,
     ]
   );
 
@@ -1081,6 +1093,11 @@ export function GameCanvas({
             mapInteractionLocked={Boolean(
               !room.syncReady ||
                 room.matchCountdown !== null ||
+                gameOutcome !== null ||
+                soloAwaitingStart
+            )}
+            fighterPickerDisabled={Boolean(
+              room.matchCountdown !== null ||
                 gameOutcome !== null ||
                 soloAwaitingStart
             )}

@@ -28,6 +28,8 @@ export type MapViewProps = {
   showFirstMoveHint?: boolean;
   /** Нельзя атаковать (отсчёт, конец партии в комнате и т.д.) — горячие клавиши карты отключены. */
   mapInteractionLocked?: boolean;
+  /** Блок только панели оружия (без учёта syncReady). */
+  fighterPickerDisabled?: boolean;
   onMapFlightMetricsChange?: (metrics: {
     meetScale: number;
     dotRadius: number;

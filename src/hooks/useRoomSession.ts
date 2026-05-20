@@ -160,6 +160,8 @@ export function useRoomSession({
     if (!roomCode) {
       setSyncReady(true);
       setMyInMatch(true);
+    } else {
+      setSyncReady(false);
     }
   }, [roomCode]);
 
@@ -328,39 +330,6 @@ export function useRoomSession({
     requestExpandSoloBattleDock,
   ]);
 
-  useEffect(() => {
-    if (!roomCode || !pageVisible) return;
-    let cancelled = false;
-    const poll = async () => {
-      const room = await fetchRoom(roomCode);
-      if (cancelled || !room) return;
-      await hydrateRoomFromServer(room);
-      const me = room.players.find((p) => p.userId === userId);
-      if (me?.slotId && playerInMatch(me)) {
-        setLocalPlayerId(me.slotId);
-      }
-      if (room.game?.cells) {
-        const next = room.game.cells.map((c) => ({ ...c }));
-        cellsRef.current = next;
-        applyCellsFromServer(cloneCells(next));
-      }
-    };
-    const id = window.setInterval(() => void poll(), 2500);
-    void poll();
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [
-    roomCode,
-    userId,
-    pageVisible,
-    hydrateRoomFromServer,
-    applyCellsFromServer,
-    cellsRef,
-    setLocalPlayerId,
-  ]);
-
   const onChatHistory = useCallback(
     (
       messages: {
@@ -416,6 +385,7 @@ export function useRoomSession({
     reconnect,
   } = useRoomGameSync({
     roomCode,
+    wsEnabled: syncReady,
     onSnapshot: (snapMapId, snapCells, appearances, randomMapOnStart) => {
       if (randomMapOnStart !== undefined) {
         setRoomRandomMapOnStart(randomMapOnStart);
@@ -481,6 +451,42 @@ export function useRoomSession({
       }
     },
   });
+
+  useEffect(() => {
+    if (!roomCode || !pageVisible) return;
+    let cancelled = false;
+    const poll = async () => {
+      const room = await fetchRoom(roomCode);
+      if (cancelled || !room) return;
+      await hydrateRoomFromServer(room);
+      const me = room.players.find((p) => p.userId === userId);
+      if (me?.slotId && playerInMatch(me)) {
+        setLocalPlayerId(me.slotId);
+      }
+      const liveViaWs =
+        wsConnected && isRoomPlaying(room.status);
+      if (room.game?.cells && !liveViaWs) {
+        const next = room.game.cells.map((c) => ({ ...c }));
+        cellsRef.current = next;
+        applyCellsFromServer(cloneCells(next));
+      }
+    };
+    const id = window.setInterval(() => void poll(), 2500);
+    void poll();
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [
+    roomCode,
+    userId,
+    pageVisible,
+    wsConnected,
+    hydrateRoomFromServer,
+    applyCellsFromServer,
+    cellsRef,
+    setLocalPlayerId,
+  ]);
 
   useEffect(() => {
     if (!roomCode || !wsConnected) return;

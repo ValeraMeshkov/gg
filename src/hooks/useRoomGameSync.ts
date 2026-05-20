@@ -25,6 +25,8 @@ export type AttackLaunchEvent = {
 
 type UseRoomGameSyncOptions = {
   roomCode: string | null;
+  /** Подключать WS только после join/hydrate (избегает гонки с REST). */
+  wsEnabled?: boolean;
   onSnapshot: (
     mapId: string,
     cells: SyncCell[],
@@ -89,6 +91,7 @@ type UseRoomGameSyncOptions = {
 
 export function useRoomGameSync({
   roomCode,
+  wsEnabled = true,
   onSnapshot,
   onCells,
   onAttackLaunch,
@@ -139,7 +142,7 @@ export function useRoomGameSync({
   };
 
   useEffect(() => {
-    if (!roomCode) {
+    if (!roomCode || !wsEnabled) {
       setConnected(false);
       return;
     }
@@ -245,7 +248,14 @@ export function useRoomGameSync({
       wsRef.current = null;
       setConnected(false);
     };
-  }, [roomCode, wsKey, userId]);
+  }, [roomCode, wsKey, userId, wsEnabled]);
+
+  /** Переподключение, если join на REST прошёл, а WS упал (частая гонка при открытии комнаты). */
+  useEffect(() => {
+    if (!roomCode || !wsEnabled || connected) return;
+    const id = window.setInterval(() => setWsKey((k) => k + 1), 2500);
+    return () => window.clearInterval(id);
+  }, [roomCode, wsEnabled, connected]);
 
   const reconnect = useCallback(() => {
     setWsKey((k) => k + 1);

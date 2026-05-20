@@ -102,6 +102,7 @@ type TerritoryMapViewProps = {
   syncMapLayout?: boolean;
   showFirstMoveHint?: boolean;
   mapInteractionLocked?: boolean;
+  fighterPickerDisabled?: boolean;
   onMapFlightMetricsChange?: (metrics: {
     meetScale: number;
     dotRadius: number;
@@ -307,6 +308,7 @@ export const TerritoryMapView = memo(function TerritoryMapView({
   syncMapLayout = false,
   showFirstMoveHint = false,
   mapInteractionLocked = false,
+  fighterPickerDisabled,
   onMapFlightMetricsChange,
   offlineBotCount,
   onOfflineBotCountChange,
@@ -711,7 +713,7 @@ export const TerritoryMapView = memo(function TerritoryMapView({
         <MapSideFighterPicker
           fighter={fighter}
           onFighterChange={onFighterChange}
-          disabled={mapInteractionLocked}
+          disabled={fighterPickerDisabled ?? mapInteractionLocked}
         />
       </aside>
       <svg

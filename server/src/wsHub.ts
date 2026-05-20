@@ -9,7 +9,10 @@ import {
   processAttack,
   setProjectileCollisionHandler,
 } from "./roomAttack.js";
-import { canPlayerPatchAppearance } from "./roomAccess.js";
+import {
+  canPlayerPatchAppearance,
+  canPlayerPatchFighter,
+} from "./roomAccess.js";
 import { getRoom, type Room } from "./rooms.js";
 import { slotIndexFromId } from "@/shared/playerSlots.js";
 import {
@@ -353,10 +356,28 @@ export function attachRoomWebSocket(server: HttpServer): void {
       }
 
       if (msg.type === "appearance") {
+        const fighter = coerceFighterSkinId(msg.fighter);
+        const building = coerceBuildingSkinId(msg.building);
         if (!canPlayerPatchAppearance(room, ctx.userId)) {
-          send(ws, {
-            type: "error",
-            message: "Нельзя менять внешность во время партии",
+          if (!canPlayerPatchFighter(room, ctx.userId)) {
+            send(ws, {
+              type: "error",
+              message: "Нельзя менять внешность во время партии",
+            });
+            return;
+          }
+          updateProfile(ctx.userId, { fighter });
+          const displayName = profileDisplayNameRaw(ctx.userId);
+          const profile = getProfile(ctx.userId);
+          broadcastAll(ctx.roomCode, {
+            type: "appearance",
+            slotId: ctx.slotId,
+            fighter,
+            building: profile?.building ?? DEFAULT_BUILDING,
+            ...(profile?.displayColor
+              ? { displayColor: profile.displayColor }
+              : {}),
+            displayName,
           });
           return;
         }
@@ -376,12 +397,13 @@ export function attachRoomWebSocket(server: HttpServer): void {
             displayName: msg.displayName.trim().slice(0, 32),
           });
         }
+        updateProfile(ctx.userId, { fighter, building });
         const displayName = profileDisplayNameRaw(ctx.userId);
         broadcastAll(ctx.roomCode, {
           type: "appearance",
           slotId: ctx.slotId,
-          fighter: msg.fighter,
-          building: msg.building,
+          fighter,
+          building,
           ...(displayColor ? { displayColor } : {}),
           displayName,
         });

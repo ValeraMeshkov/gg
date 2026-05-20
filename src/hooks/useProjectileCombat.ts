@@ -246,8 +246,12 @@ export function useProjectileCombat({
 
       const hitR2 = projectileHitRadius2();
       const newBooms: LandHitFx[] = [];
-      captureEliminationBaseline();
+      const roomCombat = Boolean(roomCodeRef.current);
+      if (!roomCombat) {
+        captureEliminationBaseline();
+      }
       for (let i = 0; i < inAir.length; i++) {
+        if (roomCombat) break;
         const a = inAir[i]!;
         if (a.sim.destroyed) continue;
         for (let j = i + 1; j < inAir.length; j++) {
@@ -304,47 +308,49 @@ export function useProjectileCombat({
           markScoreBarStale();
         }
       }
-      const map = liveMapRef.current;
-      const metrics = mapFlightMetricsRef?.current;
-      const shieldZones = collectFortressShieldZones(cellsRef.current, {
-        cellCenter: (i) => {
-          if (isTerritoryIndexHidden(map, i)) return null;
-          return mapDotCenter(map, territoryCellPos(i));
-        },
-        buildingForOwner: (ownerId) =>
-          appearanceForPlayer(playerAppearancesRef.current, ownerId)
-            .building,
-        spotRingRadius: spotRingRadiusForMap(
-          map.id,
-          metrics?.dotRadius,
-          metrics?.meetScale
-        ),
-        meetScale: metrics?.meetScale,
-      });
-      for (const { flight, sim } of inAir) {
-        if (sim.landApplied || sim.destroyed) continue;
-        const hit = projectileFortressShieldHitDuringInterval(
-          simToPath(sim),
-          shieldZones,
-          sim.hitAffiliationId,
-          t0,
-          now
-        );
-        if (!hit) continue;
-        const landTid = flight.simLandTids[sim.id];
-        if (landTid != null) {
-          window.clearTimeout(landTid);
-          untrackTimeoutId(landTid);
-          delete flight.simLandTids[sim.id];
-        }
-        applySimLandOnCell(flight, sim, hit.zone.cellIndex, {
-          x: hit.x,
-          y: hit.y,
+      if (!roomCombat) {
+        const map = liveMapRef.current;
+        const metrics = mapFlightMetricsRef?.current;
+        const shieldZones = collectFortressShieldZones(cellsRef.current, {
+          cellCenter: (i) => {
+            if (isTerritoryIndexHidden(map, i)) return null;
+            return mapDotCenter(map, territoryCellPos(i));
+          },
+          buildingForOwner: (ownerId) =>
+            appearanceForPlayer(playerAppearancesRef.current, ownerId)
+              .building,
+          spotRingRadius: spotRingRadiusForMap(
+            map.id,
+            metrics?.dotRadius,
+            metrics?.meetScale
+          ),
+          meetScale: metrics?.meetScale,
         });
-        removeFlightIfComplete(flight);
-        markScoreBarStale();
+        for (const { flight, sim } of inAir) {
+          if (sim.landApplied || sim.destroyed) continue;
+          const hit = projectileFortressShieldHitDuringInterval(
+            simToPath(sim),
+            shieldZones,
+            sim.hitAffiliationId,
+            t0,
+            now
+          );
+          if (!hit) continue;
+          const landTid = flight.simLandTids[sim.id];
+          if (landTid != null) {
+            window.clearTimeout(landTid);
+            untrackTimeoutId(landTid);
+            delete flight.simLandTids[sim.id];
+          }
+          applySimLandOnCell(flight, sim, hit.zone.cellIndex, {
+            x: hit.x,
+            y: hit.y,
+          });
+          removeFlightIfComplete(flight);
+          markScoreBarStale();
+        }
+        commitEliminationStrikes();
       }
-      commitEliminationStrikes();
 
       flushScoreBarIfDirty();
 
@@ -476,6 +482,10 @@ export function useProjectileCombat({
     const pending = row.filter((s) => !s.spawnApplied && !s.landApplied);
     if (pending.length === 0) return;
     for (const s of pending) s.spawnApplied = true;
+    if (roomCodeRef.current) {
+      bumpScoreDisplay();
+      return;
+    }
     const fromI = flight.fromIndex;
     const next = cloneCells(cellsRef.current);
     next[fromI] = applySpawnFromSourceCell(
@@ -485,9 +495,6 @@ export function useProjectileCombat({
     );
     cellsRef.current = next;
     pushCellsToReact();
-    if (roomCodeRef.current) {
-      bumpScoreDisplay();
-    }
   };
 
   const applySimLandOnCell = (
@@ -504,13 +511,29 @@ export function useProjectileCombat({
     }
     sim.landApplied = true;
     const attackerId = sim.hitAffiliationId;
-    if (!roomCodeRef.current) {
-      captureEliminationBaseline();
+    const target = cellsRef.current[cellIndex];
+    const isOwnCell =
+      target?.ownerId != null && target.ownerId === attackerId;
+
+    if (roomCodeRef.current) {
+      if (flight.visualCombat && !isOwnCell) {
+        spawnLandHitFx(
+          sim.attackAnimation,
+          landPos.x,
+          landPos.y,
+          `land-${sim.id}`
+        );
+      }
+      removeFlightIfComplete(flight);
+      bumpScoreDisplay();
+      return;
     }
+
+    captureEliminationBaseline();
     const next = cloneCells(cellsRef.current);
     const appearances = playerAppearancesRef.current;
-    const target = next[cellIndex]!;
-    const defenderId = target.ownerId;
+    const targetCell = next[cellIndex]!;
+    const defenderId = targetCell.ownerId;
     const defenderBuilding = defenderId
       ? appearanceForPlayer(appearances, defenderId).building
       : undefined;
@@ -519,7 +542,7 @@ export function useProjectileCombat({
       attackerId
     ).building;
     next[cellIndex] = applyLandHitWithPower(
-      target,
+      targetCell,
       attackerId,
       sim.power,
       combatClockMs(),
@@ -527,13 +550,11 @@ export function useProjectileCombat({
     );
     cellsRef.current = next;
     pushCellsToReact();
-    if (!roomCodeRef.current) {
-      commitEliminationStrikes();
-    }
-    const cell = cellsRef.current[cellIndex]!;
-    const isOwnCell =
-      cell.ownerId != null && cell.ownerId === attackerId;
-    if (flight.visualCombat && !isOwnCell) {
+    commitEliminationStrikes();
+    const cellAfter = cellsRef.current[cellIndex]!;
+    const ownAfter =
+      cellAfter.ownerId != null && cellAfter.ownerId === attackerId;
+    if (flight.visualCombat && !ownAfter) {
       spawnLandHitFx(
         sim.attackAnimation,
         landPos.x,
@@ -542,7 +563,6 @@ export function useProjectileCombat({
       );
     }
     removeFlightIfComplete(flight);
-    if (roomCodeRef.current) bumpScoreDisplay();
   };
 
   const applySimLand = (flight: FlightPayload, sim: ProjectileSim) => {
@@ -582,7 +602,7 @@ export function useProjectileCombat({
   }
 
   const scheduleFlightTimeouts = (flight: FlightPayload) => {
-    if (pausedRef.current) return;
+    if (pausedRef.current && !roomCodeRef.current) return;
     const t0 = combatClockMs();
     const bySpawn = new Map<number, ProjectileSim[]>();
     for (const s of flight.sims) {
@@ -625,7 +645,10 @@ export function useProjectileCombat({
     if (paused) {
       pauseStartedRef.current = performance.now();
       pauseDrawLoop();
-      clearScheduledTimeouts();
+      // В комнате урон идёт по таймерам + cells с сервера — не сбрасывать залпы при скрытии вкладки.
+      if (!roomCodeRef.current) {
+        clearScheduledTimeouts();
+      }
       return;
     }
     const hiddenMs = performance.now() - pauseStartedRef.current;
@@ -737,7 +760,7 @@ export function useProjectileCombat({
       baseTime?: number,
       maxUnitsPerSource?: number
     ) => {
-      if (pausedRef.current) return;
+      if (pausedRef.current && !roomCodeRef.current) return;
       if (attackerId === localPlayerId) {
         onLocalAttack?.();
       }
@@ -766,7 +789,7 @@ export function useProjectileCombat({
         weapon?: string;
       }[]
     ) => {
-      if (pausedRef.current) return;
+      if (pausedRef.current && !roomCodeRef.current) return;
       for (const d of destroyed) {
         for (const flight of flightsRef.current) {
           if (flight.attackId !== d.attackId) continue;
@@ -805,7 +828,7 @@ export function useProjectileCombat({
   const runRemoteAttack = useCallback(
     (launch: AttackLaunchEvent) => {
       if (launch.amount <= 0) return;
-      if (pausedRef.current) return;
+      if (pausedRef.current && !roomCodeRef.current) return;
       if (flightsRef.current.some((f) => f.attackId === launch.attackId)) {
         return;
       }
