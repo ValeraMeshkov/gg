@@ -19,12 +19,55 @@ export const UI = {
   countdownLabel: "Старт через",
   outcomeWon: "Ура, победа!",
   outcomeLost: "Вы проиграли",
-  outcomeDraw: "Ничья",
+  /** Модалка исхода партии — подзаголовки */
+  outcomeModalSubtitleWon:
+    "Поздравляем! Откройте подбор — в следующую партию попадут только отметившиеся «Готов».",
+  outcomeModalSubtitleLost:
+    "Закройте окно и смотрите бой или отметьте готовность к следующей партии.",
+  outcomeModalSubtitleHostNextRound:
+    "Откроется подбор игроков; старт карты — кнопка «Играть», когда наберётся минимум готовых.",
+  outcomeModalSubtitleGuest:
+    "Вы можете наблюдать за картой; новую партию начнёт хост комнаты.",
+  outcomeModalEyebrowWon: "Победа",
+  outcomeModalEyebrowLost: "Поражение",
+  outcomeModalNewGame: "Начать новую игру",
+  outcomeModalHostNextRound: "К подбору игроков",
   newGame: "Новая игра",
+  roomNextRound: "Следующая партия",
+  soloDockTitle: "Перед боем",
+  roomHostDockTitle: "Настройки комнаты",
+  roomGuestDockTitle: "Настройки",
+  roomGuestDockWaitingHost: "Ожидание хоста",
+  roomWaitingQueue: "В очереди",
+  appearanceLockedInMatch:
+    "Внешность можно менять в очереди или после выбывания из партии",
+  roomDockGameLink: "Ссылка на игру",
+  soloDockChooseName: "Выберите имя",
+  soloDockColor: "Цвет",
+  /** Унифицированные подписи поля имени (док и настройки) */
+  displayNameLabel: "Имя",
+  displayNamePlaceholder: "Как вас видят другие",
+  /** Плашки цвета, когда блок только палитра (настройки / без черновика имени в доке) */
+  soloDockYourColor: "Ваш цвет",
+  soloDockExpand: "Настройки ▼",
+  soloDockCollapse: "Свернуть ▲",
+  soloDockSpectating:
+    "Вы выбыли — можно свернуть панель и смотреть бой. Раскройте, чтобы начать заново.",
+  /** Кнопка в доке при активном матче / наблюдении — полный сброс и новая партия. */
+  soloDockStartNewGame: "Начать новую игру",
+  /** Оверлей перед стартом одиночной партии после подтверждения настроек */
+  soloPreGameGoodLuck: "Удачной игры",
   waitingHost: "Ждём хоста…",
   roomNewGameFailed: "Не удалось начать новую игру",
+  roomEndRoundFailed: "Не удалось завершить партию",
   randomMapInRoom: "Случайная карта",
   mapForNewRound: "Сразу начнётся новая партия на выбранной карте",
+  mapBetweenRoundsHint:
+    "Карту и правила меняйте на странице комнаты между партиями",
+  mapChangeOnlyBetweenRounds:
+    "Смена карты только между партиями — сначала «Следующая партия»",
+  roomHostInGameDockHint:
+    "Откроется подбор: в партию попадут только отметившиеся «Готов», затем хост нажмёт «Играть»",
   serverDevHint: "Запустите сервер: npm run dev:server",
   serverNotConfigured: "Сервер не настроен (api-config.json)",
   createRoomFailed: "Не удалось создать комнату",
@@ -44,17 +87,44 @@ export const UI = {
   roomJoinHint: "Заходим на карту…",
   roomNotStarted: "Игра в этой комнате ещё не началась",
   roomJoinFailed: "Не удалось войти",
+  roomNotFound: "Комната не найдена",
+  roomWaitingTitle: "Комната",
+  roomPlayersTitle: "Игроки",
+  roomYou: "вы",
+  roomHostBadge: "хост",
+  roomReadyBadge: "готов",
+  roomSearchGame: "Поиск игры",
+  roomReady: "Готов",
+  roomReadyCancel: "Не готов",
+  roomPlay: "Играть",
+  roomLobbyHostHint:
+    "Пригласите друзей по ссылке, затем нажмите «Поиск игры».",
+  roomLobbyGuestHint: "Ждём, пока хост откроет подбор игроков…",
+  roomMatchmakingHostHint: (ready: number, min: number) =>
+    ready >= min
+      ? `Готовы ${ready} — можно начинать партию.`
+      : `Готовы: ${ready} из ${min}. Вы уже готовы как хост — пусть остальные нажмут «Готов».`,
+  roomMatchmakingGuestHint:
+    "Отметьтесь «Готов», когда будете готовы к партии. В игру попадут только отметившиеся.",
+  roomSearchFailed: "Не удалось открыть подбор",
+  roomStartFailed: "Не удалось начать партию (нужно минимум 2 готовых)",
+  roomReadyFailed: "Не удалось изменить готовность",
+  roomPatchFailed: "Не удалось сохранить настройки",
+  roomOtherRoom: "Другая комната",
+  roomQueueBadge: "очередь",
+  roomQueueSection: "В очереди",
+  roomPoolSection: "В комнате",
+  roomReadyForNext: "Готов к следующей партии",
+  roomReadyForNextCancel: "Не готов",
+  roomReadyForNextHint:
+    "Отметьтесь заранее — после «Новой игры» хост сможет сразу запустить партию с вами.",
+  roomReadyForNextDone: "Вы отмечены готовым к следующей партии",
+  roomReadyDuringPlayFailed: "Сейчас нельзя изменить готовность",
+  outcomeModalReadyNext: "Готов к следующей партии",
+  outcomeModalSubtitleEliminated:
+    "Можно отметить готовность — хост начнёт новую партию, когда наберётся минимум готовых.",
   linkCopied: "Скопировано",
   linkCopy: "Ссылка",
   creatingRoom: "Создаём…",
   createRoom: "Создать комнату",
 } as const;
-
-import {
-  BUILDING_GLB_SHORT,
-  type GlbBuildingSkinId,
-} from "@/components/map/buildingGlb";
-
-export function buildingGlbLabel(id: string): string {
-  return BUILDING_GLB_SHORT[id as GlbBuildingSkinId]?.label ?? id;
-}

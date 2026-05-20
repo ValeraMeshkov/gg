@@ -6,6 +6,7 @@ import type { OfflineBotFlightsInput } from "@/game/mock";
 import type { GameMap } from "@/game/maps/types";
 import type { CellPos } from "@/game/maps";
 import type { FlightPayload } from "@/game/projectiles/types";
+import type { PlayerAppearancesMap } from "@/game/appearance";
 import { offlineBotThinkDelayMs } from "@/shared/offlineBotDifficulty";
 
 type UseOfflineBotLoopOpts = {
@@ -15,6 +16,7 @@ type UseOfflineBotLoopOpts = {
   flightsRef: MutableRefObject<FlightPayload[]>;
   botCount: number;
   difficulty: number;
+  playerAppearancesRef: MutableRefObject<PlayerAppearancesMap>;
   runAttack: (
     froms: readonly CellPos[],
     to: CellPos,
@@ -31,6 +33,7 @@ export function useOfflineBotLoop({
   flightsRef,
   botCount,
   difficulty,
+  playerAppearancesRef,
   runAttack,
 }: UseOfflineBotLoopOpts): void {
   const armedRef = useRef(false);
@@ -61,7 +64,10 @@ export function useOfflineBotLoop({
             cellsRef.current,
             botId,
             flightsRef.current as OfflineBotFlightsInput,
-            { difficulty: difficultyRef.current }
+            {
+              difficulty: difficultyRef.current,
+              appearances: playerAppearancesRef.current,
+            }
           );
           if (move) {
             runAttackRef.current(

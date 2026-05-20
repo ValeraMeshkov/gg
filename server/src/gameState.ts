@@ -1,11 +1,18 @@
 import { CELL } from "@/shared/constants.js";
-import { sanitizeCombatCell } from "@/shared/cellUnits.js";
+import { cloneCombatCells } from "@/shared/cellUnits.js";
 import {
   addPlayerSpawnToCells,
   createRoomSession,
 } from "@/shared/createRoomSession.js";
+import { initFortressCellIfOwner } from "@/shared/fortressShield.js";
 import { playableIndices } from "@/shared/mapPlayable.js";
+import { hasSkeletonSpawn } from "@/shared/buildingMechanics.js";
+import { grantExtraStartTerritories } from "@/shared/extraStartTerritories.js";
+import { spawnSecondSkeletonAtStart } from "@/shared/skeletonSpawn.js";
+import { seededRandom } from "@/shared/seededRandom.js";
 import type { SyncCell } from "@/shared/wsProtocol.js";
+import { buildingForSlot } from "./roomBuilding.js";
+import { matchParticipantSlotIds } from "@/shared/roomRoster.js";
 import type { Room } from "./rooms.js";
 
 export type RoomGameState = {
@@ -36,13 +43,80 @@ export function gameSeed(room: Room): string {
   return `${room.code}:${room.gameGeneration ?? 0}`;
 }
 
+function cellsWithExtraStarts(room: Room, cells: SyncCell[]): SyncCell[] {
+  const playable = playableIndices(room.mapId);
+  const seed = gameSeed(room);
+  let current = cells;
+  for (const player of room.players) {
+    const slotId = player.slotId;
+    if (!slotId) continue;
+    const building = buildingForSlot(room, slotId);
+    const rng = seededRandom(`${seed}:extra:${slotId}`);
+    const next = grantExtraStartTerritories(
+      current,
+      playable,
+      slotId,
+      building,
+      rng
+    );
+    if (next) current = next;
+  }
+  return current;
+}
+
+function cellsWithSkeletonStarts(room: Room, cells: SyncCell[]): SyncCell[] {
+  const playable = playableIndices(room.mapId);
+  const seed = gameSeed(room);
+  let current = cells;
+  for (const player of room.players) {
+    const slotId = player.slotId;
+    const building = buildingForSlot(room, slotId);
+    if (!slotId || !hasSkeletonSpawn(building)) {
+      continue;
+    }
+    const rng = seededRandom(`${seed}:skeleton:${slotId}`);
+    const next = spawnSecondSkeletonAtStart(
+      current,
+      playable,
+      slotId,
+      building,
+      rng
+    );
+    if (next) current = next;
+  }
+  return current;
+}
+
+function cellsWithFortressShields(
+  room: Room,
+  cells: SyncCell[]
+): SyncCell[] {
+  return cells.map((cell) =>
+    initFortressCellIfOwner(cell, buildingForSlot(room, cell.ownerId))
+  );
+}
+
 export function initGameForRoom(room: Room): RoomGameState {
-  const slotIds = room.players
-    .map((p) => p.slotId)
-    .filter((id): id is string => Boolean(id));
+  const slotIds = matchParticipantSlotIds(
+    room.players.map((p) => ({
+      userId: p.userId,
+      joinedAt: p.joinedAt,
+      slotId: p.slotId,
+      inMatch: p.inMatch !== false,
+    }))
+  );
   const state: RoomGameState = {
     mapId: room.mapId,
-    cells: createRoomSession(room.mapId, slotIds, gameSeed(room)),
+    cells: cellsWithFortressShields(
+      room,
+      cellsWithSkeletonStarts(
+        room,
+        cellsWithExtraStarts(
+          room,
+          createRoomSession(room.mapId, slotIds, gameSeed(room))
+        )
+      )
+    ),
   };
   games.set(room.code.toUpperCase(), state);
   return state;
@@ -81,19 +155,24 @@ export function spawnJoinedPlayerInRoom(
   const key = room.code.toUpperCase();
   const g = games.get(key);
   if (!g) return null;
-  g.cells = addPlayerSpawnToCells(
+  const spawned = addPlayerSpawnToCells(
     g.mapId,
     g.cells,
     slotId,
     gameSeed(room)
   );
+  g.cells = cellsWithFortressShields(room, spawned);
   return g;
 }
 
 export function cloneCells(cells: readonly SyncCell[]): SyncCell[] {
-  return cells.map((c) => sanitizeCombatCell({ ...c }));
+  return cloneCombatCells(cells);
 }
 
 export function listActiveGames(): { code: string; state: RoomGameState }[] {
   return [...games.entries()].map(([code, state]) => ({ code, state }));
+}
+
+export function deleteGameForRoom(code: string): void {
+  games.delete(code.toUpperCase());
 }

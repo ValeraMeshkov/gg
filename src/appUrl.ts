@@ -1,4 +1,5 @@
 import { DEFAULT_MAP_ID } from "./game/maps";
+import { readSelectedMapId } from "./lib/selectedMapStorage";
 
 import { STORAGE_KEYS } from "./constants/storageKeys";
 
@@ -93,10 +94,12 @@ export function readAppRoute(): AppRoute {
   }
 
   const pathRoomCode = parseRoomCodeFromPath(pathname);
+  const preferredMapId = readSelectedMapId();
+
   if (pathRoomCode) {
     return {
       edit: false,
-      mapId: DEFAULT_MAP_ID,
+      mapId: preferredMapId,
       roomLobby: false,
       roomWaiting: true,
       roomCode: pathRoomCode,
@@ -106,7 +109,7 @@ export function readAppRoute(): AppRoute {
   if (isRoomLobbyPath(pathname)) {
     return {
       edit: false,
-      mapId: DEFAULT_MAP_ID,
+      mapId: preferredMapId,
       roomLobby: true,
       roomWaiting: false,
       roomCode: null,
@@ -117,7 +120,7 @@ export function readAppRoute(): AppRoute {
 
   return {
     edit: false,
-    mapId: DEFAULT_MAP_ID,
+    mapId: preferredMapId,
     roomLobby: false,
     roomWaiting: false,
     roomCode: queryRoom,
@@ -139,11 +142,10 @@ export function writeAppRoute(next: AppRoute): void {
   }
 
   if (next.roomCode) {
-    window.history.replaceState(
-      null,
-      "",
-      `${base}/room/${next.roomCode}`
-    );
+    const path = base || "/";
+    const params = new URLSearchParams();
+    params.set("room", next.roomCode);
+    window.history.replaceState(null, "", `${path}?${params.toString()}`);
     return;
   }
 

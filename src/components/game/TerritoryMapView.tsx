@@ -23,12 +23,8 @@ import {
   type CellPos,
 } from "@/game/maps";
 import type { TerritoryGameMap } from "@/game/maps";
+import { MapSideBarPanel } from "@/components/map/MapSideBarPanel";
 import { MapSideFighterPicker } from "@/components/map/MapSideFighterPicker";
-import { MapSideMapPicker } from "@/components/map/MapSideMapPicker";
-import { OfflineBotCountControl } from "@/components/settings/OfflineBotCountControl";
-import { OfflineBotDifficultyControl } from "@/components/settings/OfflineBotDifficultyControl";
-import type { FighterSkinId } from "@/game/appearance";
-import { UI } from "@/constants/uiStrings";
 import { mapCursorCss } from "@/game/mapCursor";
 import {
   computeMapSpotMetrics,
@@ -37,7 +33,7 @@ import {
 import { mapProjectileRadiusFromDotRadius } from "@/game/maps/mapScale";
 import { useMapSvgSize } from "@/hooks/useMapSvgSize";
 import type { LandHitFx } from "@/game/hitEffects";
-import type { PlayerAppearancesMap } from "@/game/appearance";
+import type { FighterSkinId, PlayerAppearancesMap } from "@/game/appearance";
 import type { DisplayColorId } from "@/game/appearance";
 import {
   aimColorsForLocalPlayer,
@@ -45,6 +41,9 @@ import {
   ownedDotFill,
   ownedTerritoryColorsForView,
 } from "@/game/playerColors";
+import { collectHeartLifeChains } from "@/components/map/heartLife/collectHeartLifeLinks";
+import { buildHeartLinkRevision } from "@/components/map/heartLife/heartLinkRevision";
+import { HeartLifeLinksG } from "@/components/map/heartLife/HeartLifeLinksG";
 import {
   AimArrowGroup,
   BuildingGlbOverlay,
@@ -121,6 +120,12 @@ type TerritoryMapViewProps = {
   randomMapOnStart?: boolean;
   onRandomMapOnStartChange?: (value: boolean) => void;
   randomMapLabel?: string;
+  /** Соло: выбор карты в центральном доке — не дублировать блок «Карта» сбоку. */
+  hideSideMapPicker?: boolean;
+  /** Соло: хоткеи показываются в центральном доке. */
+  hideSideHotkeys?: boolean;
+  /** Соло: число ботов/сложность показываются в центральном доке. */
+  hideSideSoloControls?: boolean;
 };
 
 function isMapHotkeyTarget(el: EventTarget | null): boolean {
@@ -317,6 +322,9 @@ export const TerritoryMapView = memo(function TerritoryMapView({
   randomMapOnStart,
   onRandomMapOnStartChange,
   randomMapLabel,
+  hideSideMapPicker = true,
+  hideSideHotkeys = true,
+  hideSideSoloControls = true,
 }: TerritoryMapViewProps) {
   const showSoloControls =
     offlineBotCount != null &&
@@ -324,10 +332,36 @@ export const TerritoryMapView = memo(function TerritoryMapView({
     onOfflineBotCountCommit != null &&
     offlineBotDifficulty != null &&
     onOfflineBotDifficultyChange != null;
+  /** Левая нижняя панель: только если в ней есть секции (в соло всё перенесено в док — не показывать пустую полоску). */
+  const showMapSideBar =
+    !hideSideMapPicker ||
+    (showSoloControls && !hideSideSoloControls) ||
+    !hideSideHotkeys;
   const [mapSidePanelOpen, setMapSidePanelOpen] = useState(true);
   const hiddenOpts = useMemo(
     () => (syncMapLayout ? { syncMapLayout: true as const } : undefined),
     [syncMapLayout]
+  );
+  const heartLinkRevision = useMemo(
+    () => buildHeartLinkRevision(map, playerAppearances, hiddenOpts),
+    [map, playerAppearances, hiddenOpts]
+  );
+  const heartLifeChains = useMemo(
+    () =>
+      collectHeartLifeChains(
+        map,
+        localPlayerId,
+        localDisplayColor,
+        playerAppearances,
+        hiddenOpts
+      ),
+    [
+      heartLinkRevision,
+      localPlayerId,
+      localDisplayColor,
+      playerAppearances,
+      hiddenOpts,
+    ]
   );
   const svgRef = useRef<SVGSVGElement>(null);
   /** Последняя позиция курсора в координатах карты (для A — прицел под мышью). */
@@ -403,6 +437,24 @@ export const TerritoryMapView = memo(function TerritoryMapView({
       ? mapDotCenter(map, territoryCellPos(aimTargetIndex))
       : null;
 
+  const dragHoverOwnIndex = useMemo(() => {
+    const hc = dragActive?.hoverCell;
+    if (hc == null || !isOwnWithUnits(map, localPlayerId, hc)) return null;
+    return hc.x;
+  }, [dragActive, map, localPlayerId]);
+
+  const pickCellAt = useCallback(
+    (mapX: number, mapY: number) =>
+      cellUnderCursorTerritoryDot(
+        map,
+        mapX,
+        mapY,
+        hiddenOpts,
+        spotMetrics.hitRadius
+      ),
+    [map, hiddenOpts, spotMetrics.hitRadius]
+  );
+
   const syncHoveredOwnFromPointer = useCallback(
     (pt: { x: number; y: number } | null) => {
       if (drag) return;
@@ -410,14 +462,14 @@ export const TerritoryMapView = memo(function TerritoryMapView({
         setHoveredOwnIndex(null);
         return;
       }
-      const hover = cellUnderCursorTerritoryDot(map, pt.x, pt.y, hiddenOpts);
+      const hover = pickCellAt(pt.x, pt.y);
       if (hover && isOwnWithUnits(map, localPlayerId, hover)) {
         setHoveredOwnIndex(hover.x);
       } else {
         setHoveredOwnIndex(null);
       }
     },
-    [drag, map, localPlayerId, hiddenOpts]
+    [drag, map, localPlayerId, pickCellAt]
   );
 
   const trackPointerOnMap = useCallback(
@@ -446,10 +498,10 @@ export const TerritoryMapView = memo(function TerritoryMapView({
       lastPointerMapRef.current ?? defaultAimEndForSelectAll(map, allOwn);
     setDrag({
       sources: allOwn,
-      hoverCell: cellUnderCursorTerritoryDot(map, aim.x, aim.y, hiddenOpts),
+      hoverCell: pickCellAt(aim.x, aim.y),
       aimEnd: aim,
     });
-  }, [map, localPlayerId, hiddenOpts]);
+  }, [map, localPlayerId, hiddenOpts, pickCellAt]);
 
   const selectTopOwnTerritoriesByUnits = useCallback(() => {
     const topOwn = topOwnTerritoriesByUnits(
@@ -463,10 +515,10 @@ export const TerritoryMapView = memo(function TerritoryMapView({
       lastPointerMapRef.current ?? defaultAimEndForSelectAll(map, topOwn);
     setDrag({
       sources: topOwn,
-      hoverCell: cellUnderCursorTerritoryDot(map, aim.x, aim.y, hiddenOpts),
+      hoverCell: pickCellAt(aim.x, aim.y),
       aimEnd: aim,
     });
-  }, [map, localPlayerId, hiddenOpts]);
+  }, [map, localPlayerId, hiddenOpts, pickCellAt]);
 
   const cancelAimAndPending = useCallback(() => {
     setDrag(null);
@@ -550,6 +602,7 @@ export const TerritoryMapView = memo(function TerritoryMapView({
             hiddenOpts={hiddenOpts}
             localPlayerId={localPlayerId}
             hoveredOwnIndex={hoveredOwnIndex}
+            dragHoverOwnIndex={dragHoverOwnIndex}
             inMulti={multiSourceIndices.has(index)}
             svgRef={svgRef}
             setHoveredOwnIndex={setHoveredOwnIndex}
@@ -573,6 +626,7 @@ export const TerritoryMapView = memo(function TerritoryMapView({
       playerAppearances,
       aimTargetIndex,
       hoveredOwnIndex,
+      dragHoverOwnIndex,
       multiSourceIndices,
     ]
   );
@@ -625,117 +679,41 @@ export const TerritoryMapView = memo(function TerritoryMapView({
         if (!drag) setHoveredOwnIndex(null);
       }}
     >
-      <div
-        className={`${styles.mapSideBar}${mapSidePanelOpen ? "" : ` ${styles.mapSideBarCollapsed}`}`}
-        aria-label={UI.mapSidePanel}
-      >
-        <div className={styles.mapSideBarHeader}>
-          {mapSidePanelOpen ? (
-            <div className={styles.mapSideBarHeaderText}>
-              <p className={styles.mapSideBarSectionTitle}>{UI.mapSection}</p>
-              {mapSelectHint ? (
-                <p className={styles.mapSideBarSectionHint}>{mapSelectHint}</p>
-              ) : null}
-            </div>
-          ) : null}
-          <button
-            type="button"
-            className={styles.mapSideBarToggle}
-            aria-expanded={mapSidePanelOpen}
-            aria-controls="map-side-panel-body"
-            title={
-              mapSidePanelOpen ? UI.mapSidePanelCollapse : UI.mapSidePanelExpand
-            }
-            aria-label={
-              mapSidePanelOpen ? UI.mapSidePanelCollapse : UI.mapSidePanelExpand
-            }
-            onClick={() => setMapSidePanelOpen((open) => !open)}
-          >
-            <span className={styles.mapSideBarToggleIcon} aria-hidden>
-              {mapSidePanelOpen ? "‹" : "›"}
-            </span>
-          </button>
-        </div>
-        {mapSidePanelOpen ? (
-          <div id="map-side-panel-body" className={styles.mapSideBarBody}>
-        <MapSideMapPicker
+      {showMapSideBar ? (
+        <MapSideBarPanel
+          open={mapSidePanelOpen}
+          onOpenChange={setMapSidePanelOpen}
           mapId={mapId}
           onMapIdChange={onMapIdChange}
           mapSelectHint={mapSelectHint}
-          showTitle={false}
-          disabled={mapCatalogDisabled}
+          mapCatalogDisabled={mapCatalogDisabled}
           randomMapOnStart={randomMapOnStart}
           onRandomMapOnStartChange={onRandomMapOnStartChange}
           randomMapLabel={randomMapLabel}
+          hideMapPicker={hideSideMapPicker}
+          showSoloControls={showSoloControls}
+          hideSoloControls={hideSideSoloControls}
+          offlineBotCount={offlineBotCount ?? 0}
+          onOfflineBotCountChange={onOfflineBotCountChange ?? (() => {})}
+          onOfflineBotCountCommit={onOfflineBotCountCommit}
+          offlineBotDifficulty={offlineBotDifficulty ?? 0}
+          onOfflineBotDifficultyChange={
+            onOfflineBotDifficultyChange ?? (() => {})
+          }
+          hideHotkeys={hideSideHotkeys}
+          mapInteractionLocked={mapInteractionLocked}
+          onSelectAllOwn={selectAllOwnTerritories}
+          onSelectTopOwn={selectTopOwnTerritoriesByUnits}
+          onCancelAimAndPending={cancelAimAndPending}
         />
+      ) : null}
+      <aside className={styles.mapFighterRail}>
         <MapSideFighterPicker
           fighter={fighter}
           onFighterChange={onFighterChange}
           disabled={mapInteractionLocked}
         />
-        {showSoloControls ? (
-          <div className={styles.mapSideControls}>
-            <OfflineBotCountControl
-              className={styles.mapSideControl}
-              value={offlineBotCount}
-              onChange={onOfflineBotCountChange}
-              onCommit={onOfflineBotCountCommit}
-            />
-            <OfflineBotDifficultyControl
-              className={styles.mapSideControl}
-              value={offlineBotDifficulty}
-              onChange={onOfflineBotDifficultyChange}
-            />
-          </div>
-        ) : null}
-        <div className={styles.mapActionGroup}>
-          <p className={styles.mapActionGroupTitle}>{UI.mapHotkeysHint}</p>
-          <button
-          type="button"
-          className={styles.mapActionBtn}
-          data-map-action="select-all"
-          disabled={mapInteractionLocked}
-          title={UI.selectAllOwnTitle}
-          aria-label={UI.selectAllOwn}
-          onClick={() => selectAllOwnTerritories()}
-        >
-          <span className={styles.mapActionKey} aria-hidden>
-            A
-          </span>
-          <span className={styles.mapActionLabel}>{UI.selectAllOwn}</span>
-        </button>
-        <button
-          type="button"
-          className={styles.mapActionBtn}
-          data-map-action="select-top"
-          disabled={mapInteractionLocked}
-          title={UI.selectTopOwnTitle}
-          aria-label={UI.selectTopOwn}
-          onClick={() => selectTopOwnTerritoriesByUnits()}
-        >
-          <span className={styles.mapActionKey} aria-hidden>
-            D
-          </span>
-          <span className={styles.mapActionLabel}>{UI.selectTopOwn}</span>
-        </button>
-        <button
-          type="button"
-          className={styles.mapActionBtn}
-          data-map-action="cancel-fire"
-          disabled={mapInteractionLocked}
-          title={UI.stopFireTitle}
-          aria-label={UI.stopFire}
-          onClick={() => cancelAimAndPending()}
-        >
-          <span className={styles.mapActionKey} aria-hidden>
-            S
-          </span>
-          <span className={styles.mapActionLabel}>{UI.stopFire}</span>
-        </button>
-        </div>
-          </div>
-        ) : null}
-      </div>
+      </aside>
       <svg
         ref={svgRef}
         className={styles.svg}
@@ -747,12 +725,7 @@ export const TerritoryMapView = memo(function TerritoryMapView({
       onPointerMove={(e) => {
         const pt = trackPointerOnMap(e.clientX, e.clientY);
         if (!drag || !pt) return;
-        const hoverCell = cellUnderCursorTerritoryDot(
-          map,
-          pt.x,
-          pt.y,
-          hiddenOpts
-        );
+        const hoverCell = pickCellAt(pt.x, pt.y);
         setDrag((d) => {
           if (!d) return d;
           let sources = d.sources;
@@ -774,14 +747,22 @@ export const TerritoryMapView = memo(function TerritoryMapView({
           /* ignore */
         }
         const pt = clientPointToMapSpace(svgRef.current, e.clientX, e.clientY);
-        const targetCell = pt
-          ? cellUnderCursorTerritoryDot(map, pt.x, pt.y, hiddenOpts)
-          : drag.hoverCell;
         const sourcesFinal = filterOwnDragSources(
           map,
           localPlayerId,
           drag.sources
         );
+        const playerId = activePlayerRef.current;
+        const picked = pt ? pickCellAt(pt.x, pt.y) : null;
+        let targetCell = picked;
+        if (
+          !targetCell &&
+          drag.hoverCell &&
+          isAimTargetCell(map, playerId, drag.hoverCell) &&
+          multiAttackAllowed(map, playerId, sourcesFinal, drag.hoverCell)
+        ) {
+          targetCell = drag.hoverCell;
+        }
         setDrag(null);
         setHoveredOwnIndex(null);
         if (!targetCell) return;
@@ -790,21 +771,13 @@ export const TerritoryMapView = memo(function TerritoryMapView({
         if (
           sole &&
           sole.x === targetCell.x &&
-          isOwnWithUnits(map, activePlayerRef.current, sole)
+          isOwnWithUnits(map, playerId, sole)
         ) {
           onCancelPendingFrom?.(sole);
           return;
         }
 
-        if (
-          !multiAttackAllowed(
-            map,
-            activePlayerRef.current,
-            sourcesFinal,
-            targetCell
-          )
-        )
-          return;
+        if (!multiAttackAllowed(map, playerId, sourcesFinal, targetCell)) return;
         onCommitAttacks(
           sourcesExcludingTarget(sourcesFinal, targetCell),
           targetCell
@@ -820,6 +793,7 @@ export const TerritoryMapView = memo(function TerritoryMapView({
         territories={map.territories}
       />
       {territoryBacks}
+      <HeartLifeLinksG chains={heartLifeChains} />
       {aimTargetCenter ? (
         <g aria-hidden>
           <circle

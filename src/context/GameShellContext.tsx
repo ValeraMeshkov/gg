@@ -1,7 +1,9 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type ReactNode,
@@ -24,10 +26,15 @@ export type RoomChromeActions = {
 type GameShellContextValue = {
   shareBar: GameShareBarPayload;
   setShareBar: Dispatch<SetStateAction<GameShareBarPayload>>;
-  settingsOpen: boolean;
-  setSettingsOpen: Dispatch<SetStateAction<boolean>>;
-  settingsPanel: ReactNode;
-  setSettingsPanel: Dispatch<SetStateAction<ReactNode>>;
+  /**
+   * В соли док «Перед боем» скрывает оверлеи карты (GLB-слои синхронизируют паузу).
+   * Выставляет GameCanvas из `soloDockExpanded`.
+   */
+  soloDockBlocksMapOverlays: boolean;
+  setSoloDockBlocksMapOverlays: Dispatch<SetStateAction<boolean>>;
+  /** Колбэк из GameCanvas для кнопки «Новая игра» в хедере (соло). */
+  registerSoloBattleDockExpander: (fn: (() => void) | null) => void;
+  requestExpandSoloBattleDock: () => void;
   roomChromeActions: RoomChromeActions;
   setRoomChromeActions: Dispatch<SetStateAction<RoomChromeActions>>;
 };
@@ -36,23 +43,41 @@ const GameShellContext = createContext<GameShellContextValue | null>(null);
 
 export function GameShellProvider({ children }: { children: ReactNode }) {
   const [shareBar, setShareBar] = useState<GameShareBarPayload>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsPanel, setSettingsPanel] = useState<ReactNode>(null);
+  const [soloDockBlocksMapOverlays, setSoloDockBlocksMapOverlays] =
+    useState(false);
   const [roomChromeActions, setRoomChromeActions] =
     useState<RoomChromeActions>(null);
+  const soloBattleDockExpandRef = useRef<(() => void) | null>(null);
+
+  const registerSoloBattleDockExpander = useCallback(
+    (fn: (() => void) | null) => {
+      soloBattleDockExpandRef.current = fn;
+    },
+    []
+  );
+
+  const requestExpandSoloBattleDock = useCallback(() => {
+    soloBattleDockExpandRef.current?.();
+  }, []);
 
   const value = useMemo(
     (): GameShellContextValue => ({
       shareBar,
       setShareBar,
-      settingsOpen,
-      setSettingsOpen,
-      settingsPanel,
-      setSettingsPanel,
+      soloDockBlocksMapOverlays,
+      setSoloDockBlocksMapOverlays,
+      registerSoloBattleDockExpander,
+      requestExpandSoloBattleDock,
       roomChromeActions,
       setRoomChromeActions,
     }),
-    [shareBar, settingsOpen, settingsPanel, roomChromeActions]
+    [
+      shareBar,
+      soloDockBlocksMapOverlays,
+      roomChromeActions,
+      registerSoloBattleDockExpander,
+      requestExpandSoloBattleDock,
+    ]
   );
 
   return (
@@ -68,7 +93,7 @@ export function useGameShell(): GameShellContextValue {
   return v;
 }
 
-/** Без ошибки вне провайдера (оверлеи карты). */
+/** Совместимое имя: раньше «настройки», теперь блокируется док «Перед боем». */
 export function useSettingsOpen(): boolean {
-  return useContext(GameShellContext)?.settingsOpen ?? false;
+  return useContext(GameShellContext)?.soloDockBlocksMapOverlays ?? false;
 }

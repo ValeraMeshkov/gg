@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { cloneCells } from "@/game/cells/cloneCells";
+import { patchCellsForReact } from "@/game/cells/patchCellsForReact";
 import { useOfflineCellGrowth } from "@/hooks/useOfflineCellGrowth";
 import { useMergedPlayerAppearances } from "@/hooks/useMergedPlayerAppearances";
 import { useGameScoring } from "@/hooks/useGameScoring";
@@ -10,7 +12,6 @@ import { UI } from "@/constants/uiStrings";
 import {
   cellIndex,
   DEFAULT_MAP_ID,
-  requireMap,
   type CellPos,
   type MapCell,
 } from "@/game/maps";
@@ -22,50 +23,51 @@ import {
 } from "@/game/maps";
 import { pendingLaunchFromIndicesForPlayer } from "@/game/projectiles/flightQueue";
 import { type LandHitFx } from "@/game/hitEffects";
-import { shareBarColorForView } from "@/game/playerColors";
-import type { FighterSkinId, PlayerAppearancesMap } from "@/game/appearance";
+import type {
+  BuildingSkinId,
+  DisplayColorId,
+  FighterSkinId,
+  PlayerAppearancesMap,
+} from "@/game/appearance";
 import { useRoomSession } from "@/hooks/useRoomSession";
 import {
-  createMockSession,
+  buildOfflineSession,
+  buildRoomPlaceholderSession,
+  offlineSessionSeed,
+  playableCellIndices,
   MOCK_USER,
-  MOCK_PLAYERS,
 } from "@/game/mock";
-import { useAuth } from "@/context/AuthContext";
+import { appearanceForPlayer } from "@/game/appearance";
 import { useUserId } from "@/hooks/useUserId";
 import { useSyncedPlayerAppearances } from "@/hooks/useSyncedPlayerAppearances";
-import { effectiveDisplayName } from "@/game/playerDisplayName";
+import { useShareBarSync } from "@/hooks/useShareBarSync";
 import { useMapDotLayoutRevision } from "@/hooks/useMapDotLayoutRevision";
 import { useGameShell } from "@/context/GameShellContext";
-import { GameSettingsPanel } from "./GameSettingsPanel";
+import { MatchOutcomeModal } from "./MatchOutcomeModal";
+import { SoloPlayDock } from "./SoloPlayDock";
 import { MapView } from "./MapView";
+import { isPlayerAliveInMatch } from "@/game/scoring/matchElimination";
+import { canEditAppearanceInRoom } from "@/shared/roomRoster";
+import { serverNowMs } from "@/game/serverClock";
 import type { MapProjectilesCanvasHandle } from "@/components/map";
 import { RoomChat } from "@/components/room/RoomChat";
 import styles from "./GameCanvas.module.scss";
-import type { GameShareBarPayload } from "@/context/GameShellContext";
-import type { PlayerShareBarEntry } from "@/components/settings/PlayerShareBar";
+type SoloCommitted = {
+  mapId: string;
+  botCount: number;
+  botDifficulty: number;
+  fighter: FighterSkinId;
+  building: BuildingSkinId;
+  displayColor: DisplayColorId;
+  displayName: string;
+};
 
-function shareBarPayloadEqual(
-  prev: GameShareBarPayload,
-  players: readonly PlayerShareBarEntry[],
-  activePlayerId: string
-): boolean {
-  if (!prev) return false;
-  if (prev.activePlayerId !== activePlayerId) return false;
-  if (prev.players.length !== players.length) return false;
-  for (let i = 0; i < players.length; i++) {
-    const a = prev.players[i]!;
-    const b = players[i]!;
-    if (
-      a.id !== b.id ||
-      a.score !== b.score ||
-      a.displayName !== b.displayName ||
-      a.colorIndex !== b.colorIndex ||
-      a.barBackground !== b.barBackground
-    ) {
-      return false;
-    }
-  }
-  return true;
+type SoloSetup = SoloCommitted & { randomMapOnStart: boolean };
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 }
 
 type GameCanvasProps = {
@@ -83,7 +85,7 @@ type GameCanvasProps = {
   onOfflineBotCountChange?: (value: number) => void;
   onOfflineBotCountCommit?: (value: number) => void;
   onOfflineBotDifficultyChange?: (value: number) => void;
-  /** Оффлайн: сброс партии после «Новая игра» в сообщении о конце игры. */
+  /** Оффлайн: сброс сессии (новый seed / карта) только после исхода партии или из шапки. */
   onOfflineNewGame?: () => void;
   /** >0 после «Новая игра» в оффлайне — запускает 3-2-1. */
   soloRestartNonce?: number;
@@ -105,21 +107,19 @@ export function GameCanvas({
   soloRestartNonce = 0,
 }: GameCanvasProps) {
   const userId = useUserId();
-  const {
-    showGoogleSignIn,
-    isAuthenticated,
-    user: authUser,
-    signInWithGoogle,
-    authConfigured,
-  } = useAuth();
-  const soloBotCount = offlineBotCount ?? 2;
-  const soloBotDifficulty = offlineBotDifficulty ?? 50;
   const pageVisible = usePageVisible();
 
-  const { setShareBar, setSettingsPanel } = useGameShell();
+  const {
+    setShareBar,
+    setSoloDockBlocksMapOverlays,
+    registerSoloBattleDockExpander,
+  } = useGameShell();
 
   const [localPlayerId, setLocalPlayerId] = useState<string>(MOCK_USER.id);
   const [firstMoveHintDismissed, setFirstMoveHintDismissed] = useState(false);
+  const [soloAwaitingStart, setSoloAwaitingStart] = useState(() => !roomCode);
+  const [soloDockExpanded, setSoloDockExpanded] = useState(() => Boolean(roomCode));
+
   const {
     playerAppearances,
     controlledAppearance,
@@ -127,23 +127,94 @@ export function GameCanvas({
     displayName,
     patchDisplayName,
   } = useSyncedPlayerAppearances(localPlayerId);
+
+  const [committedSolo, setCommittedSolo] = useState<SoloCommitted>(() => ({
+    mapId: mapIdProp ?? DEFAULT_MAP_ID,
+    botCount: offlineBotCount ?? 2,
+    botDifficulty: offlineBotDifficulty ?? 50,
+    fighter: controlledAppearance.fighter,
+    building: controlledAppearance.building,
+    displayColor: controlledAppearance.displayColor,
+    displayName,
+  }));
+
+  const [soloDraft, setSoloDraft] = useState<SoloSetup>(() => ({
+    mapId: mapIdProp ?? DEFAULT_MAP_ID,
+    randomMapOnStart: Boolean(randomMapOnStart),
+    botCount: offlineBotCount ?? 2,
+    botDifficulty: offlineBotDifficulty ?? 50,
+    fighter: controlledAppearance.fighter,
+    building: controlledAppearance.building,
+    displayColor: controlledAppearance.displayColor,
+    displayName,
+  }));
+
+  const [soloPreGamePhase, setSoloPreGamePhase] = useState<
+    "idle" | "goodluck" | "count"
+  >("idle");
+  const [soloPreGameN, setSoloPreGameN] = useState<3 | 2 | 1 | null>(null);
+  const [soloPreGameBusy, setSoloPreGameBusy] = useState(false);
+  const [outcomeModalDismissed, setOutcomeModalDismissed] = useState(false);
+
+  const soloBuilding = roomCode
+    ? controlledAppearance.building
+    : committedSolo.building;
+  const soloBotCount = roomCode
+    ? (offlineBotCount ?? 2)
+    : committedSolo.botCount;
+  const soloBotDifficulty = roomCode
+    ? (offlineBotDifficulty ?? 50)
+    : committedSolo.botDifficulty;
+
+  const offlineBootstrapDisplayColor = roomCode
+    ? controlledAppearance.displayColor
+    : committedSolo.displayColor;
+
   const activePlayerRef = useRef(localPlayerId);
   activePlayerRef.current = localPlayerId;
 
-  const bootstrapMapId = mapIdProp ?? DEFAULT_MAP_ID;
+  const bootstrapMapId = roomCode
+    ? (mapIdProp ?? DEFAULT_MAP_ID)
+    : committedSolo.mapId;
+  const offlineSessionSeedBootstrap = useMemo(
+    () =>
+      roomCode
+        ? ""
+        : offlineSessionSeed({
+            mapId: bootstrapMapId,
+            botCount: soloBotCount,
+            botDifficulty: soloBotDifficulty,
+            soloRestartNonce,
+            building: soloBuilding,
+          }),
+    [
+      roomCode,
+      bootstrapMapId,
+      soloBotCount,
+      soloBotDifficulty,
+      soloRestartNonce,
+      soloBuilding,
+    ]
+  );
   const bootstrapSession = useMemo(() => {
-    const map = requireMap(bootstrapMapId);
-    if (roomCode) {
-      return {
-        map: { ...map, cells: map.cells.map((c) => ({ ...c })) },
-        players: MOCK_PLAYERS.map((user) => ({
-          user,
-          score: user.initialScore,
-        })),
-      };
-    }
-    return createMockSession(map, soloBotCount, soloBotDifficulty);
-  }, [bootstrapMapId, roomCode, soloBotCount, soloBotDifficulty]);
+    if (roomCode) return buildRoomPlaceholderSession(bootstrapMapId);
+    return buildOfflineSession(
+      bootstrapMapId,
+      soloBotCount,
+      soloBotDifficulty,
+      soloBuilding,
+      offlineSessionSeedBootstrap,
+      offlineBootstrapDisplayColor
+    );
+  }, [
+    bootstrapMapId,
+    roomCode,
+    soloBotCount,
+    soloBotDifficulty,
+    soloBuilding,
+    offlineSessionSeedBootstrap,
+    offlineBootstrapDisplayColor,
+  ]);
 
   const cellsRef = useRef<MapCell[]>(cloneCells(bootstrapSession.map.cells));
   const [cells, setCells] = useState<MapCell[]>(() =>
@@ -182,7 +253,7 @@ export function GameCanvas({
   const projectilesCanvasRef = useRef<MapProjectilesCanvasHandle | null>(null);
 
   const pushCellsToReact = useCallback(() => {
-    setCells(cloneCells(cellsRef.current));
+    setCells((prev) => patchCellsForReact(prev, cellsRef.current));
   }, []);
 
   const eliminationHooksRef = useRef<{
@@ -250,16 +321,20 @@ export function GameCanvas({
     mapFlightMetricsRef,
   });
 
+  const appearanceEditAllowedRef = useRef(true);
+
+  const assignLocalPlayerId = useCallback((id: string) => {
+    setLocalPlayerId(id);
+    activePlayerRef.current = id;
+  }, []);
+
   const room = useRoomSession({
     roomCode,
     userId,
     mapIdProp,
     onMapIdChange,
     localPlayerId,
-    setLocalPlayerId: (id) => {
-      setLocalPlayerId(id);
-      activePlayerRef.current = id;
-    },
+    setLocalPlayerId: assignLocalPlayerId,
     cellsRef,
     applyCellsFromServer,
     resetLocalCombat,
@@ -272,7 +347,43 @@ export function GameCanvas({
     patchMyAppearance,
     onFirstMoveHintReset: () => setFirstMoveHintDismissed(false),
     pageVisible,
+    appearanceEditAllowedRef,
   });
+
+  const roomSettingsDock = Boolean(roomCode);
+
+  useEffect(() => {
+    if (roomCode) {
+      setSoloDockBlocksMapOverlays(false);
+      return;
+    }
+    setSoloDockBlocksMapOverlays(soloDockExpanded);
+  }, [roomCode, soloDockExpanded, setSoloDockBlocksMapOverlays]);
+
+  useEffect(() => {
+    if (!roomCode) {
+      registerSoloBattleDockExpander(() => {
+        setSoloDockExpanded(true);
+      });
+      return () => registerSoloBattleDockExpander(null);
+    }
+    if (room.isHost) {
+      registerSoloBattleDockExpander(() => {
+        setSoloDockExpanded(true);
+      });
+      return () => registerSoloBattleDockExpander(null);
+    }
+    registerSoloBattleDockExpander(null);
+    return undefined;
+  }, [roomCode, room.isHost, registerSoloBattleDockExpander]);
+
+  useEffect(() => {
+    if (roomCode) setSoloDockExpanded(true);
+  }, [roomCode]);
+
+  useEffect(() => {
+    if (room.inRoomSetup) setSoloDockExpanded(true);
+  }, [room.inRoomSetup]);
 
   const tabWasHiddenRef = useRef(false);
   useEffect(() => {
@@ -285,25 +396,51 @@ export function GameCanvas({
     room.reconnect();
   }, [pageVisible, roomCode, room.reconnect]);
 
-  const mapId = room.roomMapId ?? mapIdProp ?? DEFAULT_MAP_ID;
+  const mapId = roomCode
+    ? (room.roomMapId ?? mapIdProp ?? DEFAULT_MAP_ID)
+    : committedSolo.mapId;
+  const sessionSeedKey = useMemo(
+    () =>
+      roomCode
+        ? ""
+        : offlineSessionSeed({
+            mapId,
+            botCount: soloBotCount,
+            botDifficulty: soloBotDifficulty,
+            soloRestartNonce,
+            building: soloBuilding,
+          }),
+    [
+      roomCode,
+      mapId,
+      soloBotCount,
+      soloBotDifficulty,
+      soloRestartNonce,
+      soloBuilding,
+    ]
+  );
   const settingsMapId = roomCode ? (mapIdProp ?? DEFAULT_MAP_ID) : mapId;
   const layoutRevision = useMapDotLayoutRevision(mapId);
-  const hintSessionKey =
-    roomCode ??
-    `offline:${mapId}:${soloBotCount}:${soloBotDifficulty}`;
+  const hintSessionKey = roomCode ?? sessionSeedKey;
   const session = useMemo(() => {
-    const map = requireMap(mapId);
-    if (roomCode) {
-      return {
-        map: { ...map, cells: map.cells.map((c) => ({ ...c })) },
-        players: MOCK_PLAYERS.map((user) => ({
-          user,
-          score: user.initialScore,
-        })),
-      };
-    }
-    return createMockSession(map, soloBotCount, soloBotDifficulty);
-  }, [mapId, roomCode, soloBotCount, soloBotDifficulty]);
+    if (roomCode) return buildRoomPlaceholderSession(mapId);
+    return buildOfflineSession(
+      mapId,
+      soloBotCount,
+      soloBotDifficulty,
+      soloBuilding,
+      sessionSeedKey,
+      offlineBootstrapDisplayColor
+    );
+  }, [
+    mapId,
+    roomCode,
+    soloBotCount,
+    soloBotDifficulty,
+    soloBuilding,
+    sessionSeedKey,
+    offlineBootstrapDisplayColor,
+  ]);
 
   const meetScale = mapFlightMetricsRef.current.meetScale;
   explosionJitterSpreadRef.current =
@@ -318,10 +455,23 @@ export function GameCanvas({
     setFirstMoveHintDismissed(false);
   }, [hintSessionKey]);
 
-  useEffect(() => {
-    if (roomCode || soloRestartNonce === 0) return;
-    room.startMatchCountdown();
-  }, [roomCode, soloRestartNonce, room.startMatchCountdown]);
+  const offlineSeedResetPrev = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    if (roomCode) return;
+    if (offlineSeedResetPrev.current === null) {
+      offlineSeedResetPrev.current = offlineSessionSeedBootstrap;
+      return;
+    }
+    if (offlineSeedResetPrev.current === offlineSessionSeedBootstrap) return;
+    offlineSeedResetPrev.current = offlineSessionSeedBootstrap;
+    resetLocalCombat();
+    const nextCells = cloneCells(bootstrapSession.map.cells);
+    cellsRef.current = nextCells;
+    setCells(nextCells);
+    liveMapRef.current = { ...bootstrapSession.map, cells: nextCells };
+    explosionJitterSpreadRef.current =
+      mapProjectileRadius(bootstrapSession.map) * 3.4;
+  }, [roomCode, offlineSessionSeedBootstrap, bootstrapSession, resetLocalCombat]);
 
   const liveMap = useMemo(
     () => ({ ...session.map, cells }),
@@ -329,11 +479,25 @@ export function GameCanvas({
   );
   liveMapRef.current = liveMap;
 
-  useOfflineCellGrowth(
-    !roomCode && pageVisible,
-    cellsRef,
-    flightsRef,
-    pushCellsToReact
+  const playableIndices = useMemo(
+    () => playableCellIndices(session.map),
+    [session.map, layoutRevision]
+  );
+  const playableIndicesRef = useRef(playableIndices);
+  playableIndicesRef.current = playableIndices;
+
+  const skeletonSpawnOpts = useMemo(
+    () =>
+      roomCode
+        ? undefined
+        : {
+            ownerId: localPlayerId,
+            playableIndices: () => playableIndicesRef.current,
+            buildingForOwner: (ownerId: string) =>
+              appearanceForPlayer(playerAppearancesRef.current, ownerId)
+                .building,
+          },
+    [roomCode, localPlayerId]
   );
 
   const clearCombatOnUnmountRef = useRef({
@@ -358,11 +522,17 @@ export function GameCanvas({
 
   const scoreSlotIds = useMemo(
     () =>
-      roomCode && room.roomSlotIds.length > 0
+      roomCode
         ? room.roomSlotIds
         : session.players.map((s) => s.user.id),
     [roomCode, room.roomSlotIds, session.players]
   );
+  const matchScoringActive =
+    !roomCode ||
+    (room.roomStatus === "playing" &&
+      room.roomMatchParticipantCount >= 2 &&
+      room.roomSlotIds.length >= 2 &&
+      room.myInMatch);
   scoreSlotIdsRef.current = scoreSlotIds;
 
   useEffect(() => {
@@ -387,7 +557,38 @@ export function GameCanvas({
     localPlayerId,
     roomCode,
     scoreEpoch,
+    matchActive: matchScoringActive,
   });
+
+  useEffect(() => {
+    if (roomCode && room.roomStatus !== "playing") {
+      eliminationPenaltyRef.current.clear();
+      bumpScoreDisplay();
+    }
+  }, [roomCode, room.roomStatus, bumpScoreDisplay]);
+
+  useEffect(() => {
+    if (gameOutcome == null) setOutcomeModalDismissed(false);
+  }, [gameOutcome]);
+
+  const showOutcomeModal =
+    matchScoringActive &&
+    gameOutcome != null &&
+    room.matchCountdown === null &&
+    !outcomeModalDismissed;
+
+  useEffect(() => {
+    if (room.inRoomSetup) setOutcomeModalDismissed(true);
+  }, [room.inRoomSetup]);
+
+  useEffect(() => {
+    if (!showOutcomeModal) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOutcomeModalDismissed(true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showOutcomeModal]);
 
   const playerAppearancesMerged = useMergedPlayerAppearances({
     base: playerAppearances,
@@ -395,9 +596,22 @@ export function GameCanvas({
     localPlayerId,
     localAppearance: controlledAppearance,
     offlineBotCount: soloBotCount,
+    offlineSessionSeed: sessionSeedKey,
     isRoom: Boolean(roomCode),
   });
-  playerAppearancesRef.current = playerAppearancesMerged;
+  useLayoutEffect(() => {
+    playerAppearancesRef.current = playerAppearancesMerged;
+  }, [playerAppearancesMerged]);
+
+  useOfflineCellGrowth(
+    !roomCode && pageVisible,
+    cellsRef,
+    flightsRef,
+    playerAppearancesRef,
+    pushCellsToReact,
+    skeletonSpawnOpts,
+    () => playableIndicesRef.current
+  );
 
   const localDisplayColorResolved = useMemo(
     () =>
@@ -410,64 +624,141 @@ export function GameCanvas({
     ]
   );
 
-  const shareBarPlayers = useMemo(() => {
-    const slots =
-      roomCode && room.roomSlotIds.length > 0
-        ? session.players.filter((s) => room.roomSlotIds.includes(s.user.id))
-        : session.players;
-    const nameBySlot = { ...room.roomDisplayNames, [localPlayerId]: displayName };
-    return slots.map((slot) => {
-      const bar = shareBarColorForView(
-        slot.user.id,
-        localPlayerId,
-        localDisplayColorResolved,
-        playerAppearancesMerged
-      );
-      return {
-        id: slot.user.id,
-        displayName: effectiveDisplayName(
-          slot.user.id,
-          nameBySlot[slot.user.id]
-        ),
-        score: liveScores.get(slot.user.id) ?? 0,
-        colorIndex: bar.colorIndex,
-        barBackground: bar.background,
-      };
-    });
+  const shareBarSlots = useMemo(() => {
+    return roomCode && room.roomSlotIds.length > 0
+      ? session.players.filter((s) => room.roomSlotIds.includes(s.user.id))
+      : session.players;
+  }, [session.players, roomCode, room.roomSlotIds]);
+
+  const shareBarNameBySlot = useMemo(() => {
+    const localShareName =
+      !roomCode && soloAwaitingStart ? soloDraft.displayName : displayName;
+    return {
+      ...room.roomDisplayNames,
+      [localPlayerId]: localShareName,
+    };
   }, [
-    session.players,
-    liveScores,
+    room.roomDisplayNames,
     localPlayerId,
     roomCode,
-    room.roomSlotIds,
-    localDisplayColorResolved,
-    playerAppearancesMerged,
-    room.roomDisplayNames,
+    soloAwaitingStart,
+    soloDraft.displayName,
     displayName,
   ]);
 
-  useLayoutEffect(() => {
-    setShareBar((prev) => {
-      const next = {
-        players: shareBarPlayers,
-        activePlayerId: localPlayerId,
-      };
-      if (shareBarPayloadEqual(prev, next.players, next.activePlayerId)) {
-        return prev;
-      }
-      return next;
-    });
-  }, [shareBarPlayers, localPlayerId, setShareBar]);
+  useShareBarSync({
+    setShareBar,
+    slots: shareBarSlots,
+    liveScores,
+    localPlayerId,
+    localDisplayColor: localDisplayColorResolved,
+    playerAppearances: playerAppearancesMerged,
+    nameBySlot: shareBarNameBySlot,
+  });
 
-  useEffect(() => () => setShareBar(null), [setShareBar]);
+  const localMatchScore = liveScores.get(localPlayerId) ?? 0;
+  const localAlive = isPlayerAliveInMatch(localMatchScore);
+  const roomCanEditAppearance =
+    !roomCode ||
+    canEditAppearanceInRoom({
+      inMatch: room.myInMatch,
+      roomStatus: room.roomStatus,
+      matchDisplayScore: localMatchScore,
+    });
+  appearanceEditAllowedRef.current = roomCanEditAppearance;
+  const showReadyForNext =
+    Boolean(roomCode) &&
+    !room.isHost &&
+    room.roomStatus === "playing" &&
+    (!room.myInMatch || !localAlive);
+  const roomDockVariant = !roomCode
+    ? "solo"
+    : room.inRoomSetup
+      ? room.isHost
+        ? "roomHost"
+        : "roomGuest"
+      : room.isHost
+        ? "roomHost"
+        : !room.myInMatch
+          ? "roomWaiting"
+          : "roomGuest";
+  const soloSpectating =
+    !roomCode && !localAlive && gameOutcome == null && !soloAwaitingStart;
+
+  useEffect(() => {
+    if (roomCode && room.matchCountdown !== null) {
+      setSoloDockExpanded(false);
+    }
+  }, [roomCode, room.matchCountdown]);
+
+  useEffect(() => {
+    if (roomCode) return;
+    if (gameOutcome != null && room.matchCountdown === null) {
+      setSoloAwaitingStart(true);
+      setSoloDockExpanded(false);
+      setOutcomeModalDismissed(false);
+    }
+  }, [roomCode, gameOutcome, room.matchCountdown]);
+
+  useEffect(() => {
+    if (roomCode || !soloAwaitingStart) return;
+    setSoloDraft({
+      mapId: mapIdProp ?? DEFAULT_MAP_ID,
+      randomMapOnStart: Boolean(randomMapOnStart),
+      botCount: offlineBotCount ?? 2,
+      botDifficulty: offlineBotDifficulty ?? 50,
+      fighter: controlledAppearance.fighter,
+      building: controlledAppearance.building,
+      displayColor: controlledAppearance.displayColor,
+      displayName,
+    });
+  }, [
+    roomCode,
+    soloAwaitingStart,
+    mapIdProp,
+    randomMapOnStart,
+    offlineBotCount,
+    offlineBotDifficulty,
+    controlledAppearance.fighter,
+    controlledAppearance.building,
+    controlledAppearance.displayColor,
+    displayName,
+  ]);
+
+  useEffect(() => {
+    if (roomCode) return;
+    if (!soloDockExpanded || soloAwaitingStart || gameOutcome != null) return;
+    setSoloDraft({
+      mapId: committedSolo.mapId,
+      randomMapOnStart: Boolean(randomMapOnStart),
+      botCount: committedSolo.botCount,
+      botDifficulty: committedSolo.botDifficulty,
+      fighter: committedSolo.fighter,
+      building: committedSolo.building,
+      displayColor: committedSolo.displayColor,
+      displayName: committedSolo.displayName,
+    });
+  }, [
+    roomCode,
+    soloDockExpanded,
+    soloAwaitingStart,
+    gameOutcome,
+    committedSolo,
+    randomMapOnStart,
+  ]);
+
+  useEffect(() => {
+    if (roomCode || gameOutcome != null || soloAwaitingStart) return;
+    if (!localAlive) setSoloDockExpanded(true);
+  }, [roomCode, gameOutcome, soloAwaitingStart, localAlive]);
 
   const offlineBotsEnabled =
     !roomCode &&
+    !soloAwaitingStart &&
     room.syncReady &&
     room.matchCountdown === null &&
     offlineAliveCount >= 2 &&
-    gameOutcome !== "won" &&
-    gameOutcome !== "draw";
+    gameOutcome !== "won";
 
   useOfflineBotLoop({
     enabled: offlineBotsEnabled && pageVisible,
@@ -476,6 +767,7 @@ export function GameCanvas({
     flightsRef,
     botCount: soloBotCount,
     difficulty: soloBotDifficulty,
+    playerAppearancesRef,
     runAttack: runAttackLocally,
   });
 
@@ -493,93 +785,170 @@ export function GameCanvas({
     [room.handleRandomMapOnStartChange, onRandomMapOnStartChange]
   );
 
-  const settingsPanelContent = useMemo(
-    () => (
-      <GameSettingsPanel
-        displayName={displayName}
-        onDisplayNameChange={patchDisplayName}
-        fighter={controlledAppearance.fighter}
-        building={controlledAppearance.building}
-        displayColor={controlledAppearance.displayColor}
-        onFighterChange={(fighter) => room.patchMyAppearanceRoom({ fighter })}
-        onBuildingChange={(building) => room.patchMyAppearanceRoom({ building })}
-        onDisplayColorChange={(displayColor) =>
-          patchMyAppearance({ displayColor })
-        }
-        accountEmail={isAuthenticated ? authUser?.email : null}
-        onGoogleSignIn={showGoogleSignIn ? signInWithGoogle : undefined}
-        googleSignInHint={
-          showGoogleSignIn && !authConfigured ? UI.googleAuthNotConfigured : null
-        }
-      />
-    ),
+  const handleFighterChange = useCallback(
+    (fighter: FighterSkinId) => {
+      if (roomCode) {
+        room.patchMyAppearanceRoom({ fighter }, roomCanEditAppearance);
+      } else {
+        patchMyAppearance({ fighter });
+      }
+    },
     [
-      displayName,
-      patchDisplayName,
-      controlledAppearance.fighter,
-      controlledAppearance.building,
-      controlledAppearance.displayColor,
+      roomCode,
       room.patchMyAppearanceRoom,
       patchMyAppearance,
-      showGoogleSignIn,
-      isAuthenticated,
-      authUser?.email,
-      signInWithGoogle,
-      authConfigured,
+      roomCanEditAppearance,
     ]
   );
 
-  const settingsPanelSig = useMemo(
-    () =>
-      JSON.stringify({
-        settingsMapId,
-        mapSelectHint,
-        roomCode,
-        isHost: room.isHost,
-        displayName,
-        fighter: controlledAppearance.fighter,
-        building: controlledAppearance.building,
-        displayColor: controlledAppearance.displayColor,
-        roomRandomMapOnStart: room.roomRandomMapOnStart,
-        randomMapOnStart,
-        showGoogleSignIn,
-        isAuthenticated,
-        email: authUser?.email ?? null,
-        authConfigured,
-      }),
-    [
-      settingsMapId,
-      mapSelectHint,
-      roomCode,
-      room.isHost,
-      displayName,
-      controlledAppearance.fighter,
-      controlledAppearance.building,
-      controlledAppearance.displayColor,
-      room.roomRandomMapOnStart,
-      randomMapOnStart,
-      showGoogleSignIn,
-      isAuthenticated,
-      authUser?.email,
-      authConfigured,
-    ]
-  );
-  const settingsPanelSigRef = useRef("");
-  const settingsPanelContentRef = useRef(settingsPanelContent);
-  settingsPanelContentRef.current = settingsPanelContent;
-  useLayoutEffect(() => {
-    if (settingsPanelSigRef.current === settingsPanelSig) return;
-    settingsPanelSigRef.current = settingsPanelSig;
-    setSettingsPanel(settingsPanelContentRef.current);
-  }, [settingsPanelSig, setSettingsPanel]);
-
-  useEffect(
-    () => () => {
-      settingsPanelSigRef.current = "";
-      setSettingsPanel(null);
+  const handleBuildingChange = useCallback(
+    (building: BuildingSkinId) => {
+      if (roomCode) {
+        room.patchMyAppearanceRoom({ building }, roomCanEditAppearance);
+      } else {
+        patchMyAppearance({ building });
+      }
     },
-    [setSettingsPanel]
+    [
+      roomCode,
+      room.patchMyAppearanceRoom,
+      patchMyAppearance,
+      roomCanEditAppearance,
+    ]
   );
+
+  const handleDisplayColorChange = useCallback(
+    (displayColor: DisplayColorId) => {
+      if (roomCode) {
+        room.patchMyAppearanceRoom({ displayColor }, roomCanEditAppearance);
+      } else {
+        patchMyAppearance({ displayColor });
+      }
+    },
+    [
+      roomCode,
+      room.patchMyAppearanceRoom,
+      patchMyAppearance,
+      roomCanEditAppearance,
+    ]
+  );
+
+  const handleRoomDisplayNameChange = useCallback(
+    (value: string) => {
+      if (roomCode && !roomCanEditAppearance) return;
+      patchDisplayName(value.slice(0, 32));
+      if (roomCode && room.wsConnected) {
+        room.patchMyAppearanceRoom({}, roomCanEditAppearance);
+      }
+    },
+    [
+      patchDisplayName,
+      roomCode,
+      room.wsConnected,
+      room.patchMyAppearanceRoom,
+      roomCanEditAppearance,
+    ]
+  );
+
+  const handleDraftFighterChange = useCallback((fighter: FighterSkinId) => {
+    setSoloDraft((d) => ({ ...d, fighter }));
+  }, []);
+
+  const handleDraftBuildingChange = useCallback((building: BuildingSkinId) => {
+    setSoloDraft((d) => ({ ...d, building }));
+  }, []);
+
+  const handleDraftDisplayColorChange = useCallback(
+    (displayColor: DisplayColorId) => {
+      setSoloDraft((d) => ({ ...d, displayColor }));
+    },
+    []
+  );
+
+  const handleDraftMapIdChange = useCallback((nextMapId: string) => {
+    setSoloDraft((d) => ({ ...d, mapId: nextMapId }));
+  }, []);
+
+  const handleDraftRandomMapOnStartChange = useCallback((value: boolean) => {
+    setSoloDraft((d) => ({ ...d, randomMapOnStart: value }));
+  }, []);
+
+  const handleDraftBotCountChange = useCallback((value: number) => {
+    setSoloDraft((d) => ({ ...d, botCount: value }));
+  }, []);
+
+  const handleDraftBotDifficultyChange = useCallback((value: number) => {
+    setSoloDraft((d) => ({ ...d, botDifficulty: value }));
+  }, []);
+
+  const handleDraftDisplayNameChange = useCallback((raw: string) => {
+    setSoloDraft((d) => ({ ...d, displayName: raw.slice(0, 32) }));
+  }, []);
+
+  const handleCommitSoloPlay = useCallback(async () => {
+    if (roomCode || soloPreGameBusy) return;
+    if (
+      !onOfflineNewGame ||
+      !onOfflineBotCountChange ||
+      !onOfflineBotDifficultyChange
+    ) {
+      return;
+    }
+
+    const d = soloDraft;
+    setSoloPreGameBusy(true);
+    setSoloDockExpanded(false);
+
+    try {
+      for (const n of [3, 2, 1] as const) {
+        setSoloPreGamePhase("count");
+        setSoloPreGameN(n);
+        await sleep(800);
+      }
+      setSoloPreGamePhase("goodluck");
+      setSoloPreGameN(null);
+      await sleep(1500);
+      setSoloPreGamePhase("idle");
+      setSoloPreGameN(null);
+
+      onMapIdChange(d.mapId);
+      onRandomMapOnStartChange?.(d.randomMapOnStart);
+      onOfflineBotCountChange(d.botCount);
+      onOfflineBotDifficultyChange(d.botDifficulty);
+      patchMyAppearance({
+        fighter: d.fighter,
+        building: d.building,
+        displayColor: d.displayColor,
+      });
+      patchDisplayName(d.displayName);
+      setCommittedSolo({
+        mapId: d.mapId,
+        botCount: d.botCount,
+        botDifficulty: d.botDifficulty,
+        fighter: d.fighter,
+        building: d.building,
+        displayColor: d.displayColor,
+        displayName: d.displayName,
+      });
+
+      onOfflineNewGame();
+      setSoloAwaitingStart(false);
+      setFirstMoveHintDismissed(false);
+    } finally {
+      setSoloPreGameBusy(false);
+    }
+  }, [
+    roomCode,
+    soloPreGameBusy,
+    onOfflineNewGame,
+    onOfflineBotCountChange,
+    onOfflineBotDifficultyChange,
+    onRandomMapOnStartChange,
+    onMapIdChange,
+    patchMyAppearance,
+    patchDisplayName,
+    soloDraft,
+  ]);
 
   const handleCancelPendingFrom = useCallback(
     (cell: CellPos) => {
@@ -601,17 +970,6 @@ export function GameCanvas({
       room.matchCountdown,
       cancelPendingAtCell,
     ]
-  );
-
-  const handleFighterChange = useCallback(
-    (fighter: FighterSkinId) => {
-      if (roomCode) {
-        room.patchMyAppearanceRoom({ fighter });
-      } else {
-        patchMyAppearance({ fighter });
-      }
-    },
-    [roomCode, room.patchMyAppearanceRoom, patchMyAppearance]
   );
 
   const handleCancelAllPending = useCallback(() => {
@@ -645,6 +1003,7 @@ export function GameCanvas({
       if (gameOutcome || room.matchCountdown !== null) return;
       setFirstMoveHintDismissed(true);
       if (roomCode) {
+        if (!room.myInMatch) return;
         if (room.wsConnected) {
           const mapBase = session.map;
           const toI = cellIndex({ ...mapBase, cells: cellsRef.current }, to);
@@ -660,6 +1019,9 @@ export function GameCanvas({
             fromIndices.push(fromI);
             stripPendingTail(fromI, toI);
           }
+          queueMicrotask(() => {
+            runAttackLocally(froms, to, localPlayerId, serverNowMs());
+          });
           room.sendAttack(fromIndices, toI);
           return;
         }
@@ -680,6 +1042,7 @@ export function GameCanvas({
       session.map,
       room.sendAttack,
       room.reconnect,
+      room.myInMatch,
       stripPendingTail,
       runAttackLocally,
       localPlayerId,
@@ -713,7 +1076,8 @@ export function GameCanvas({
             mapInteractionLocked={Boolean(
               !room.syncReady ||
                 room.matchCountdown !== null ||
-                gameOutcome !== null
+                gameOutcome !== null ||
+                soloAwaitingStart
             )}
             onCommitAttacks={handleCommitAttacks}
             onCancelPendingFrom={handleCancelPendingFrom}
@@ -753,6 +1117,9 @@ export function GameCanvas({
                 : undefined
             }
             randomMapLabel={roomCode ? UI.randomMapInRoom : undefined}
+            hideSideMapPicker
+            hideSideHotkeys
+            hideSideSoloControls
           />
         </div>
         {room.matchCountdown !== null ? (
@@ -773,73 +1140,164 @@ export function GameCanvas({
             </button>
           </div>
         ) : null}
-        {room.matchCountdown !== null ? (
-          <div
-            className={`${styles.mapToast} ${styles.mapToastCountdown}`}
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            {room.matchCountdown === "go" ? (
-              <p className={styles.mapToastCountdownGo}>{UI.countdownGo}</p>
-            ) : (
-              <>
-                <p className={styles.mapToastCountdownLabel}>
-                  {UI.countdownLabel}
-                </p>
-                <p className={styles.mapToastCountdownNumber}>
-                  {room.matchCountdown}
-                </p>
-              </>
-            )}
-          </div>
+        {showOutcomeModal && gameOutcome ? (
+          <MatchOutcomeModal
+            outcome={gameOutcome}
+            onDismiss={() => setOutcomeModalDismissed(true)}
+            onSoloNewGame={
+              !roomCode &&
+              onOfflineNewGame &&
+              onOfflineBotCountChange &&
+              onOfflineBotDifficultyChange
+                ? () => void handleCommitSoloPlay()
+                : undefined
+            }
+            soloStartDisabled={soloPreGameBusy}
+            roomCode={roomCode}
+            roomIsHost={room.isHost}
+            roomBusy={room.roomBusy}
+            onRoomNewGame={
+              roomCode ? () => void room.openNextRound() : undefined
+            }
+            showReadyForNext={showReadyForNext}
+            readyForNext={room.myReady}
+            readyForNextBusy={room.roomBusy}
+            onReadyForNext={() => void room.toggleReadyForNext()}
+          />
         ) : null}
-        {gameOutcome && room.matchCountdown === null ? (
-          <div
-            className={styles.mapToast}
-            role="status"
-            aria-live="polite"
-            aria-labelledby="game-over-title"
-          >
-            <p
-              id="game-over-title"
-              className={
-                gameOutcome === "won"
-                  ? styles.mapToastTitleWin
-                  : gameOutcome === "lost"
-                    ? styles.mapToastTitleLose
-                    : styles.mapToastTitleDraw
-              }
-            >
-              {gameOutcome === "won"
-                ? UI.outcomeWon
-                : gameOutcome === "lost"
-                  ? UI.outcomeLost
-                  : UI.outcomeDraw}
-            </p>
-            {roomCode ? (
-              room.isHost ? (
-                <button
-                  type="button"
-                  className={styles.mapToastBtn}
-                  disabled={room.roomBusy}
-                  onClick={() => void room.handleNewGame()}
-                >
-                  {UI.newGame}
-                </button>
-              ) : (
-                <p className={styles.mapToastHint}>{UI.waitingHost}</p>
-              )
-            ) : onOfflineNewGame ? (
-              <button
-                type="button"
-                className={styles.mapToastBtn}
-                onClick={() => onOfflineNewGame()}
+        {!roomCode && soloPreGamePhase !== "idle"
+          ? createPortal(
+              <div
+                className={styles.soloPreGameOverlay}
+                role="status"
+                aria-live="assertive"
               >
-                {UI.newGame}
-              </button>
-            ) : null}
-          </div>
+                {soloPreGamePhase === "goodluck" ? (
+                  <p className={styles.soloPreGameTitle}>
+                    {UI.soloPreGameGoodLuck}
+                  </p>
+                ) : (
+                  <p className={styles.soloPreGameCount}>{soloPreGameN}</p>
+                )}
+              </div>,
+              document.body
+            )
+          : null}
+        {roomCode && room.matchCountdown !== null
+          ? createPortal(
+              <div
+                className={styles.soloPreGameOverlay}
+                role="status"
+                aria-live="assertive"
+              >
+                {room.matchCountdown === "goodluck" ? (
+                  <p className={styles.soloPreGameTitle}>
+                    {UI.soloPreGameGoodLuck}
+                  </p>
+                ) : (
+                  <p className={styles.soloPreGameCount}>
+                    {room.matchCountdown}
+                  </p>
+                )}
+              </div>,
+              document.body
+            )
+          : null}
+        {roomSettingsDock ? (
+          <SoloPlayDock
+            variant={roomDockVariant}
+            appearanceLocked={roomCode ? !roomCanEditAppearance : false}
+            expanded={soloDockExpanded}
+            onExpandedChange={(open) => {
+              if (room.isHost && room.roomBusy) return;
+              setSoloDockExpanded(open);
+            }}
+            fighter={controlledAppearance.fighter}
+            building={controlledAppearance.building}
+            displayColor={controlledAppearance.displayColor}
+            draftDisplayName={displayName}
+            onDraftDisplayNameChange={handleRoomDisplayNameChange}
+            onFighterChange={handleFighterChange}
+            onBuildingChange={handleBuildingChange}
+            onDisplayColorChange={handleDisplayColorChange}
+            onStartGame={() => void room.openNextRound()}
+            gameOutcome={gameOutcome}
+            awaitingStart={false}
+            spectating={
+              Boolean(
+                roomCode &&
+                  !room.inRoomSetup &&
+                  room.myInMatch &&
+                  !localAlive &&
+                  !showReadyForNext
+              )
+            }
+            showReadyForNext={showReadyForNext}
+            readyForNext={room.myReady}
+            readyForNextBusy={room.roomBusy}
+            onToggleReadyForNext={() => void room.toggleReadyForNext()}
+            mapId={settingsMapId}
+            onMapIdChange={
+              room.isHost ? room.handleRoomMapIdChange : () => {}
+            }
+            mapSelectHint={mapSelectHint}
+            randomMapOnStart={room.roomRandomMapOnStart}
+            onRandomMapOnStartChange={
+              room.isHost ? handleRandomMapOnStartChange : undefined
+            }
+            randomMapLabel={UI.randomMapInRoom}
+            mapCatalogDisabled={room.roomStatus === "playing"}
+            startDisabled={room.roomBusy}
+            roomCode={roomCode}
+            roomLifecycle={room.roomStatus}
+            roomDockPlayers={room.roomDockPlayers}
+            roomPlayerCount={room.roomDockPlayers.length}
+            roomMaxPlayers={room.roomMaxPlayers}
+            isRoomHost={room.isHost}
+            onRoomSearch={() => void room.handleOpenSearch()}
+            onRoomStart={() => void room.handleStartMatch()}
+            onRoomLobbyReady={() => void room.handleLobbyReady()}
+            roomLobbyReady={room.myReady}
+            canStartMatch={room.canStartMatch}
+            roomReadyCount={room.roomReadyCount}
+          />
+        ) : null}
+        {!roomCode &&
+        onOfflineBotCountChange &&
+        onOfflineBotDifficultyChange &&
+        onOfflineNewGame ? (
+          <SoloPlayDock
+            variant="solo"
+            expanded={soloDockExpanded}
+            onExpandedChange={(open) => {
+              if (soloPreGameBusy) return;
+              setSoloDockExpanded(open);
+            }}
+            fighter={soloDraft.fighter}
+            building={soloDraft.building}
+            displayColor={soloDraft.displayColor}
+            draftDisplayName={soloDraft.displayName}
+            onDraftDisplayNameChange={handleDraftDisplayNameChange}
+            onFighterChange={handleDraftFighterChange}
+            onBuildingChange={handleDraftBuildingChange}
+            onDisplayColorChange={handleDraftDisplayColorChange}
+            onStartGame={handleCommitSoloPlay}
+            gameOutcome={gameOutcome}
+            awaitingStart={soloAwaitingStart}
+            spectating={soloSpectating}
+            offlineBotCount={soloDraft.botCount}
+            onOfflineBotCountChange={handleDraftBotCountChange}
+            offlineBotDifficulty={soloDraft.botDifficulty}
+            onOfflineBotDifficultyChange={handleDraftBotDifficultyChange}
+            mapId={soloDraft.mapId}
+            onMapIdChange={handleDraftMapIdChange}
+            mapSelectHint={mapSelectHint}
+            randomMapOnStart={soloDraft.randomMapOnStart}
+            onRandomMapOnStartChange={handleDraftRandomMapOnStartChange}
+            mapCatalogDisabled={false}
+            onNewSoloSession={handleCommitSoloPlay}
+            startDisabled={soloPreGameBusy}
+          />
         ) : null}
         {roomCode ? (
           <RoomChat

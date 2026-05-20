@@ -11,4 +11,4 @@ export const MAP_ID = {
 
 export type MapId = (typeof MAP_ID)[keyof typeof MAP_ID];
 
-export const DEFAULT_MAP_ID = MAP_ID.SOUTH_AMERICA;
+export const DEFAULT_MAP_ID = MAP_ID.WORLD_LARGE;

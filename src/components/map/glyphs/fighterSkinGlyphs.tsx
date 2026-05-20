@@ -2,12 +2,10 @@ import type { ReactElement } from "react";
 import type { FighterSkinId } from "@/game/appearance";
 
 /** Скины, которые поворачиваются по направлению полёта. */
-export const ROTATING_FIGHTER_SKINS = new Set<FighterSkinId>(["star", "rocket"]);
+export const ROTATING_FIGHTER_SKINS = new Set<FighterSkinId>(["star"]);
 
 /** Доп. поворот глифа (рад.): ракета нарисована «вверх», полёт angle=0 — вправо. */
-const FIGHTER_ROTATION_OFFSET: Partial<Record<FighterSkinId, number>> = {
-  rocket: Math.PI / 2,
-};
+const FIGHTER_ROTATION_OFFSET: Partial<Record<FighterSkinId, number>> = {};
 
 export function fighterFlightRotation(
   skin: FighterSkinId,
@@ -68,33 +66,6 @@ export function renderFighterGlyph(
       );
     case "star":
       return <polygon points={starPoints(0, 0, s * 0.85, 5)} fill={fill} />;
-    case "rocket":
-      return (
-        <g fill={fill}>
-          <polygon
-            points={`0,${-s * 0.9} ${-s * 0.32},${s * 0.35} ${s * 0.32},${
-              s * 0.35
-            }`}
-          />
-          <polygon
-            points={`${-s * 0.32},${s * 0.2} ${-s * 0.55},${s * 0.65} ${
-              -s * 0.12
-            },${s * 0.45}`}
-          />
-          <polygon
-            points={`${s * 0.32},${s * 0.2} ${s * 0.55},${s * 0.65} ${
-              s * 0.12
-            },${s * 0.45}`}
-          />
-          <circle
-            cx={0}
-            cy={-s * 0.15}
-            r={s * 0.12}
-            fill="#fff"
-            opacity={0.85}
-          />
-        </g>
-      );
     case "bomb":
       return (
         <g fill={fill}>

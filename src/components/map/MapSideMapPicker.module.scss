@@ -20,6 +20,20 @@
   color: #6a758c;
 }
 
+.mapRow {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.mapRowSelect {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .randomCheck {
   display: flex;
   align-items: center;
@@ -32,6 +46,8 @@
   cursor: pointer;
   box-sizing: border-box;
   box-shadow: 0 1px 4px rgba(20, 35, 60, 0.08);
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .randomCheckDisabled {

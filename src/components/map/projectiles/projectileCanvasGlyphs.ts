@@ -97,32 +97,6 @@ export function fillFighterGlyphCanvas(
     case "star":
       drawStarGlyph(ctx, s * 0.85, fill);
       break;
-    case "rocket": {
-      ctx.fillStyle = fill;
-      ctx.beginPath();
-      ctx.moveTo(0, -s * 0.9);
-      ctx.lineTo(-s * 0.32, s * 0.35);
-      ctx.lineTo(s * 0.32, s * 0.35);
-      ctx.closePath();
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(-s * 0.32, s * 0.2);
-      ctx.lineTo(-s * 0.55, s * 0.65);
-      ctx.lineTo(-s * 0.12, s * 0.45);
-      ctx.closePath();
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(s * 0.32, s * 0.2);
-      ctx.lineTo(s * 0.55, s * 0.65);
-      ctx.lineTo(s * 0.12, s * 0.45);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = "rgba(255,255,255,0.85)";
-      ctx.beginPath();
-      ctx.arc(0, -s * 0.15, s * 0.12, 0, Math.PI * 2);
-      ctx.fill();
-      break;
-    }
     case "bomb": {
       ctx.fillStyle = fill;
       ctx.beginPath();
@@ -141,10 +115,39 @@ export function fillFighterGlyphCanvas(
       ctx.fill();
       break;
     }
-    case "poison":
-    case "potion":
-    case "dagger":
+    case "poison": {
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.ellipse(0, s * 0.08, s * 0.28, s * 0.42, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.5)";
+      ctx.fillRect(-s * 0.08, -s * 0.35, s * 0.16, s * 0.22);
       break;
+    }
+    case "potion": {
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.ellipse(0, s * 0.1, s * 0.3, s * 0.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = fill;
+      ctx.lineWidth = s * 0.1;
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.22, -s * 0.35);
+      ctx.lineTo(s * 0.22, -s * 0.35);
+      ctx.stroke();
+      break;
+    }
+    case "dagger": {
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.75);
+      ctx.lineTo(s * 0.22, s * 0.55);
+      ctx.lineTo(0, s * 0.35);
+      ctx.lineTo(-s * 0.22, s * 0.55);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
     case "triangle":
       break;
     default: {

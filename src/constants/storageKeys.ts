@@ -6,6 +6,7 @@ export const STORAGE_KEYS = {
   offlineBotCount: "game-offline-bot-count-v1",
   offlineBotDifficulty: "game-offline-bot-difficulty-v1",
   randomMapOnStart: "game-random-map-on-start-v1",
+  selectedMap: "game-selected-map-v1",
   userId: "game-user-id-v1",
   glbBuildingVisibility: "glb-building-visibility-v1",
   mapDotEditorMap: "map-dot-editor-map",

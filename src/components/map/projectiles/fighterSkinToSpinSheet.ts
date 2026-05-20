@@ -13,7 +13,6 @@ const FIGHTER_TO_BUILDING_SPIN: Partial<
   poison: "pixellabsPoisonBottle",
   potion: "pixellabsSkullPotion",
   dagger: "pixellabsDagger3178",
-  rocket: "tinyPlanetEnergy",
 };
 
 export function buildingSpinSkinForFighter(

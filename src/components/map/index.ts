@@ -35,3 +35,5 @@ export { TutorialHandGlyph } from "./hints/TutorialHandGlyph";
 export { SkinPreviewIcon } from "./glyphs/SkinPreviewIcon";
 
 export * from "./buildingGlb";
+
+export { HeartLifeLinksOverlay } from "./heartLife/HeartLifeLinksOverlay";

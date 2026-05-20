@@ -124,6 +124,30 @@
   font-weight: 600;
 }
 
+.readyBadge {
+  color: #1b7a3a;
+  font-weight: 600;
+}
+
+.queueBadge {
+  color: #7a5c1b;
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.subTitle {
+  margin: 12px 0 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6a758c;
+}
+
+.subTitle:first-of-type {
+  margin-top: 0;
+}
+
 .error {
   color: #c62828;
   font-size: 0.85rem;

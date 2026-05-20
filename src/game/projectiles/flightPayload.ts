@@ -11,8 +11,19 @@ import {
   mapShotSpeedPerMs,
 } from "@/game/maps/mapScale";
 import { flightArcBulge, waveSpawnStaggerRank } from "@/shared/flightSpread";
+import type { BuildingSkinId } from "@/shared/skinIds";
+import {
+  fortressProjectileLandOnArc,
+  shouldFortressProjectileIntercept,
+  spotRingRadiusForMap,
+  type FortressFlightInterceptInput,
+} from "@/shared/fortressShield";
 import type { WeaponStats } from "@/shared/weaponStats";
 import type { FlightPayload, ProjectileSim } from "./types";
+
+export type BuildFlightFortressContext = {
+  buildingForOwner: (ownerId: string | undefined) => BuildingSkinId | undefined;
+};
 
 export function buildFlightPayload(
   amount: number,
@@ -28,16 +39,26 @@ export function buildFlightPayload(
   /** Фактический meet SVG; стабилизирует скорость и размер залпа на экране. */
   meetScale?: number,
   /** Радиус точки в viewBox (из `computeMapSpotMetrics`); точнее, чем только meet. */
-  dotRadius?: number
+  dotRadius?: number,
+  fortress?: BuildFlightFortressContext
 ): FlightPayload {
   const center = authoritativeCenters ? mapDotCenterAuthoritative : mapDotCenter;
   const { x: sx, y: sy } = center(map, from);
-  const { x: tx, y: ty } = center(map, to);
-  const dx = tx - sx;
-  const dy = ty - sy;
-  const len = Math.hypot(dx, dy) || 1;
-  const px = -dy / len;
-  const py = dx / len;
+  const cellCenter = center(map, to);
+  const toI = cellIndex(map, to);
+  const targetCell = map.cells[toI];
+  const targetOwner = targetCell?.ownerId ?? null;
+  const spotRingRadius = spotRingRadiusForMap(
+    map.id,
+    dotRadius,
+    meetScale
+  );
+
+  const fullDx = cellCenter.x - sx;
+  const fullDy = cellCenter.y - sy;
+  const fullLen = Math.hypot(fullDx, fullDy) || 1;
+  const px = -fullDy / fullLen;
+  const py = fullDx / fullLen;
 
   const projR =
     dotRadius != null
@@ -47,10 +68,26 @@ export function buildFlightPayload(
   const base = baseTime;
   const fid =
     attackId ?? `${base}-${Math.random().toString(36).slice(2, 10)}`;
-  const toI = cellIndex(map, to);
-  const targetOwner = map.cells[toI]?.ownerId ?? null;
   const visualCombat = targetOwner !== attackerId;
   const speedPerMs = mapShotSpeedPerMs(map, meetScale) * weapon.speedMultiplier;
+
+  const fortressInput: FortressFlightInterceptInput | null = fortress
+    ? {
+        sx,
+        sy,
+        cellCenterX: cellCenter.x,
+        cellCenterY: cellCenter.y,
+        attackerId,
+        targetOwnerId: targetOwner ?? undefined,
+        defenderBuilding: fortress.buildingForOwner(targetOwner ?? undefined),
+        fortressShield: targetCell?.fortressShield,
+        spotRingRadius,
+        meetScale,
+      }
+    : null;
+
+  const useFortressIntercept =
+    fortressInput != null && shouldFortressProjectileIntercept(fortressInput);
 
   const sims: ProjectileSim[] = Array.from({ length: amount }, (_, i) => {
     const releaseWave = Math.floor(i / weapon.waveSize);
@@ -59,7 +96,21 @@ export function buildFlightPayload(
       weapon.waveSize,
       amount - releaseWave * weapon.waveSize
     );
-    const arc = flightArcBulge(len, ballD, weapon, kInWave, inWave, px, py);
+    const arc = flightArcBulge(fullLen, ballD, weapon, kInWave, inWave, px, py);
+    const land = useFortressIntercept
+      ? fortressProjectileLandOnArc({
+          ...fortressInput!,
+          arcPerpX: arc.arcPerpX,
+          arcPerpY: arc.arcPerpY,
+          chordLength: fullLen,
+        })
+      : {
+          tx: cellCenter.x,
+          ty: cellCenter.y,
+          pathLength: fullLen,
+          intercepted: false,
+        };
+    const len = land.pathLength;
     const flightDuration = len / speedPerMs;
     return {
       id: `proj-${fid}-${i}`,
@@ -72,8 +123,8 @@ export function buildFlightPayload(
       flightDuration,
       sx,
       sy,
-      tx,
-      ty,
+      tx: land.tx,
+      ty: land.ty,
       arcPerpX: arc.arcPerpX,
       arcPerpY: arc.arcPerpY,
       placeInRow: kInWave + 1,

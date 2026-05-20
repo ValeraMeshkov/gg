@@ -1,22 +1,20 @@
-import { assignOfflineBotDisplayColors } from "@/shared/offlinePlayerColors";
 import type { DisplayColorId } from "./appearance";
 import type { PlayerAppearancesMap } from "./appearance";
-import { OFFLINE_BOT_APPEARANCES, offlineBotIdsForCount } from "./mock";
+import { rollOfflineBotRoster } from "@/shared/offlineBotRoster";
+import { offlineBotIdsForCount } from "./mock";
 
-/** Внешность ботов в оффлайн-партии с учётом цвета локального игрока. */
+/** Внешность ботов в оффлайн-партии (случайное здание и оружие на партию). */
 export function buildOfflineBotAppearances(
   botCount: number,
-  localDisplayColor: DisplayColorId
+  localDisplayColor: DisplayColorId,
+  sessionSeed: string
 ): PlayerAppearancesMap {
-  const botColors = assignOfflineBotDisplayColors(
-    localDisplayColor,
-    botCount
-  );
+  const ids = offlineBotIdsForCount(botCount);
+  const roster = rollOfflineBotRoster(sessionSeed, ids, localDisplayColor);
   const out: PlayerAppearancesMap = {};
-  offlineBotIdsForCount(botCount).forEach((id, i) => {
-    const base = OFFLINE_BOT_APPEARANCES[id];
-    if (!base) return;
-    out[id] = { ...base, displayColor: botColors[i]! };
-  });
+  for (const id of ids) {
+    const entry = roster[id];
+    if (entry) out[id] = entry;
+  }
   return out;
 }

@@ -1,20 +1,15 @@
 import { STORAGE_KEYS } from "@/constants/storageKeys";
+import {
+  readStorageFlag,
+  writeStorageFlag,
+} from "@/lib/storage/localStorageHelpers";
 
 const STORAGE_KEY = STORAGE_KEYS.randomMapOnStart;
 
 export function readRandomMapOnStart(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === "1";
-  } catch {
-    return false;
-  }
+  return readStorageFlag(STORAGE_KEY);
 }
 
 export function writeRandomMapOnStart(value: boolean): void {
-  try {
-    if (value) localStorage.setItem(STORAGE_KEY, "1");
-    else localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    /* ignore */
-  }
+  writeStorageFlag(STORAGE_KEY, value);
 }

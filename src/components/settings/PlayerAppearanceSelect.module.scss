@@ -6,6 +6,11 @@
   box-sizing: border-box;
 }
 
+.rootLocked {
+  pointer-events: none;
+  opacity: 0.58;
+}
+
 .rowBlock {
   display: flex;
   flex-direction: column;
@@ -29,6 +34,64 @@
   gap: 8px;
 }
 
+.nameColorSplit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.nameInputGridCell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.colorSwatchesScroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 2px 0;
+}
+
+.colorSwatchesScroll .cubeRow {
+  flex-wrap: nowrap;
+  width: max-content;
+  max-width: none;
+}
+
+.colorRowOnly {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.nameInputInline {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(20, 35, 60, 0.14);
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #1a2740;
+  background: #fff;
+}
+
+.nameInputInline::placeholder {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.nameInputInline:focus {
+  outline: 2px solid #2a6bb8;
+  outline-offset: 1px;
+}
+
 .cube {
   box-sizing: border-box;
   width: 40px;
@@ -43,7 +106,7 @@
 }
 
 .cubeColor {
-  border: 2px solid rgba(20, 35, 60, 0.14);
+  border: 3px solid rgba(20, 35, 60, 0.14);
 }
 
 .cubeSkin {
@@ -59,44 +122,114 @@
   overflow: hidden;
 }
 
+/** Высота ряда «сетка + описание»: 2 строки ячеек 88px + gap и паддинг сетки */
+$building-picker-panes-height: calc(6px + 88px + 6px + 88px + 6px);
+
+.buildingPickerBlock {
+  width: 100%;
+  min-width: 0;
+}
+
+.buildingPickerRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: $building-picker-panes-height;
+  box-sizing: border-box;
+}
+
 .buildingsViewport {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
   overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-x: contain;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   scroll-behavior: auto;
   -webkit-overflow-scrolling: touch;
   border-radius: 10px;
   background: #eef2f8;
   border: 1px solid rgba(20, 35, 60, 0.08);
+  box-sizing: border-box;
 }
 
 .buildingsGrid {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: repeat(4, 88px);
+  justify-items: center;
   align-items: center;
   gap: 6px;
   padding: 6px;
   width: max-content;
+  max-width: none;
+  margin-inline: auto;
   box-sizing: border-box;
 }
 
+.buildingDescPane {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  align-self: stretch;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+  padding: 10px 11px;
+  border-radius: 10px;
+  background: rgba(241, 245, 249, 0.95);
+  border: 1px solid rgba(26, 39, 64, 0.1);
+}
+
+.buildingDescPane .buildingDescriptionEmbed {
+  margin-top: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 0;
+}
+
 .buildingGlbSettingsItem {
+  position: relative;
   flex-shrink: 0;
+  border-radius: 10px;
+  transition: filter 0.12s ease;
 }
 
 .buildingsGrid .cubeBuilding {
   flex-shrink: 0;
+  border: 3px solid rgba(20, 35, 60, 0.12);
 }
 
-.buildingsGrid .buildingGlbSettingsPreview {
+.buildingsGrid .cubeBuilding.cubeSelected {
+  border-color: #2563eb;
+}
+
+.buildingGlbSettingsPreview {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
+  pointer-events: none;
+}
+
+.buildingsGrid .cubeBuilding {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .buildingPreviewPlaceholder {
@@ -106,8 +239,9 @@
   flex-shrink: 0;
 }
 
-.cubeSelected {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2a6bb8;
+/** Выбор цвета — рамка внутри кнопки (без внешнего box-shadow: его режет overflow-x у скролла) */
+.cubeColor.cubeSelected {
+  border-color: #2a6bb8;
 }
 
 .cube:focus-visible {

@@ -38,29 +38,40 @@ export const MapSideMapPicker = memo(function MapSideMapPicker({
           ) : null}
         </>
       ) : null}
-      <MapCatalogSelect
-        mapId={mapId}
-        onMapIdChange={onMapIdChange}
-        disabled={disabled}
-        showLabel={false}
-      />
       {showRandom ? (
-        <label
-          className={`${styles.randomCheck}${
-            disabled ? ` ${styles.randomCheckDisabled}` : ""
-          }`}
-          title={randomMapLabel}
-        >
-          <input
-            type="checkbox"
-            className={styles.randomCheckInput}
-            checked={randomMapOnStart}
-            disabled={disabled}
-            onChange={(e) => onRandomMapOnStartChange(e.target.checked)}
-          />
-          <span className={styles.randomCheckLabel}>{randomMapLabel}</span>
-        </label>
-      ) : null}
+        <div className={styles.mapRow}>
+          <div className={styles.mapRowSelect}>
+            <MapCatalogSelect
+              mapId={mapId}
+              onMapIdChange={onMapIdChange}
+              disabled={disabled}
+              showLabel={false}
+            />
+          </div>
+          <label
+            className={`${styles.randomCheck}${
+              disabled ? ` ${styles.randomCheckDisabled}` : ""
+            }`}
+            title={randomMapLabel}
+          >
+            <input
+              type="checkbox"
+              className={styles.randomCheckInput}
+              checked={randomMapOnStart}
+              disabled={disabled}
+              onChange={(e) => onRandomMapOnStartChange(e.target.checked)}
+            />
+            <span className={styles.randomCheckLabel}>{randomMapLabel}</span>
+          </label>
+        </div>
+      ) : (
+        <MapCatalogSelect
+          mapId={mapId}
+          onMapIdChange={onMapIdChange}
+          disabled={disabled}
+          showLabel={false}
+        />
+      )}
     </div>
   );
 });

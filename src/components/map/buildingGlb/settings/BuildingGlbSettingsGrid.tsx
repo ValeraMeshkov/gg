@@ -5,7 +5,11 @@ import {
   isGlbBuildingSkin,
   type GlbBuildingSkinId,
 } from "@/components/map/buildingGlb/catalog";
-import { getBuildingSpriteDisplayScale } from "@/components/map/buildingGlb/catalog/buildingSpriteDisplayScale";
+import {
+  getBuildingSpriteDisplayScale,
+  getBuildingSpriteSettingsNudge,
+} from "@/components/map/buildingGlb/catalog/buildingSpriteDisplayScale";
+import { SETTINGS_BUILDING_INNER_PREVIEW_PX } from "@/components/map/buildingGlb/constants/isoConstants";
 import { BuildingSpinSprite } from "@/components/map/buildingGlb/spin/BuildingSpinSprite";
 import { hasBuildingSpinSheet } from "@/components/map/buildingGlb/spin/buildingSpinSheets";
 import { AppearanceSettingsGrid } from "@/components/settings/AppearanceSettingsGrid";
@@ -45,15 +49,20 @@ export function BuildingGlbSettingsGrid({
           hasBuildingSpinSheet(skin as GlbBuildingSkinId)
         );
       }}
-      renderPreview={({ opt, visible, size }) => (
-        <BuildingSpinSprite
-          skin={opt.id as GlbBuildingSkinId}
-          size={size}
-          displayScale={getBuildingSpriteDisplayScale(opt.id as GlbBuildingSkinId)}
-          phaseKey={`settings-${opt.id}`}
-          animated={visible}
-        />
-      )}
+      renderPreview={({ opt, visible, size }) => {
+        const skin = opt.id as GlbBuildingSkinId;
+        return (
+          <BuildingSpinSprite
+            skin={skin}
+            size={size}
+            displayScale={getBuildingSpriteDisplayScale(skin)}
+            nudgePx={getBuildingSpriteSettingsNudge(skin)}
+            phaseKey={`settings-${opt.id}`}
+            animated={visible}
+          />
+        );
+      }}
+      previewSize={SETTINGS_BUILDING_INNER_PREVIEW_PX}
     />
   );
 }

@@ -2,6 +2,11 @@ import {
   mapProjectileRadiusForGameplayScale,
   mapShotSpeedPerMsForGameplayScale,
 } from "./mapGameplayScale.js";
+import {
+  fortressProjectileLandOnArc,
+  shouldFortressProjectileIntercept,
+  type FortressFlightInterceptInput,
+} from "./fortressShield.js";
 import { flightArcBulge, waveSpawnStaggerRank } from "./flightSpread.js";
 import type { WeaponStats } from "./weaponStats.js";
 
@@ -44,16 +49,20 @@ export function buildFlightPlan(
   idPrefix: string,
   weapon: WeaponStats,
   /** Масштаб карты относительно эталона (Азия); см. `mapGameplayScaleForMapId`. */
-  mapGameplayScale = 1
+  mapGameplayScale = 1,
+  fortress?: FortressFlightInterceptInput
 ): FlightPlan {
   const speedPerMs =
     mapShotSpeedPerMsForGameplayScale(mapGameplayScale) * weapon.speedMultiplier;
-  const dx = tx - sx;
-  const dy = ty - sy;
-  const len = Math.hypot(dx, dy) || 1;
-  const px = -dy / len;
-  const py = dx / len;
+  const fullDx = tx - sx;
+  const fullDy = ty - sy;
+  const fullLen = Math.hypot(fullDx, fullDy) || 1;
+  const px = -fullDy / fullLen;
+  const py = fullDx / fullLen;
   const ballD = mapProjectileRadiusForGameplayScale(mapGameplayScale) * 2;
+
+  const useFortressIntercept =
+    fortress != null && shouldFortressProjectileIntercept(fortress);
 
   const sims: FlightSimPlan[] = Array.from({ length: amount }, (_, i) => {
     const releaseWave = Math.floor(i / weapon.waveSize);
@@ -62,7 +71,21 @@ export function buildFlightPlan(
       weapon.waveSize,
       amount - releaseWave * weapon.waveSize
     );
-    const arc = flightArcBulge(len, ballD, weapon, kInWave, inWave, px, py);
+    const arc = flightArcBulge(fullLen, ballD, weapon, kInWave, inWave, px, py);
+    const land = useFortressIntercept
+      ? fortressProjectileLandOnArc({
+          ...fortress,
+          arcPerpX: arc.arcPerpX,
+          arcPerpY: arc.arcPerpY,
+          chordLength: fullLen,
+        })
+      : {
+          tx,
+          ty,
+          pathLength: fullLen,
+          intercepted: false,
+        };
+    const len = land.pathLength;
     const flightDuration = flightMsForDistance(len, speedPerMs);
     const spawnTime =
       baseTime +
@@ -77,8 +100,8 @@ export function buildFlightPlan(
       landDelayMs: Math.max(0, spawnTime + flightDuration - baseTime),
       sx,
       sy,
-      tx,
-      ty,
+      tx: land.tx,
+      ty: land.ty,
       arcPerpX: arc.arcPerpX,
       arcPerpY: arc.arcPerpY,
       power: weapon.power,

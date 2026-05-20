@@ -46,10 +46,17 @@ export const patchRoomBodySchema = z
   .object({
     hostUserId: roomUserId,
     randomMapOnStart: z.boolean().optional(),
+    mapId: z.string().min(1).max(64).optional(),
   })
-  .refine((v) => v.randomMapOnStart !== undefined, {
-    message: "Нужно передать randomMapOnStart",
-  });
+  .refine(
+    (v) => v.randomMapOnStart !== undefined || v.mapId !== undefined,
+    { message: "Нужно передать randomMapOnStart или mapId" }
+  );
+
+export const readyRoomBodySchema = z.object({
+  userId: roomUserId,
+  ready: z.boolean(),
+});
 
 export const joinRoomBodySchema = z.object({
   userId: roomUserId,
@@ -59,8 +66,11 @@ export const startRoomBodySchema = z.object({
   hostUserId: roomUserId,
 });
 
-export const restartRoomBodySchema = z.object({
+export const endRoundBodySchema = z.object({
   hostUserId: roomUserId,
   mapId: z.string().min(1).max(64).optional(),
   randomMapOnStart: z.boolean().optional(),
 });
+
+/** @deprecated используйте endRoundBodySchema */
+export const restartRoomBodySchema = endRoundBodySchema;

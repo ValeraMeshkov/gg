@@ -4,6 +4,7 @@ import type {
   SyncCell,
   WsServerMessage,
 } from "@/shared/wsProtocol";
+import type { RoomStatus } from "@/api/roomApi";
 import type { FighterSkinId, BuildingSkinId } from "@/game/appearance";
 import { updateServerClockOffset } from "@/game/serverClock";
 import { useUserId } from "./useUserId";
@@ -31,6 +32,19 @@ type UseRoomGameSyncOptions = {
     randomMapOnStart?: boolean
   ) => void;
   onRoomSettings?: (randomMapOnStart: boolean) => void;
+  onRoomStatus?: (msg: {
+    status: RoomStatus;
+    mapId: string;
+    randomMapOnStart: boolean;
+    hostUserId: string;
+    players: {
+      userId: string;
+      slotId?: string;
+      inMatch?: boolean;
+      ready?: boolean;
+      joinedDuringMatch?: boolean;
+    }[];
+  }) => void;
   onCells: (cells: SyncCell[]) => void;
   onAttackLaunch: (launch: AttackLaunchEvent) => void;
   onPendingCancelled: (fromIndex: number) => void;
@@ -87,6 +101,7 @@ export function useRoomGameSync({
   onChatMessage,
   onChatHistory,
   onRoomSettings,
+  onRoomStatus,
 }: UseRoomGameSyncOptions) {
   const userId = useUserId();
   const [connected, setConnected] = useState(false);
@@ -105,6 +120,7 @@ export function useRoomGameSync({
     onChatMessage,
     onChatHistory,
     onRoomSettings,
+    onRoomStatus,
   });
   handlersRef.current = {
     onSnapshot,
@@ -119,6 +135,7 @@ export function useRoomGameSync({
     onChatMessage,
     onChatHistory,
     onRoomSettings,
+    onRoomStatus,
   };
 
   useEffect(() => {
@@ -154,6 +171,14 @@ export function useRoomGameSync({
         );
       } else if (msg.type === "room_settings") {
         handlersRef.current.onRoomSettings?.(msg.randomMapOnStart);
+      } else if (msg.type === "room_status") {
+        handlersRef.current.onRoomStatus?.({
+          status: msg.status,
+          mapId: msg.mapId,
+          randomMapOnStart: msg.randomMapOnStart,
+          hostUserId: msg.hostUserId,
+          players: msg.players,
+        });
       } else if (msg.type === "appearances") {
         handlersRef.current.onAppearances(msg.players);
       } else if (msg.type === "appearance") {

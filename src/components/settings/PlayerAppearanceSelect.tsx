@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   DISPLAY_COLOR_OPTIONS,
   getBuildingSkinOptions,
@@ -11,7 +11,9 @@ import {
   BuildingGlbSettingsGrid,
   GLB_BUILDING_VISIBILITY_CHANGE_EVENT,
 } from "@/components/map/buildingGlb";
+import { BuildingSkinDescription } from "@/components/settings/BuildingSkinDescription";
 import { DEFAULT_BUILDING_SKIN } from "@/shared/skinIds";
+import { UI } from "@/constants/uiStrings";
 import styles from "./PlayerAppearanceSelect.module.scss";
 
 type PlayerAppearanceSelectProps = {
@@ -21,6 +23,10 @@ type PlayerAppearanceSelectProps = {
   onFighterChange: (skin: FighterSkinId) => void;
   onBuildingChange: (skin: BuildingSkinId) => void;
   onDisplayColorChange: (color: DisplayColorId) => void;
+  /** Одиночная игра в доке: черновик имени рядом с палитрой. */
+  draftDisplayName?: string;
+  onDraftDisplayNameChange?: (value: string) => void;
+  appearanceLocked?: boolean;
 };
 
 export function PlayerAppearanceSelect({
@@ -30,6 +36,9 @@ export function PlayerAppearanceSelect({
   onFighterChange,
   onBuildingChange,
   onDisplayColorChange,
+  draftDisplayName,
+  onDraftDisplayNameChange,
+  appearanceLocked = false,
 }: PlayerAppearanceSelectProps) {
   const [buildingOptions, setBuildingOptions] = useState(
     getBuildingSkinOptions
@@ -37,9 +46,9 @@ export function PlayerAppearanceSelect({
   const fighterOptions = getFighterSkinOptions();
   const [buildingsScrollRoot, setBuildingsScrollRoot] =
     useState<HTMLDivElement | null>(null);
-  const buildingsViewportRef: RefCallback<HTMLDivElement> = (node) => {
-    setBuildingsScrollRoot(node);
-  };
+  const buildingsViewportRef = useCallback((node: HTMLDivElement | null) => {
+    setBuildingsScrollRoot((prev) => (prev === node ? prev : node));
+  }, []);
 
   useEffect(() => {
     const sync = () => setBuildingOptions(getBuildingSkinOptions());
@@ -60,48 +69,97 @@ export function PlayerAppearanceSelect({
     if (fallback !== fighter) onFighterChange(fallback);
   }, [fighter, fighterOptions, onFighterChange]);
 
-  return (
-    <div className={styles.root}>
-      <div className={styles.rowBlock}>
-        <p className={styles.rowLabel}>Ваш цвет</p>
-        <div className={styles.cubeRow} role="radiogroup" aria-label="Ваш цвет">
-          {DISPLAY_COLOR_OPTIONS.map((opt) => {
-            const selected = displayColor === opt.id;
-            return (
-              <button
-                key={opt.id}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                className={`${styles.cube} ${styles.cubeColor}${
-                  selected ? ` ${styles.cubeSelected}` : ""
-                }`}
-                style={{ backgroundColor: opt.swatch }}
-                onClick={() => onDisplayColorChange(opt.id)}
-                aria-label={opt.label}
-              />
-            );
-          })}
-        </div>
-      </div>
+  const showNameWithColor = Boolean(onDraftDisplayNameChange);
 
-      <div className={styles.rowBlock}>
-        <p className={styles.rowLabel}>Здания</p>
-        <div
-          ref={buildingsViewportRef}
-          className={styles.buildingsViewport}
-          data-appearance-settings-viewport=""
-          role="presentation"
-        >
-          <BuildingGlbSettingsGrid
-            options={buildingOptions}
-            building={building}
-            onBuildingChange={onBuildingChange}
-            scrollRoot={buildingsScrollRoot}
+  const colorRadiogroupLabel = showNameWithColor
+    ? UI.soloDockColor
+    : UI.soloDockYourColor;
+
+  const colorRadiogroup = (
+    <div
+      className={styles.cubeRow}
+      role="radiogroup"
+      aria-label={colorRadiogroupLabel}
+    >
+      {DISPLAY_COLOR_OPTIONS.map((opt) => {
+        const selected = displayColor === opt.id;
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            className={`${styles.cube} ${styles.cubeColor}${
+              selected ? ` ${styles.cubeSelected}` : ""
+            }`}
+            style={{ backgroundColor: opt.swatch }}
+            disabled={appearanceLocked}
+            onClick={() => onDisplayColorChange(opt.id)}
+            aria-label={opt.label}
           />
-        </div>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <div
+      className={`${styles.root}${appearanceLocked ? ` ${styles.rootLocked}` : ""}`}
+    >
+      <div className={styles.rowBlock}>
+        {showNameWithColor ? (
+          <div className={styles.nameColorSplit}>
+            <p className={styles.rowLabel}>{UI.soloDockChooseName}</p>
+            <p className={styles.rowLabel}>{UI.soloDockColor}</p>
+            <div className={styles.nameInputGridCell}>
+              <input
+                type="text"
+                className={styles.nameInputInline}
+                value={draftDisplayName ?? ""}
+                maxLength={32}
+                autoComplete="nickname"
+                placeholder={UI.displayNamePlaceholder}
+                disabled={appearanceLocked}
+                onChange={(e) => onDraftDisplayNameChange?.(e.target.value)}
+                aria-label={UI.soloDockChooseName}
+              />
+            </div>
+            <div className={styles.colorSwatchesScroll}>{colorRadiogroup}</div>
+          </div>
+        ) : (
+          <>
+            <p className={styles.rowLabel}>{UI.soloDockYourColor}</p>
+            <div className={styles.colorRowOnly}>{colorRadiogroup}</div>
+          </>
+        )}
       </div>
 
+      <div className={`${styles.rowBlock} ${styles.buildingPickerBlock}`}>
+        <p className={styles.rowLabel}>Здания</p>
+        <div className={styles.buildingPickerRow}>
+          <div
+            ref={buildingsViewportRef}
+            className={styles.buildingsViewport}
+            data-appearance-settings-viewport=""
+            data-scroll-axis="x"
+            role="presentation"
+          >
+            <BuildingGlbSettingsGrid
+              options={buildingOptions}
+              building={building}
+              onBuildingChange={onBuildingChange}
+              scrollRoot={buildingsScrollRoot}
+            />
+          </div>
+
+          <div className={styles.buildingDescPane}>
+            <BuildingSkinDescription
+              building={building}
+              className={styles.buildingDescriptionEmbed}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

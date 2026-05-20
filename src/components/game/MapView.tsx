@@ -46,6 +46,9 @@ export type MapViewProps = {
   randomMapOnStart?: boolean;
   onRandomMapOnStartChange?: (value: boolean) => void;
   randomMapLabel?: string;
+  hideSideMapPicker?: boolean;
+  hideSideHotkeys?: boolean;
+  hideSideSoloControls?: boolean;
 };
 
 export const MapView = memo(function MapView(props: MapViewProps) {

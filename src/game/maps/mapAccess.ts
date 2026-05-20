@@ -17,8 +17,12 @@ export function cellIndex(_map: GameMap, pos: CellPos): number {
   return pos.x;
 }
 
-export function cellPosFromIndex(_map: GameMap, index: number): CellPos {
+export function territoryCellPos(index: number): CellPos {
   return { x: index, y: 0 };
+}
+
+export function cellPosFromIndex(_map: GameMap, index: number): CellPos {
+  return territoryCellPos(index);
 }
 
 export function getCell(map: GameMap, index: number) {

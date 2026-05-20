@@ -3,6 +3,10 @@ export type SyncCell = {
   units?: number;
   /** Unix ms — пауза пассивного роста после обстрела. */
   growthPausedUntil?: number;
+  /** Щит крепости (0–20). */
+  fortressShield?: number;
+  /** Unix ms — пауза восстановления щита после попадания. */
+  fortressShieldRegenPausedUntil?: number;
 };
 
 export type SyncAppearance = {
@@ -28,7 +32,24 @@ export type WsClientMessage =
     }
   | { type: "chat"; text: string };
 
+export type RoomStatusPlayer = {
+  userId: string;
+  slotId?: string;
+  inMatch?: boolean;
+  ready?: boolean;
+  joinedDuringMatch?: boolean;
+};
+
 export type WsServerMessage =
+  | {
+      type: "room_status";
+      status: "lobby" | "matchmaking" | "playing";
+      mapId: string;
+      randomMapOnStart: boolean;
+      hostUserId: string;
+      players: RoomStatusPlayer[];
+      serverTime: number;
+    }
   | {
       type: "snapshot";
       mapId: string;

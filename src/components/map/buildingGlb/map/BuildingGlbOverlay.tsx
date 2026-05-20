@@ -1,4 +1,5 @@
 import {
+  memo,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -11,7 +12,9 @@ import { useSettingsOpen } from "@/context/GameShellContext";
 import type { TerritoryGameMap } from "@/game/maps";
 import styles from "@/components/map/styles/MapView.module.scss";
 import { collectGlbBuildings } from "./collectGlbBuildings";
+import { glbFortressShieldKey } from "./glbFortressShieldKey";
 import { glbSpotsStableKey } from "./glbSpotsStableKey";
+import { FortressShieldOverlay } from "./FortressShieldOverlay";
 import { MapGlbPins } from "./MapGlbPins";
 
 type OverlaySize = { w: number; h: number };
@@ -39,7 +42,7 @@ function measureOverlay(
   return { w, h };
 }
 
-export function BuildingGlbOverlay({
+function BuildingGlbOverlayInner({
   map,
   localPlayerId,
   localDisplayColor,
@@ -71,8 +74,13 @@ export function BuildingGlbOverlay({
         playerAppearances,
         hiddenOpts
       ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- только spotsStableKey, не каждый тик units
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- только spotsStableKey
     [spotsStableKey]
+  );
+
+  const shieldKey = useMemo(
+    () => glbFortressShieldKey(map, spots),
+    [map, spots]
   );
 
   useLayoutEffect(() => {
@@ -124,6 +132,26 @@ export function BuildingGlbOverlay({
     sizeRef.current ??
     measureOverlay(svgRef.current, hostRef.current);
 
+  if (!renderSize) {
+    return (
+      <div
+        ref={hostRef}
+        className={styles.projectilesCanvasHost}
+        style={{
+          zIndex: 2,
+          overflow: "visible",
+          pointerEvents: "none",
+        }}
+      />
+    );
+  }
+
+  const layoutProps = {
+    width: renderSize.w,
+    height: renderSize.h,
+    viewBox: map.viewBox,
+  };
+
   return (
     <div
       ref={hostRef}
@@ -134,14 +162,18 @@ export function BuildingGlbOverlay({
         pointerEvents: "none",
       }}
     >
-      {renderSize ? (
-        <MapGlbPins
-          spots={spots}
-          width={renderSize.w}
-          height={renderSize.h}
-          viewBox={map.viewBox}
-        />
-      ) : null}
+      <FortressShieldOverlay
+        map={map}
+        spots={spots}
+        shieldKey={shieldKey}
+        localPlayerId={localPlayerId}
+        localDisplayColor={localDisplayColor}
+        playerAppearances={playerAppearances}
+        {...layoutProps}
+      />
+      <MapGlbPins spots={spots} {...layoutProps} />
     </div>
   );
 }
+
+export const BuildingGlbOverlay = memo(BuildingGlbOverlayInner);

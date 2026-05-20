@@ -108,7 +108,12 @@ function spotStaticEqual(
   }
   const c1 = getCell(p.map, p.index);
   const c2 = getCell(n.map, n.index);
-  if (c1.ownerId !== c2.ownerId || c1.units !== c2.units) {
+  if (
+    c1.ownerId !== c2.ownerId ||
+    c1.units !== c2.units ||
+    c1.fortressShield !== c2.fortressShield ||
+    c1.fortressShieldRegenPausedUntil !== c2.fortressShieldRegenPausedUntil
+  ) {
     return false;
   }
   if (p.hiddenOpts?.syncMapLayout !== n.hiddenOpts?.syncMapLayout) return false;
@@ -390,6 +395,8 @@ export type TerritorySpotInteractiveProps = {
   hiddenOpts?: { syncMapLayout?: boolean };
   localPlayerId: string;
   hoveredOwnIndex: number | null;
+  /** Своя точка под курсором во время перетаскивания (как hoverCell у прицела). */
+  dragHoverOwnIndex: number | null;
   inMulti: boolean;
   svgRef: MutableRefObject<SVGSVGElement | null>;
   setHoveredOwnIndex: (v: number | null) => void;
@@ -404,6 +411,7 @@ function spotInteractiveEqual(
     p.index !== n.index ||
     p.localPlayerId !== n.localPlayerId ||
     p.hoveredOwnIndex !== n.hoveredOwnIndex ||
+    p.dragHoverOwnIndex !== n.dragHoverOwnIndex ||
     p.inMulti !== n.inMulti ||
     p.map.id !== n.map.id
   ) {
@@ -423,13 +431,13 @@ export const TerritorySpotInteractive = memo(function TerritorySpotInteractive({
   index,
   hiddenOpts,
   localPlayerId,
-  hoveredOwnIndex: _hoveredOwnIndex,
+  hoveredOwnIndex,
+  dragHoverOwnIndex,
   inMulti,
   svgRef,
   setHoveredOwnIndex,
   setDrag,
 }: TerritorySpotInteractiveProps): ReactElement | null {
-  void _hoveredOwnIndex;
   const spot = useMapSpotMetrics(map);
   if (isTerritoryIndexHidden(map, index, hiddenOpts)) return null;
 
@@ -440,18 +448,20 @@ export const TerritorySpotInteractive = memo(function TerritorySpotInteractive({
   const canDragFrom = owner === localPlayerId && units > 0;
   if (!canDragFrom) return null;
 
-  const ownHighlighted = inMulti;
+  const isHoveredOwn =
+    hoveredOwnIndex === index || dragHoverOwnIndex === index;
+  const showOwnRing = inMulti || isHoveredOwn;
   const ownRingR = spot.spotRingRadius;
   const ownHitR = spot.hitRadius;
   const dotCenter = mapDotCenter(map, pos);
 
   return (
     <>
-      {ownHighlighted ? (
+      {showOwnRing ? (
         <circle
           className={`${styles.ownDotRing}${
             inMulti ? ` ${styles.ownDotRingSelected}` : ""
-          }`}
+          }${isHoveredOwn ? ` ${styles.ownDotRingHovered}` : ""}`}
           cx={dotCenter.x}
           cy={dotCenter.y}
           r={ownRingR}
@@ -486,7 +496,8 @@ export const TerritorySpotInteractive = memo(function TerritorySpotInteractive({
                   map,
                   aim.x,
                   aim.y,
-                  hiddenOpts
+                  hiddenOpts,
+                  ownHitR
                 ),
                 aimEnd: aim,
               };
@@ -497,7 +508,8 @@ export const TerritorySpotInteractive = memo(function TerritorySpotInteractive({
                 map,
                 aim.x,
                 aim.y,
-                hiddenOpts
+                hiddenOpts,
+                ownHitR
               ),
               aimEnd: aim,
             };

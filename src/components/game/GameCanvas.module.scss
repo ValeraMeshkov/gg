@@ -1,3 +1,5 @@
+@use "@/styles/perfBackdrop" as perf;
+
 .root {
   position: relative;
   display: flex;
@@ -53,14 +55,6 @@
   font-weight: 700;
   line-height: 1.25;
   color: #b42318;
-}
-
-.mapToastTitleDraw {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
-  line-height: 1.25;
-  color: #1a2740;
 }
 
 .mapToastHint {
@@ -165,8 +159,39 @@
   pointer-events: auto;
   touch-action: none;
   cursor: default;
-  background: rgba(229, 236, 246, 0.34);
-  backdrop-filter: blur(1px);
+  background: rgba(229, 236, 246, 0.5);
+  @include perf.perf-backdrop(1px);
+}
+
+.soloPreGameOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: all;
+  touch-action: none;
+  background: rgba(15, 23, 42, 0.58);
+  @include perf.perf-backdrop(8px);
+}
+
+.soloPreGameTitle {
+  margin: 0;
+  font-size: clamp(1.5rem, 4vw, 2.25rem);
+  font-weight: 700;
+  color: #fff;
+  text-align: center;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
+}
+
+.soloPreGameCount {
+  margin: 0;
+  font-size: clamp(4rem, 18vw, 9rem);
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 4px 28px rgba(0, 0, 0, 0.55);
 }
 
 .mapSurface {

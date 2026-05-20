@@ -1,4 +1,3 @@
-import { CELL } from "@/shared/constants";
 import { pickDistinctIndices } from "@/shared/pickDistinct";
 import { normalizeOfflineBotCount } from "@/shared/offlineBotCount";
 import {
@@ -6,8 +5,22 @@ import {
   offlineBotStartTerritoriesPerBot,
   offlineHumanStartTerritories,
 } from "@/shared/offlineBotDifficulty";
+import { initFortressCellIfOwner } from "@/shared/fortressShield";
+import {
+  hasSkeletonSpawn,
+  playerStartForBuilding,
+} from "@/shared/buildingMechanics";
+import { grantExtraStartTerritories } from "@/shared/extraStartTerritories";
+import { spawnSecondSkeletonAtStart } from "@/shared/skeletonSpawn";
+import {
+  rollOfflineBotRoster,
+  type OfflineBotRosterEntry,
+} from "@/shared/offlineBotRoster";
+import type { BuildingSkinId } from "@/shared/skinIds";
+import type { DisplayColorId } from "@/shared/displayColors";
 import { isTerritoryIndexHidden } from "@/game/maps/world/mapDotLayout";
 import type { GameMap } from "@/game/maps/types";
+import { playerScoresFromCells } from "@/game/scoring/playerScores";
 import { MOCK_PLAYERS } from "./user";
 
 export type MockPlayerSlot = {
@@ -27,23 +40,13 @@ function cloneMapWithCells(source: GameMap): GameMap {
   };
 }
 
-function playableCellIndices(map: GameMap): number[] {
+export function playableCellIndices(map: GameMap): number[] {
   const indices: number[] = [];
   for (let i = 0; i < map.cells.length; i++) {
     if (isTerritoryIndexHidden(map, i)) continue;
     indices.push(i);
   }
   return indices;
-}
-
-function scoreTotalsFromMap(map: GameMap): Map<string, number> {
-  const totals = new Map<string, number>();
-  for (const cell of map.cells) {
-    const id = cell.ownerId;
-    if (!id) continue;
-    totals.set(id, (totals.get(id) ?? 0) + (cell.units ?? 0));
-  }
-  return totals;
 }
 
 /**
@@ -53,7 +56,10 @@ function scoreTotalsFromMap(map: GameMap): Map<string, number> {
 export function createMockSession(
   baseMap: GameMap,
   botCount = 2,
-  difficulty?: number
+  difficulty?: number,
+  humanBuilding?: BuildingSkinId,
+  offlineSessionSeed?: string,
+  localDisplayColor: DisplayColorId = "blue"
 ): MockGameSession {
   const bots = normalizeOfflineBotCount(botCount);
   const d = normalizeOfflineBotDifficulty(difficulty);
@@ -71,29 +77,81 @@ export function createMockSession(
   const totalStarts = perHuman + bots * perBot;
   const indices = pickDistinctIndices(playable, totalStarts);
 
+  const botIds = MOCK_PLAYERS.slice(1, 1 + bots).map((u) => u.id);
+  const botRoster: Record<string, OfflineBotRosterEntry> =
+    offlineSessionSeed != null
+      ? rollOfflineBotRoster(
+          offlineSessionSeed,
+          botIds,
+          localDisplayColor
+        )
+      : {};
+
   const human = MOCK_PLAYERS[0]!;
   for (let t = 0; t < perHuman; t++) {
-    map.cells[indices[t]!] = {
-      ...map.cells[indices[t]!],
-      ownerId: human.id,
-      units: CELL.playerStart,
-    };
+    map.cells[indices[t]!] = initFortressCellIfOwner(
+      {
+        ...map.cells[indices[t]!],
+        ownerId: human.id,
+        units: playerStartForBuilding(humanBuilding),
+      },
+      humanBuilding
+    );
+  }
+
+  if (hasSkeletonSpawn(humanBuilding)) {
+    const withSecond = spawnSecondSkeletonAtStart(
+      map.cells,
+      playable,
+      human.id,
+      humanBuilding
+    );
+    if (withSecond) map.cells = withSecond;
+  }
+
+  const extraHuman = grantExtraStartTerritories(
+    map.cells,
+    playable,
+    human.id,
+    humanBuilding
+  );
+  if (extraHuman) {
+    map.cells = extraHuman.map((cell) =>
+      initFortressCellIfOwner(cell, humanBuilding)
+    );
   }
 
   let cursor = perHuman;
   for (let b = 0; b < bots; b++) {
     const user = MOCK_PLAYERS[b + 1]!;
+    const botBuilding =
+      botRoster[user.id]?.building ??
+      ("pixellabs3822" satisfies BuildingSkinId);
     for (let t = 0; t < perBot; t++) {
-      map.cells[indices[cursor]!] = {
-        ...map.cells[indices[cursor]!],
-        ownerId: user.id,
-        units: CELL.playerStart,
-      };
+      map.cells[indices[cursor]!] = initFortressCellIfOwner(
+        {
+          ...map.cells[indices[cursor]!],
+          ownerId: user.id,
+          units: playerStartForBuilding(botBuilding),
+        },
+        botBuilding
+      );
       cursor += 1;
+    }
+    const extraBot = grantExtraStartTerritories(
+      map.cells,
+      playable,
+      user.id,
+      botBuilding
+    );
+    if (extraBot) {
+      map.cells = extraBot.map((cell) =>
+        initFortressCellIfOwner(cell, botBuilding)
+      );
     }
   }
 
-  const totals = scoreTotalsFromMap(map);
+  const totals = playerScoresFromCells(map.cells);
   const playerCount = 1 + bots;
 
   return {

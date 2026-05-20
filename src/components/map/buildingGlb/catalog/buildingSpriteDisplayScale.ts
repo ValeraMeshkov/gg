@@ -65,3 +65,18 @@ export function getSpinSheetFlightRotationRad(
     DEFAULT_FLIGHT_FORWARD_OFFSET_DEG;
   return flightAngle + (offsetDeg * Math.PI) / 180;
 }
+
+/** Подгонка центра спрайта в квадрате настроек (px). */
+export const BUILDING_SPRITE_SETTINGS_NUDGE_PX: Partial<
+  Record<GlbBuildingSkinId, { x: number; y: number }>
+> = {
+  blendertimerHeart23: { x: -5, y: 0 },
+  pixellabsSkeletonArcher4240: { x: 5, y: 0 },
+  pixellabsZombie: { x: 0, y: 2 },
+};
+
+export function getBuildingSpriteSettingsNudge(
+  skin: GlbBuildingSkinId
+): { x: number; y: number } | undefined {
+  return BUILDING_SPRITE_SETTINGS_NUDGE_PX[skin];
+}

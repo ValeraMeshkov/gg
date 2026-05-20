@@ -5,6 +5,12 @@ export type RoomPlayer = {
   userId: string;
   joinedAt: string;
   slotId?: string;
+  /** Участник текущей партии; false — очередь ожидания. */
+  inMatch?: boolean;
+  /** Готов к следующей партии. */
+  ready?: boolean;
+  /** Подключился во время активной партии. */
+  joinedDuringMatch?: boolean;
 };
 
 export type RoomGameSnapshot = {
@@ -12,12 +18,14 @@ export type RoomGameSnapshot = {
   cells: { ownerId?: string; units?: number }[];
 };
 
+export type RoomStatus = "lobby" | "matchmaking" | "playing";
+
 export type Room = {
   code: string;
   hostUserId: string;
   mapId: string;
   randomMapOnStart: boolean;
-  status: "lobby" | "playing";
+  status: RoomStatus;
   players: RoomPlayer[];
   maxPlayers: number;
   createdAt: string;
@@ -51,16 +59,48 @@ export async function createRoom(
   );
 }
 
+export type PatchRoomSettingsBody = {
+  randomMapOnStart?: boolean;
+  mapId?: string;
+};
+
 export async function patchRoomSettings(
   code: string,
   hostUserId: string,
-  randomMapOnStart: boolean
+  patch: PatchRoomSettingsBody
 ): Promise<Room> {
   return parseJson(
     await apiFetch(`/api/rooms/${encodeURIComponent(code)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ hostUserId, randomMapOnStart }),
+      body: JSON.stringify({ hostUserId, ...patch }),
+    })
+  );
+}
+
+export async function openMatchmaking(
+  code: string,
+  hostUserId: string
+): Promise<Room> {
+  return parseJson(
+    await apiFetch(`/api/rooms/${encodeURIComponent(code)}/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hostUserId }),
+    })
+  );
+}
+
+export async function setRoomReady(
+  code: string,
+  userId: string,
+  ready: boolean
+): Promise<Room> {
+  return parseJson(
+    await apiFetch(`/api/rooms/${encodeURIComponent(code)}/ready`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, ready }),
     })
   );
 }
@@ -91,18 +131,19 @@ export async function startRoom(code: string, hostUserId: string): Promise<Room>
   );
 }
 
-export type RestartRoomOptions = {
+export type EndRoundOptions = {
   mapId?: string;
   randomMapOnStart?: boolean;
 };
 
-export async function restartRoom(
+/** Завершить партию и перейти в подбор (без старта карты). */
+export async function endRoundToMatchmaking(
   code: string,
   hostUserId: string,
-  options?: RestartRoomOptions
+  options?: EndRoundOptions
 ): Promise<Room> {
   return parseJson(
-    await apiFetch(`/api/rooms/${encodeURIComponent(code)}/restart`, {
+    await apiFetch(`/api/rooms/${encodeURIComponent(code)}/end-round`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -115,3 +156,7 @@ export async function restartRoom(
     })
   );
 }
+
+/** @deprecated используйте endRoundToMatchmaking */
+export const restartRoom = endRoundToMatchmaking;
+export type RestartRoomOptions = EndRoundOptions;

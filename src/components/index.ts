@@ -2,8 +2,6 @@
 
 export { AppGameChrome } from "./game/AppGameChrome";
 export { GameCanvas } from "./game/GameCanvas";
-export { GameSettingsPanel } from "./game/GameSettingsPanel";
-export type { GameSettingsPanelProps } from "./game/GameSettingsPanel";
 export { MapView } from "./game/MapView";
 export { TerritoryMapView } from "./game/TerritoryMapView";
 export type { MapCell, MapViewProps } from "./game/MapView";

@@ -1,4 +1,4 @@
-import { useState, type ReactElement, type ReactNode } from "react";
+import { useCallback, useState, type ReactElement, type ReactNode } from "react";
 import { useViewportMount } from "@/components/map/buildingGlb/webgl/useViewportMount";
 import { SETTINGS_BUILDING_PREVIEW_PX } from "@/components/map/buildingGlb/constants/isoConstants";
 import type { SkinOption } from "@/game/appearance/catalog";
@@ -22,20 +22,37 @@ export type AppearanceSettingsGridProps<T extends string> = {
   previewSize?: number;
 };
 
-/** Центрирует карточку в горизонтальном скролле настроек. */
+/** Центрирует выбранный скин в области прокрутки (горизонтально или вертикально). */
 export function centerAppearanceInSettingsViewport(
   root: HTMLElement,
   el: HTMLElement
 ): boolean {
-  const max = root.scrollWidth - root.clientWidth;
-  if (max <= 0) return false;
+  const horizontalOnly = root.dataset.scrollAxis === "x";
+  if (horizontalOnly) {
+    root.scrollTop = 0;
+  }
 
-  const rootRect = root.getBoundingClientRect();
-  const elRect = el.getBoundingClientRect();
-  const itemLeft = elRect.left - rootRect.left + root.scrollLeft;
-  const target = itemLeft + elRect.width / 2 - root.clientWidth / 2;
-  root.scrollLeft = Math.max(0, Math.min(target, max));
-  return true;
+  const maxX = root.scrollWidth - root.clientWidth;
+  if (maxX > 0) {
+    const rootRect = root.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const itemLeft = elRect.left - rootRect.left + root.scrollLeft;
+    const target = itemLeft + elRect.width / 2 - root.clientWidth / 2;
+    root.scrollLeft = Math.max(0, Math.min(target, maxX));
+    return true;
+  }
+  if (horizontalOnly) return true;
+
+  const maxY = root.scrollHeight - root.clientHeight;
+  if (maxY > 0) {
+    const rootRect = root.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const itemTop = elRect.top - rootRect.top + root.scrollTop;
+    const target = itemTop + elRect.height / 2 - root.clientHeight / 2;
+    root.scrollTop = Math.max(0, Math.min(target, maxY));
+    return true;
+  }
+  return false;
 }
 
 /** @deprecated Используйте centerAppearanceInSettingsViewport */
@@ -59,6 +76,9 @@ function AppearanceSettingsCell<T extends string>({
   renderPreview: (ctx: AppearanceSettingsPreviewProps<T>) => ReactNode;
 }): ReactElement {
   const [cellEl, setCellEl] = useState<HTMLDivElement | null>(null);
+  const cellRef = useCallback((node: HTMLDivElement | null) => {
+    setCellEl((prev) => (prev === node ? prev : node));
+  }, []);
   const visible = useViewportMount(cellEl, {
     root: scrollRoot,
     rootMargin: "32px",
@@ -68,7 +88,7 @@ function AppearanceSettingsCell<T extends string>({
 
   return (
     <div
-      ref={setCellEl}
+      ref={cellRef}
       className={styles.buildingGlbSettingsItem}
       {...(selected ? { "data-appearance-settings-selected": "" } : {})}
     >
@@ -84,10 +104,7 @@ function AppearanceSettingsCell<T extends string>({
         title={opt.label}
       >
         {showPreview ? (
-          <div
-            className="buildingGlbSettingsPreview"
-            style={{ width: previewSize, height: previewSize }}
-          >
+          <div className={styles.buildingGlbSettingsPreview}>
             {renderPreview({ opt, visible, size: previewSize })}
           </div>
         ) : (
@@ -98,7 +115,7 @@ function AppearanceSettingsCell<T extends string>({
   );
 }
 
-/** Горизонтальная сетка скинов в настройках (здания, бойцы). */
+/** Сетка скинов в окне настроек внешности (здания, бойцы и т.д.). */
 export function AppearanceSettingsGrid<T extends string>({
   options,
   selected,

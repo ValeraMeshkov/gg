@@ -49,7 +49,16 @@ export function drawProjectileSpinSheetOnCanvas(
   const url = getBuildingSpinSheetUrl(buildingSkin);
   if (!url) return false;
   const img = ensureSheetImage(url);
-  if (!img) return false;
+  if (!img) {
+    ctx.save();
+    ctx.translate(mapX, mapY);
+    ctx.beginPath();
+    ctx.arc(0, 0, projR * 0.45, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(30, 45, 70, 0.35)";
+    ctx.fill();
+    ctx.restore();
+    return true;
+  }
 
   const spinSpeed = weaponStatsById(attackAnimation).spinSpeed;
   const frame =

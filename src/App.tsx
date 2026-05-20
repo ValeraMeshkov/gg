@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { createRoom, isRoomApiEnabled } from "./api/roomApi";
+import { gameHref } from "./appUrl";
 import {
   AppGameChrome,
   GameCanvas,
@@ -8,7 +9,7 @@ import {
   RoomLobby,
 } from "./components";
 import { GameShellProvider } from "./context/GameShellContext";
-import { readAppRoute, writeAppRoute, gameHref, type AppRoute } from "./appUrl";
+import { readAppRoute, writeAppRoute, type AppRoute } from "./appUrl";
 import { pickRandomCatalogMapId } from "./game/maps";
 import {
   readOfflineBotCount,
@@ -22,6 +23,7 @@ import {
   readRandomMapOnStart,
   writeRandomMapOnStart,
 } from "./lib/randomMapOnStart";
+import { writeSelectedMapId } from "./lib/selectedMapStorage";
 import { useAuth } from "./context/AuthContext";
 import { useSyncedUserPreferences } from "./hooks/useSyncedUserPreferences";
 import { useUserId } from "./hooks/useUserId";
@@ -35,7 +37,9 @@ function isSoloPlayRoute(r: AppRoute): boolean {
 function initialRoute(): AppRoute {
   const base = readAppRoute();
   if (isSoloPlayRoute(base) && readRandomMapOnStart()) {
-    return { ...base, mapId: pickRandomCatalogMapId(base.mapId) };
+    const mapId = pickRandomCatalogMapId(base.mapId);
+    writeSelectedMapId(mapId);
+    return { ...base, mapId };
   }
   return base;
 }
@@ -79,6 +83,7 @@ function App() {
 
   const setMapId = useCallback(
     (mapId: string) => {
+      writeSelectedMapId(mapId);
       const next = { ...route, mapId };
       setRoute(next);
       writeAppRoute(next);
@@ -104,6 +109,7 @@ function App() {
         return prev;
       }
       const mapId = pickRandomCatalogMapId(prev.mapId);
+      writeSelectedMapId(mapId);
       const next = { ...prev, mapId };
       writeAppRoute(next);
       return next;
@@ -213,15 +219,13 @@ function App() {
         <main className={styles.main}>
           <GameCanvas
             key={
-              route.roomCode
-                ? `room-${route.roomCode}`
-                : `solo-${route.mapId}-${soloSessionKey}`
+              route.roomCode ? `room-${route.roomCode}` : "solo-canvas"
             }
             mapId={route.mapId}
             roomCode={route.roomCode}
             onMapIdChange={setMapId}
             mapSelectHint={
-              route.roomCode ? UI.mapForNewRound : undefined
+              route.roomCode ? UI.mapBetweenRoundsHint : undefined
             }
             randomMapOnStart={
               route.roomCode ? undefined : randomMapOnStart

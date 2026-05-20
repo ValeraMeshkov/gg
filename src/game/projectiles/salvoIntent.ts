@@ -3,3 +3,5 @@ export type SalvoIntent = {
   toI: number;
   attackerId: string;
 };
+
+/** Следующий залп — когда текущий полностью вылетел с клетки, не дожидаясь приземления. */

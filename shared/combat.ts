@@ -1,64 +1,36 @@
-import { CELL } from "./constants.js";
-import {
-  addUnitsToFriendlyCell,
-  clampCellUnits,
-  damageOwnedCellUnits,
-  readCellUnits,
-} from "./cellUnits.js";
+import type { FortressHitContext } from "./fortressShield.js";
+import { applyLandHitWithFortressShield } from "./fortressShield.js";
+import { applyLandHitUnitsOnly, type CombatCell } from "./landHit.js";
 
-/** Минимальные поля клетки для расчёта попадания снаряда. */
-export type CombatCell = {
-  ownerId?: string;
-  units?: number;
-  /**
-   * Unix ms: до этого момента клетка не получает пассивный +1.
-   * Ставится при обстреле, при вылете с клетки и при попадании по ней.
-   */
-  growthPausedUntil?: number;
-};
-
-/** Пауза пассивного роста; повторный вызов сбрасывает таймер (ещё 1 с). */
-export function pauseCellGrowth<T extends CombatCell>(
-  cell: T,
-  nowMs: number = Date.now()
-): T {
-  return {
-    ...cell,
-    growthPausedUntil: nowMs + CELL.growthPauseMs,
-  };
-}
+export type { CombatCell } from "./landHit.js";
+export { pauseCellGrowth, applyLandHitUnitsOnly } from "./landHit.js";
 
 /**
- * Попадание снаряда по клетке силой `power` (текущая сила патрона в полёте).
- * Своя / союзная (+power), нейтраль/враг (−power) — на цели пауза роста.
+ * Попадание снаряда по клетке (с опциональным щитом крепости).
  */
 export function applyLandHitWithPower<T extends CombatCell>(
   cell: T,
   attackerId: string,
   power: number,
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
+  fortress?: FortressHitContext
 ): T {
-  const hitPower = Math.floor(Number(power));
-  if (!Number.isFinite(hitPower) || hitPower <= 0) return cell;
-
-  if (cell.ownerId === attackerId) {
-    const current = readCellUnits(cell);
-    const next = addUnitsToFriendlyCell(current, hitPower);
-    if (next === current) return pauseCellGrowth(cell, nowMs);
-    return pauseCellGrowth({ ...cell, units: next }, nowMs);
+  if (fortress?.defenderBuilding || fortress?.attackerBuilding) {
+    return applyLandHitWithFortressShield(
+      cell,
+      attackerId,
+      power,
+      fortress,
+      nowMs
+    );
   }
-
-  const current = readCellUnits(cell);
-  const remaining = damageOwnedCellUnits(current, hitPower);
-  const next: T =
-    remaining <= 0
-      ? {
-          ...cell,
-          ownerId: attackerId,
-          units: clampCellUnits(-remaining, attackerId),
-        }
-      : { ...cell, units: remaining };
-  return pauseCellGrowth(next, nowMs);
+  return applyLandHitUnitsOnly(
+    cell,
+    attackerId,
+    power,
+    nowMs,
+    fortress?.attackerBuilding
+  );
 }
 
 /** Одно очко урона (сила = 1). */

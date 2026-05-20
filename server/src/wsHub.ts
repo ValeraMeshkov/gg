@@ -9,6 +9,7 @@ import {
   processAttack,
   setProjectileCollisionHandler,
 } from "./roomAttack.js";
+import { canPlayerPatchAppearance } from "./roomAccess.js";
 import { getRoom, type Room } from "./rooms.js";
 import { slotIndexFromId } from "@/shared/playerSlots.js";
 import {
@@ -29,7 +30,8 @@ const slotDisplayColorsByRoom = new Map<string, Map<string, DisplayColorId>>();
 type ClientCtx = {
   roomCode: string;
   userId: string;
-  slotId: string;
+  /** null — очередь ожидания (только просмотр). */
+  slotId: string | null;
 };
 
 const roomClients = new Map<string, Set<WebSocket>>();
@@ -102,7 +104,8 @@ function appearancesForRoom(room: Room): SyncAppearance[] {
   const colors = slotColorsForRoom(room.code);
   const assigned = new Map<string, DisplayColorId>();
   const players = room.players.filter(
-    (p): p is typeof p & { slotId: string } => Boolean(p.slotId)
+    (p): p is typeof p & { slotId: string } =>
+      Boolean(p.slotId) && p.inMatch !== false
   );
 
   return sortSyncAppearancesBySlot(players).map((p) => {
@@ -165,6 +168,28 @@ export function broadcastRoomSettings(
     type: "room_settings",
     randomMapOnStart,
   });
+}
+
+function roomStatusMessage(room: Room): WsServerMessage {
+  return {
+    type: "room_status",
+    status: room.status,
+    mapId: room.mapId,
+    randomMapOnStart: room.randomMapOnStart,
+    hostUserId: room.hostUserId,
+    players: room.players.map((p) => ({
+      userId: p.userId,
+      ...(p.slotId ? { slotId: p.slotId } : {}),
+      inMatch: p.inMatch !== false,
+      ready: p.ready === true,
+      joinedDuringMatch: p.joinedDuringMatch === true,
+    })),
+    serverTime: Date.now(),
+  };
+}
+
+export function broadcastRoomStatus(room: Room): void {
+  broadcastAll(room.code.toUpperCase(), roomStatusMessage(room));
 }
 
 function broadcastAll(roomCode: string, msg: WsServerMessage): void {
@@ -231,6 +256,30 @@ export function attachRoomWebSocket(server: HttpServer): void {
         return;
       }
 
+      if (!ctx.slotId) {
+        if (msg.type === "appearance") {
+          if (!canPlayerPatchAppearance(room, ctx.userId)) {
+            send(ws, {
+              type: "error",
+              message: "Нельзя менять внешность сейчас",
+            });
+            return;
+          }
+          const color = normalizeDisplayColor(msg.displayColor);
+          updateProfile(ctx.userId, {
+            fighter: msg.fighter,
+            building: msg.building,
+            ...(color ? { displayColor: color } : {}),
+            ...(typeof msg.displayName === "string"
+              ? { displayName: msg.displayName.trim().slice(0, 32) }
+              : {}),
+          });
+          return;
+        }
+        send(ws, { type: "error", message: "Вы в очереди ожидания" });
+        return;
+      }
+
       if (msg.type === "attack") {
         const profile = getProfile(ctx.userId);
         const fighter = profile?.fighter ?? DEFAULT_FIGHTER;
@@ -275,6 +324,13 @@ export function attachRoomWebSocket(server: HttpServer): void {
       }
 
       if (msg.type === "appearance") {
+        if (!canPlayerPatchAppearance(room, ctx.userId)) {
+          send(ws, {
+            type: "error",
+            message: "Нельзя менять внешность во время партии",
+          });
+          return;
+        }
         const colors = slotColorsForRoom(ctx.roomCode);
         const requested = normalizeDisplayColor(msg.displayColor);
         let displayColor: DisplayColorId | undefined;
@@ -341,18 +397,18 @@ function handleJoin(ws: WebSocket, roomCode: string, userId: string): void {
     ws.close();
     return;
   }
-  if (room.status !== "playing") {
-    send(ws, { type: "error", message: "Игра ещё не началась" });
-    ws.close();
-    return;
-  }
-
   const player = room.players.find((p) => p.userId === userId);
-  if (!player?.slotId) {
+  if (!player) {
     send(ws, { type: "error", message: "Вы не в этой комнате" });
     ws.close();
     return;
   }
+
+  const inMatch = player.inMatch !== false;
+  const slotId =
+    room.status === "playing" && inMatch && player.slotId
+      ? player.slotId
+      : null;
 
   const code = room.code.toUpperCase();
   let set = roomClients.get(code);
@@ -364,8 +420,13 @@ function handleJoin(ws: WebSocket, roomCode: string, userId: string): void {
   clientCtx.set(ws, {
     roomCode: code,
     userId,
-    slotId: player.slotId,
+    slotId,
   });
+
+  if (room.status === "lobby" || room.status === "matchmaking") {
+    send(ws, roomStatusMessage(room));
+    return;
+  }
 
   const game = ensureGameForRoom(room);
   if (!game) {

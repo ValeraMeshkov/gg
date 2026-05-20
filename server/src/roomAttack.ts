@@ -19,7 +19,10 @@ import { applySpawnFromSourceCell } from "@/shared/launchPower.js";
 import {
   projectileCountForLaunchBudget,
   reservedLaunchPower,
+  salvoBatchFullySpawned,
+  salvoHasUnspawnedSims,
   salvoProjectileCount,
+  sourceIndicesWithUnspawnedSims,
 } from "@/shared/launchPower.js";
 import { pickCollisionExplosionWeapon } from "@/shared/fighterExplosionFx.js";
 import {
@@ -31,6 +34,12 @@ import type { FighterSkinId } from "./skins.js";
 import type { SyncCell } from "@/shared/wsProtocol.js";
 import { enqueueRoomCellUpdate } from "./cellUpdateQueue.js";
 import { cloneCells, getGameForRoom, updateRoomCells, type RoomGameState } from "./gameState.js";
+import { spotRingRadiusForMap } from "@/shared/fortressShield.js";
+import {
+  collectFortressShieldZones,
+  projectileFortressShieldHitDuringInterval,
+} from "@/shared/fortressShieldPath.js";
+import { buildingForSlotInRoom } from "./roomBuilding.js";
 import { dotCenter } from "./mapDots.js";
 
 type PendingSim = {
@@ -106,6 +115,7 @@ export function setProjectileCollisionHandler(
 
 export function clearRoomCombat(roomCode: string): void {
   const key = roomCode.toUpperCase();
+  roomCellsHandlers.delete(key);
   const flights = pendingByRoom.get(key);
   if (flights) {
     for (const f of flights) clearFlightTimers(f);
@@ -155,6 +165,74 @@ function destroySim(flight: PendingFlight, idx: number): void {
     clearTimeout(landTimer);
     flight.simLandTimers.delete(idx);
   }
+}
+
+const roomCellsHandlers = new Map<string, (cells: SyncCell[]) => void>();
+
+function registerRoomCellsHandler(
+  key: string,
+  onCells: (cells: SyncCell[]) => void
+): void {
+  roomCellsHandlers.set(key, onCells);
+}
+
+function applyEarlyFortressShieldLand(
+  key: string,
+  flight: PendingFlight,
+  simIdx: number,
+  cellIndex: number,
+  hitX: number,
+  hitY: number,
+  destroyedBroadcast: ProjectileCollisionDestroy[],
+  explosionsBroadcast: ProjectileCollisionExplosion[]
+): void {
+  const slot = flight.sims[simIdx];
+  if (!slot || slot.landApplied || slot.destroyed) return;
+  if (isProjectileSpent(slot.power)) return;
+
+  const landTimer = flight.simLandTimers.get(simIdx);
+  if (landTimer != null) {
+    clearTimeout(landTimer);
+    flight.simLandTimers.delete(simIdx);
+  }
+  slot.landApplied = true;
+
+  const attackerId = flight.attackerId;
+  const onCells = roomCellsHandlers.get(key) ?? (() => {});
+
+  enqueueRoomCellUpdate(key, () => {
+    const g = getGameForRoom(key);
+    if (!g) return;
+    const live = pendingByRoom.get(key);
+    if (!live?.includes(flight)) return;
+    const liveSlot = flight.sims[simIdx];
+    if (!liveSlot || !liveSlot.landApplied) return;
+    if (isProjectileSpent(liveSlot.power)) return;
+
+    const cur = cloneCells(g.cells);
+    const target = targetCell(cur, cellIndex);
+    cur[cellIndex] = applyLandHitWithPower(
+      target,
+      attackerId,
+      liveSlot.power,
+      Date.now(),
+      {
+        defenderBuilding: buildingForSlotInRoom(key, target.ownerId),
+        attackerBuilding: buildingForSlotInRoom(key, attackerId),
+      }
+    );
+    commitCells(key, cur, onCells);
+  });
+
+  destroyedBroadcast.push({
+    attackId: flight.attackId,
+    simIndex: simIdx,
+  });
+  explosionsBroadcast.push({
+    x: hitX,
+    y: hitY,
+    weapon: slot.attackAnimation,
+  });
 }
 
 function roomHasActiveFlights(flights: PendingFlight[]): boolean {
@@ -291,6 +369,38 @@ function tickProjectileCollisions(key: string): void {
     }
   }
 
+  const g = getGameForRoom(key);
+  if (g) {
+    const spotRingRadius = spotRingRadiusForMap(g.mapId);
+    const shieldZones = collectFortressShieldZones(g.cells, {
+      cellCenter: (i) => dotCenter(g.mapId, i),
+      buildingForOwner: (ownerId) => buildingForSlotInRoom(key, ownerId),
+      spotRingRadius,
+    });
+    for (const a of active) {
+      const slot = a.flight.sims[a.idx]!;
+      if (slot.destroyed || slot.landApplied) continue;
+      const hit = projectileFortressShieldHitDuringInterval(
+        slot.path,
+        shieldZones,
+        a.flight.attackerId,
+        t0,
+        now
+      );
+      if (!hit) continue;
+      applyEarlyFortressShieldLand(
+        key,
+        a.flight,
+        a.idx,
+        hit.zone.cellIndex,
+        hit.x,
+        hit.y,
+        destroyedBroadcast,
+        explosionsBroadcast
+      );
+    }
+  }
+
   for (const a of active) {
     const slot = a.flight.sims[a.idx]!;
     if (slot.destroyed || slot.landApplied) continue;
@@ -302,7 +412,10 @@ function tickProjectileCollisions(key: string): void {
     });
   }
 
-  if (destroyedBroadcast.length > 0 && onProjectileCollision) {
+  if (
+    (destroyedBroadcast.length > 0 || explosionsBroadcast.length > 0) &&
+    onProjectileCollision
+  ) {
     onProjectileCollision(key, destroyedBroadcast, explosionsBroadcast);
   }
 
@@ -312,17 +425,8 @@ function tickProjectileCollisions(key: string): void {
 
 /** Клетки-источники с пулями в очереди (блокируют рост с 0). */
 export function sourcesWithPendingLaunch(roomCode: string): Set<number> {
-  const out = new Set<number>();
   const flights = pendingByRoom.get(roomCode.toUpperCase()) ?? [];
-  for (const f of flights) {
-    for (const s of f.sims) {
-      if (!s.spawnApplied && !s.landApplied) {
-        out.add(f.fromIndex);
-        break;
-      }
-    }
-  }
-  return out;
+  return new Set(sourceIndicesWithUnspawnedSims(flights));
 }
 
 function reservedPowerOnSource(
@@ -428,14 +532,14 @@ function tryContinueSalvo(
     return;
   }
   const flights = pendingByRoom.get(key) ?? [];
-  const stillActive = flights.some(
+  const stillSpawning = flights.some(
     (f) =>
       f.fromIndex === fromIndex &&
       f.toIndex === toIndex &&
       f.attackerId === attackerId &&
-      f.sims.some((s) => !s.landApplied)
+      salvoHasUnspawnedSims(f.sims)
   );
-  if (stillActive) return;
+  if (stillSpawning) return;
   const g = getGameForRoom(key);
   if (!g) return;
   launchSalvoBatchForSource(
@@ -485,6 +589,10 @@ function launchSalvoBatchForSource(
   const to = dotCenter(state.mapId, toIndex);
   if (!from || !to) return;
 
+  const targetCellAt = state.cells[toIndex];
+  const targetOwner = targetCellAt?.ownerId;
+  const spotRingRadius = spotRingRadiusForMap(state.mapId);
+
   const issuedAt = Date.now();
   const attackId = randomBytes(8).toString("hex");
   const plan = buildFlightPlan(
@@ -496,7 +604,18 @@ function launchSalvoBatchForSource(
     issuedAt,
     attackId,
     weapon,
-    mapGameplayScaleForMapId(state.mapId)
+    mapGameplayScaleForMapId(state.mapId),
+    {
+      sx: from.x,
+      sy: from.y,
+      cellCenterX: to.x,
+      cellCenterY: to.y,
+      attackerId,
+      targetOwnerId: targetOwner,
+      defenderBuilding: buildingForSlotInRoom(key, targetOwner),
+      fortressShield: targetCellAt?.fortressShield,
+      spotRingRadius,
+    }
   );
 
   const pending: PendingFlight = {
@@ -572,6 +691,17 @@ function launchSalvoBatchForSource(
           Date.now()
         );
         commitCells(key, cur, onCells);
+        if (salvoBatchFullySpawned(pending.sims)) {
+          tryContinueSalvo(
+            key,
+            fromIndex,
+            toIndex,
+            attackerId,
+            onLaunch,
+            onCells,
+            onPendingTailStrip
+          );
+        }
       });
     }, delay);
     pending.waveSpawnTimers.set(spawnAt, spawnTimer);
@@ -591,29 +721,20 @@ function launchSalvoBatchForSource(
         }
         slot.landApplied = true;
         const cur = cloneCells(g.cells);
+        const target = targetCell(cur, toIndex);
         cur[toIndex] = applyLandHitWithPower(
-          targetCell(cur, toIndex),
+          target,
           attackerId,
           slot.power,
-          Date.now()
+          Date.now(),
+          {
+            defenderBuilding: buildingForSlotInRoom(key, target.ownerId),
+            attackerBuilding: buildingForSlotInRoom(key, attackerId),
+          }
         );
         commitCells(key, cur, onCells);
-        const flightDone = pending.sims.every(
-          (s) => s.landApplied || s.destroyed
-        );
         const flightsLive = pendingByRoom.get(key);
         if (flightsLive) compactFlights(flightsLive);
-        if (flightDone) {
-          tryContinueSalvo(
-            key,
-            fromIndex,
-            toIndex,
-            attackerId,
-            onLaunch,
-            onCells,
-            onPendingTailStrip
-          );
-        }
         stopCollisionLoopIfIdle(key);
       });
     }, Math.max(0, sim.landDelayMs));
@@ -648,6 +769,7 @@ export function processAttack(
   onPendingTailStrip?: (fromIndex: number, keepToIndex: number) => void
 ): void {
   const key = roomCode.toUpperCase();
+  registerRoomCellsHandler(key, onCells);
   const flights = pendingByRoom.get(key) ?? [];
   pendingByRoom.set(key, flights);
 

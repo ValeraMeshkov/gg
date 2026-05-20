@@ -1,0 +1,294 @@
+@use "@/styles/perfBackdrop" as perf;
+
+.overlayBackdrop {
+  position: fixed;
+  inset: 0;
+  /* Выше левой панели оружия (.mapFighterRail / .mapSideBar, z-index 55) */
+  z-index: 60;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: rgba(15, 23, 42, 0.08);
+  /* Только затемнение: клики проходят к карте и чату */
+  pointer-events: none;
+}
+
+.root {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 61;
+  transform: translate(-50%, -50%);
+  width: min(94%, 880px);
+  max-height: min(92vh, 760px);
+  pointer-events: none;
+  min-height: 0;
+}
+
+.root:not(.rootCollapsed) {
+  display: flex;
+  flex-direction: column;
+  max-height: min(92vh, 760px);
+  overflow: hidden;
+}
+
+.rootCollapsed {
+  display: block;
+  top: 8px;
+  transform: translate(-50%, 0);
+  width: auto;
+  max-height: none;
+}
+
+.tab {
+  pointer-events: auto;
+  padding: 8px 18px;
+  border: 1px solid rgba(26, 39, 64, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1a2740;
+  cursor: pointer;
+}
+
+.tab:hover {
+  background: #fff;
+}
+
+.rootSpectating .tab,
+.rootSpectating .panel {
+  background: rgba(255, 255, 255, 0.92);
+  @include perf.perf-backdrop(10px);
+}
+
+.panel {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 10px;
+  min-height: 0;
+  max-height: 100%;
+  padding: 12px 14px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(26, 39, 64, 0.12);
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 10px 36px rgba(15, 23, 42, 0.16);
+  overflow: hidden;
+}
+
+/* Середину растягиваем между шапкой и кнопкой; скролл только здесь — контент не наезжает. */
+.panelScroll {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+  position: relative;
+}
+
+.panelFooter {
+  flex-shrink: 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.headLead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1a2740;
+  flex-shrink: 0;
+}
+
+.roomGameLink {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #2563eb;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.roomGameLink:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.collapseBtn {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(26, 39, 64, 0.12);
+  border-radius: 8px;
+  background: #f1f5f9;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+}
+
+.collapseBtn:hover {
+  background: #e2e8f0;
+}
+
+.statusHint {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #64748b;
+}
+
+.statusWin {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1a7a3a;
+}
+
+.statusLose {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #b42318;
+}
+
+.mapBlock {
+  pointer-events: auto;
+  min-height: 0;
+}
+
+.appearanceLockHint {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: #5a6d7d;
+}
+
+.appearance {
+  min-height: 0;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.botsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.botControl {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.hotkeysBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.hotkeysRow {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.hotkeysTitle {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #6a758c;
+}
+
+.hotkeyBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(26, 58, 92, 0.14);
+  background: rgba(255, 255, 255, 0.92);
+  color: #1a2740;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.hotkeyKey {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid rgba(26, 58, 92, 0.16);
+  background: #eef2f8;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #7b8798;
+}
+
+.hotkeyLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #475569;
+  text-align: left;
+  line-height: 1.25;
+  hyphens: auto;
+  overflow-wrap: break-word;
+}
+
+.startBtn {
+  width: 100%;
+  padding: 11px 16px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+}
+
+.startBtn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.startBtn:disabled {
+  background: linear-gradient(180deg, #94a3b8 0%, #64748b 100%);
+  color: rgba(255, 255, 255, 0.92);
+  cursor: not-allowed;
+  opacity: 0.95;
+}

@@ -18,8 +18,8 @@ export type OfflineMockBotAppearance = {
 const OFFLINE_BOT_BUILDINGS = [
   "pixellabs3822",
   "freedomCastle",
-  "pixellabsWatchtower",
-  "tinyPlanetStar",
+  "pixellabsUndead",
+  "blendertimerHeart23",
   "pixellabsZombie",
 ] as const satisfies readonly BuildingSkinId[];
 

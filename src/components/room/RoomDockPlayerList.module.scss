@@ -1,0 +1,59 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(26, 58, 92, 0.12);
+  background: rgba(248, 251, 255, 0.95);
+}
+
+.title {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #6a758c;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  padding: 6px 0;
+  font-size: 0.88rem;
+  color: #1a2740;
+  border-bottom: 1px solid rgba(26, 58, 92, 0.06);
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.name {
+  font-weight: 600;
+}
+
+.you {
+  color: #2a6bb8;
+  font-weight: 600;
+}
+
+.badge,
+.queue,
+.ready {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.queue {
+  color: #7a5c1b;
+}
+
+.ready {
+  color: #1b7a3a;
+}

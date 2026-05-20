@@ -8,7 +8,10 @@ import {
   matchScoreWithEliminationPenalty,
 } from "@/game/scoring/matchElimination";
 import { playerCanRecoverFromZeroScore } from "@/game/scoring/eliminationStrikes";
-import { playerScoresForRoom } from "@/game/scoring/playerScores";
+import {
+  playerHadMatchPresence,
+  playerScoresForRoom,
+} from "@/game/scoring/playerScores";
 import type { RoomGameOutcome } from "@/game/scoring/types";
 import type { MapCell } from "@/game/maps/types";
 import type { FlightPayload } from "@/game/projectiles/types";
@@ -21,6 +24,8 @@ type UseGameScoringOpts = {
   localPlayerId: string;
   roomCode: string | null;
   scoreEpoch: number;
+  /** Считать исход партии только во время активного боя (не лобби/подбор). */
+  matchActive?: boolean;
 };
 
 export function useGameScoring({
@@ -31,8 +36,11 @@ export function useGameScoring({
   localPlayerId,
   roomCode,
   scoreEpoch,
+  matchActive = true,
 }: UseGameScoringOpts) {
   const liveScores = useMemo(() => {
+    if (scoreSlotIds.length === 0) return new Map<string, number>();
+
     const flights = flightsRef.current;
     const raw = playerScoresForRoom(cells, flights, scoreSlotIds);
     const penalties = eliminationPenaltyRef.current;
@@ -43,7 +51,8 @@ export function useGameScoring({
         penalties.delete(id);
       } else if (
         units === 0 &&
-        !playerCanRecoverFromZeroScore(id, cells, flights)
+        !playerCanRecoverFromZeroScore(id, cells, flights) &&
+        playerHadMatchPresence(id, cells, flights, units)
       ) {
         penalties.set(id, 1);
       }
@@ -58,7 +67,7 @@ export function useGameScoring({
   }, [cells, scoreSlotIds, scoreEpoch, eliminationPenaltyRef]);
 
   const gameOutcome = useMemo((): RoomGameOutcome | null => {
-    if (scoreSlotIds.length < 2) return null;
+    if (!matchActive || scoreSlotIds.length < 2) return null;
     if (!roomCode) {
       const early = offlineImmediateOutcomeForLocal(
         scoreSlotIds,
@@ -67,8 +76,23 @@ export function useGameScoring({
       );
       if (early != null) return early;
     }
-    return roomGameOutcomeForLocal(scoreSlotIds, liveScores, localPlayerId);
-  }, [roomCode, scoreSlotIds, liveScores, localPlayerId, scoreEpoch]);
+    return roomGameOutcomeForLocal(
+      scoreSlotIds,
+      liveScores,
+      localPlayerId,
+      cells,
+      flightsRef.current
+    );
+  }, [
+    matchActive,
+    roomCode,
+    scoreSlotIds,
+    liveScores,
+    localPlayerId,
+    cells,
+    scoreEpoch,
+    flightsRef,
+  ]);
 
   const offlineAliveCount = useMemo(
     () =>

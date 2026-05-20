@@ -25,6 +25,7 @@ export function glbSpotsStableKey(
     if (!cell.ownerId) return;
     const skin = appearanceForPlayer(playerAppearances, cell.ownerId).building;
     if (!isGlbBuildingSkin(skin)) return;
+    // Щит не включаем: +1 каждые 2 с не должен пересобирать все GLB-пины.
     parts.push(`${territory.id}:${index}:${cell.ownerId}:${skin}`);
   });
   return parts.join("|");

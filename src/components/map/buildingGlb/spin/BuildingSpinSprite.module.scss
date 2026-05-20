@@ -3,3 +3,21 @@
   pointer-events: none;
   transform-origin: center center;
 }
+
+@keyframes buildingSpinSheet {
+  to {
+    background-position: calc(-1 * var(--spin-max-offset)) 0;
+  }
+}
+
+/* 255 шагов на 256 кадров: смещение (N−1)×size, иначе кадры «рвутся» */
+.spriteCssSpin {
+  animation: buildingSpinSheet var(--spin-period) steps(255) infinite;
+  animation-delay: var(--spin-phase-delay);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spriteCssSpin {
+    animation: none !important;
+  }
+}

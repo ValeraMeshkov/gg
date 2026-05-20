@@ -9,6 +9,8 @@ export type MapDotLayoutV1 = {
   readonly version: 1;
   readonly positions: DotPositionsBySpot;
   readonly hiddenSpots: readonly number[];
+  /** Редактор: показывать скрытые точки на карте (по умолчанию true). */
+  readonly showHiddenOnMap?: boolean;
   readonly savedAt?: string;
 };
 
@@ -63,6 +65,10 @@ export function loadMapDotLayout(mapId: string): MapDotLayout | null {
         version: 1,
         positions: layout.positions,
         hiddenSpots,
+        showHiddenOnMap:
+          typeof layout.showHiddenOnMap === "boolean"
+            ? layout.showHiddenOnMap
+            : true,
         savedAt: layout.savedAt,
       };
     }
@@ -77,6 +83,7 @@ export function saveMapDotLayout(mapId: string, layout: MapDotLayout): void {
     version: 1,
     positions: layout.positions,
     hiddenSpots: [...layout.hiddenSpots].sort((a, b) => a - b),
+    showHiddenOnMap: layout.showHiddenOnMap !== false,
     savedAt: new Date().toISOString(),
   };
   localStorage.setItem(storageKey(mapId), JSON.stringify(payload));

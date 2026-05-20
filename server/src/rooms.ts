@@ -1,18 +1,28 @@
 import { randomBytes } from "node:crypto";
 import { isValidMapId, pickRandomMapId } from "@/shared/mapPlayable.js";
+import { MIN_ROOM_PLAYERS } from "@/shared/playerSlots.js";
 import {
   normalizeMaxPlayers,
   playerSlotId,
   PLAYER_SLOT_IDS,
 } from "@/shared/playerSlots.js";
-import { initGameForRoom, spawnJoinedPlayerInRoom } from "./gameState.js";
+import { canPlayerSetReady } from "./roomAccess.js";
+import { deleteGameForRoom, initGameForRoom } from "./gameState.js";
 
-const DEFAULT_MAP_ID = "south-america";
+const DEFAULT_MAP_ID = "world-large";
+
+export type RoomStatus = "lobby" | "matchmaking" | "playing";
 
 export type RoomPlayer = {
   userId: string;
   joinedAt: string;
   slotId?: string;
+  /** Участник текущей партии на карте; false — очередь ожидания. */
+  inMatch?: boolean;
+  /** Готов к следующей партии (режим подбора). */
+  ready?: boolean;
+  /** Зашёл во время активной партии — очередь до следующего старта. */
+  joinedDuringMatch?: boolean;
 };
 
 export type Room = {
@@ -21,7 +31,7 @@ export type Room = {
   mapId: string;
   /** Случайная карта при «Новая игра» (по умолчанию включено). */
   randomMapOnStart: boolean;
-  status: "lobby" | "playing";
+  status: RoomStatus;
   players: RoomPlayer[];
   maxPlayers: number;
   createdAt: string;
@@ -50,25 +60,25 @@ function generateRoomCode(): string {
   throw new Error("Не удалось сгенерировать код комнаты");
 }
 
-function nextFreeSlot(room: Room): string | null {
-  const used = new Set(
-    room.players.map((p) => p.slotId).filter((id): id is string => Boolean(id))
-  );
-  for (let i = 0; i < room.maxPlayers; i++) {
-    const slot = playerSlotId(i);
-    if (!used.has(slot)) return slot;
+function resetReadyFlags(room: Room): void {
+  for (const p of room.players) {
+    p.ready = false;
   }
-  return null;
 }
 
-function assignSlotsAndStart(room: Room): void {
-  room.players.forEach((p, i) => {
-    if (!p.slotId) p.slotId = playerSlotId(i);
-  });
-  room.status = "playing";
-  room.startedAt = new Date().toISOString();
-  room.gameGeneration = room.gameGeneration ?? 0;
-  initGameForRoom(room);
+/** Хост не жмёт «Готов» в UI — считаем готовым в фазе подбора. */
+function ensureHostReadyInMatchmaking(room: Room): void {
+  if (room.status !== "matchmaking") return;
+  const host = room.players.find((p) => p.userId === room.hostUserId);
+  if (host) host.ready = true;
+}
+
+function clearSlotsForNonParticipants(room: Room): void {
+  for (const p of room.players) {
+    if (p.inMatch === false) {
+      delete p.slotId;
+    }
+  }
 }
 
 export function createRoom(
@@ -85,17 +95,19 @@ export function createRoom(
     hostUserId,
     mapId: mapId ?? DEFAULT_MAP_ID,
     randomMapOnStart,
-    status: "playing",
+    status: "lobby",
     maxPlayers: cap,
     createdAt: now,
-    startedAt: now,
-    gameGeneration: 0,
     players: [
-      { userId: hostUserId, joinedAt: now, slotId: playerSlotId(0) },
+      {
+        userId: hostUserId,
+        joinedAt: now,
+        inMatch: false,
+        ready: false,
+      },
     ],
   };
   rooms.set(code, room);
-  initGameForRoom(room);
   return room;
 }
 
@@ -118,32 +130,81 @@ export function joinRoom(code: string, userId: string): JoinRoomResult | null {
 
   const now = new Date().toISOString();
 
-  if (room.status === "lobby") {
-    room.players.push({ userId, joinedAt: now });
-    if (room.players.length >= room.maxPlayers) {
-      assignSlotsAndStart(room);
-    }
+  if (room.status === "lobby" || room.status === "matchmaking") {
+    room.players.push({
+      userId,
+      joinedAt: now,
+      inMatch: false,
+      ready: false,
+    });
     return { room, playerAdded: true };
   }
 
   if (room.status === "playing") {
-    const slotId = nextFreeSlot(room);
-    if (!slotId) return null;
-    room.players.push({ userId, joinedAt: now, slotId });
-    spawnJoinedPlayerInRoom(room, slotId);
+    room.players.push({
+      userId,
+      joinedAt: now,
+      inMatch: false,
+      ready: false,
+      joinedDuringMatch: true,
+    });
     return { room, playerAdded: true };
   }
 
   return null;
 }
 
+/** Хост открывает подбор игроков (лобби → matchmaking). */
+export function openMatchmaking(
+  code: string,
+  hostUserId: string
+): Room | null {
+  const room = getRoom(code);
+  if (!room || room.hostUserId !== hostUserId) return null;
+  if (room.status === "playing") return null;
+  room.status = "matchmaking";
+  resetReadyFlags(room);
+  ensureHostReadyInMatchmaking(room);
+  return room;
+}
+
+export function setPlayerReady(
+  code: string,
+  userId: string,
+  ready: boolean
+): Room | null {
+  const room = getRoom(code);
+  if (!room || !canPlayerSetReady(room, userId)) return null;
+  const player = room.players.find((p) => p.userId === userId);
+  if (!player) return null;
+  player.ready = ready;
+  return room;
+}
+
 export function startRoom(code: string, hostUserId: string): Room | null {
   const room = getRoom(code);
-  if (!room || room.status !== "lobby") return null;
-  if (room.hostUserId !== hostUserId) return null;
-  if (room.players.length < 1) return null;
+  if (!room || room.hostUserId !== hostUserId) return null;
+  if (room.status !== "matchmaking") return null;
 
-  assignSlotsAndStart(room);
+  const readyPlayers = room.players.filter((p) => p.ready === true);
+  if (readyPlayers.length < MIN_ROOM_PLAYERS) return null;
+
+  let slotIndex = 0;
+  for (const p of room.players) {
+    if (p.ready === true) {
+      p.slotId = playerSlotId(slotIndex++);
+      p.inMatch = true;
+      p.ready = false;
+    } else {
+      p.inMatch = false;
+      delete p.slotId;
+    }
+  }
+
+  room.status = "playing";
+  room.startedAt = new Date().toISOString();
+  room.gameGeneration = (room.gameGeneration ?? 0) + 1;
+  initGameForRoom(room);
   return room;
 }
 
@@ -152,7 +213,8 @@ export type RestartRoomOpts = {
   randomMapOnStart?: boolean;
 };
 
-export function restartRoom(
+/** Завершить партию и открыть подбор (без мгновенного старта карты). */
+export function endRoundToMatchmaking(
   code: string,
   hostUserId: string,
   opts?: RestartRoomOpts | string
@@ -174,20 +236,36 @@ export function restartRoom(
     room.mapId = patch.mapId;
   }
 
-  room.gameGeneration = (room.gameGeneration ?? 0) + 1;
-  initGameForRoom(room);
+  deleteGameForRoom(room.code);
+
+  for (const p of room.players) {
+    if (p.inMatch !== false) {
+      p.inMatch = false;
+      delete p.slotId;
+      if (!p.ready) p.ready = false;
+    }
+  }
+  clearSlotsForNonParticipants(room);
+
+  room.status = "matchmaking";
+  delete room.startedAt;
+  ensureHostReadyInMatchmaking(room);
   return room;
 }
 
 export function patchRoomSettings(
   code: string,
   hostUserId: string,
-  patch: { randomMapOnStart?: boolean }
+  patch: { randomMapOnStart?: boolean; mapId?: string }
 ): Room | null {
   const room = getRoom(code);
   if (!room || room.hostUserId !== hostUserId) return null;
+  if (room.status === "playing") return null;
   if (patch.randomMapOnStart !== undefined) {
     room.randomMapOnStart = patch.randomMapOnStart;
+  }
+  if (patch.mapId && isValidMapId(patch.mapId)) {
+    room.mapId = patch.mapId;
   }
   return room;
 }

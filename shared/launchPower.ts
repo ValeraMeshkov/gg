@@ -11,6 +11,24 @@ export type LaunchPowerSim = {
   destroyed?: boolean;
 };
 
+/** Все снаряды залпа уже вылетели с клетки (или сняты). */
+export function salvoBatchFullySpawned(
+  sims: readonly LaunchPowerSim[]
+): boolean {
+  return sims.every(
+    (s) => s.spawnApplied || s.landApplied || s.destroyed
+  );
+}
+
+/** Есть снаряды, ещё не вылетевшие с клетки. */
+export function salvoHasUnspawnedSims(
+  sims: readonly LaunchPowerSim[]
+): boolean {
+  return sims.some(
+    (s) => !s.spawnApplied && !s.landApplied && !s.destroyed
+  );
+}
+
 /** Сколько силы клетки зарезервировано под ещё не вылетевшие снаряды. */
 export function reservedLaunchPower(
   sims: readonly LaunchPowerSim[]
@@ -68,4 +86,20 @@ export function applySpawnFromSourceCell<T extends CombatCell>(
     },
     nowMs
   );
+}
+
+export type FlightWithSource = {
+  readonly fromIndex: number;
+  readonly sims: readonly LaunchPowerSim[];
+};
+
+/** Индексы клеток-источников с ещё не вылетевшими снарядами (блокируют рост). */
+export function sourceIndicesWithUnspawnedSims(
+  flights: readonly FlightWithSource[]
+): ReadonlySet<number> {
+  const out = new Set<number>();
+  for (const f of flights) {
+    if (salvoHasUnspawnedSims(f.sims)) out.add(f.fromIndex);
+  }
+  return out;
 }

@@ -17,6 +17,7 @@ export const LEGACY_FIGHTER_SKIN_MAP: Record<string, FighterSkinId> = {
   bear: "poison",
   star: "potion",
   rocket: "dagger",
+  fireball: "bomb",
 };
 
 export function defaultFighterForSlotIndex(slotIndex: number): FighterSkinId {

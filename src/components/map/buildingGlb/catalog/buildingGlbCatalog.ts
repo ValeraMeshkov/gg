@@ -5,7 +5,6 @@ import crystalTreeUrl from "@/assets/buildings/crystal-tree.glb?url";
 import houseUrl from "@/assets/buildings/house.glb?url";
 import planetBoyUrl from "@/assets/buildings/planet-boy.glb?url";
 import planetDefectiveUrl from "@/assets/buildings/planet-defective.glb?url";
-import planetEnergyUrl from "@/assets/buildings/planet-energy.glb?url";
 import planetIconUrl from "@/assets/buildings/planet-icon.glb?url";
 import planetShieldUrl from "@/assets/buildings/planet-shield.glb?url";
 import planetStarUrl from "@/assets/buildings/planet-star.glb?url";
@@ -19,6 +18,7 @@ import undeadUrl from "@/assets/buildings/undead.glb?url";
 import watchtowerUrl from "@/assets/buildings/watchtower.glb?url";
 import zombieUrl from "@/assets/buildings/zombie.glb?url";
 import grimReaper3011Url from "@/assets/buildings/pixellabs-grim-reaper-3d-3011.glb?url";
+import blendertimerHeart23Url from "@/assets/buildings/blendertimer-heart-23.glb?url";
 import {
   DEFAULT_BUILDING_SKIN,
   type BuildingSkinId,
@@ -41,10 +41,11 @@ export type GlbBuildingSkinId =
   | "pixellabsUndead"
   | "pixellabsZombie"
   | "pixellabsGrimReaper3011"
+  | "pixellabsSkeletonArcher4240"
+  | "blendertimerHeart23"
   | "pixellabsDagger3178"
   | "tinyPlanetBoy"
   | "tinyPlanetDefective"
-  | "tinyPlanetEnergy"
   | "tinyPlanetIcon"
   | "tinyPlanetShield"
   | "tinyPlanetStar"
@@ -107,10 +108,21 @@ export const GLB_BUILDING_CATALOG: readonly GlbBuildingCatalogEntry[] = [
     grimReaper3011Url,
     1.1
   ),
+  glbEntry(
+    "pixellabsSkeletonArcher4240",
+    "pixellabs-skeleton-archer-4240.glb",
+    undefined,
+    1.1
+  ),
+  glbEntry(
+    "blendertimerHeart23",
+    "blendertimer-heart-23.glb",
+    blendertimerHeart23Url,
+    1
+  ),
   glbEntry("pixellabsDagger3178", "pixellabs-dagger-3178.glb", undefined, 0.9),
   glbEntry("tinyPlanetBoy", "planet-boy.glb", planetBoyUrl, 1.2),
   glbEntry("tinyPlanetDefective", "planet-defective.glb", planetDefectiveUrl),
-  glbEntry("tinyPlanetEnergy", "planet-energy.glb", planetEnergyUrl, 1),
   glbEntry("tinyPlanetIcon", "planet-icon.glb", planetIconUrl, 1),
   glbEntry("tinyPlanetShield", "planet-shield.glb", planetShieldUrl, 1),
   glbEntry("tinyPlanetStar", "planet-star.glb", planetStarUrl, 1),

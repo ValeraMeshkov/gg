@@ -1,0 +1,102 @@
+/* Купол щита крепости — вращающиеся дуги (GPU: transform, без blur) */
+
+@keyframes fortressShieldArcSpin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.root {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  box-sizing: border-box;
+  overflow: hidden;
+  contain: layout style paint;
+}
+
+.glowOuter {
+  position: absolute;
+  inset: -12%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 50%,
+    color-mix(in srgb, var(--shield-color) 42%, transparent) 0%,
+    color-mix(in srgb, var(--shield-color) 18%, transparent) 50%,
+    transparent 72%
+  );
+  opacity: calc(0.4 + var(--shield-strength) * 0.3);
+}
+
+.domeFill {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 38%,
+    color-mix(in srgb, var(--shield-color) 8%, transparent) 0%,
+    color-mix(in srgb, var(--shield-color) 22%, transparent) 55%,
+    color-mix(in srgb, var(--shield-color) 32%, transparent) 78%,
+    transparent 100%
+  );
+  opacity: calc(0.5 + var(--shield-strength) * 0.22);
+}
+
+.arcRing {
+  position: absolute;
+  inset: 6%;
+  border-radius: 50%;
+  border: 3px dashed color-mix(in srgb, var(--shield-color) 80%, #fff);
+  box-shadow: 0 0 10px 1px color-mix(in srgb, var(--shield-color) 50%, transparent);
+  pointer-events: none;
+}
+
+.root[data-animate-arc="1"] .arcRing {
+  will-change: transform;
+  animation: fortressShieldArcSpin 10s linear infinite;
+}
+
+.root[data-animate-arc="0"] .arcRing {
+  will-change: auto;
+  animation: none;
+}
+
+.rim {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--shield-color) 70%, #fff);
+  opacity: 0.4;
+}
+
+.specular {
+  position: absolute;
+  left: 18%;
+  top: 10%;
+  width: 38%;
+  height: 22%;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 0.65) 0%,
+    transparent 70%
+  );
+  opacity: 0.75;
+}
+
+.pulseWrap {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root[data-animate-arc="1"] .arcRing {
+    animation: none !important;
+    will-change: auto;
+  }
+}

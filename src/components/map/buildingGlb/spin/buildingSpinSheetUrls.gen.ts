@@ -14,7 +14,6 @@ import spin_pixellabs_grim_reaper_3d_3011 from "@/assets/buildings/spin-sheets/z
 import spin_pixellabs_dagger_3178 from "@/assets/buildings/spin-sheets/dager.png?url";
 import spin_planet_boy from "@/assets/buildings/spin-sheets/malchik.png?url";
 import spin_planet_defective from "@/assets/buildings/spin-sheets/brak.png?url";
-import spin_planet_energy from "@/assets/buildings/spin-sheets/energiya.png?url";
 import spin_planet_icon from "@/assets/buildings/spin-sheets/ikonka.png?url";
 import spin_planet_shield from "@/assets/buildings/spin-sheets/shchit.png?url";
 import spin_planet_star from "@/assets/buildings/spin-sheets/zvezda.png?url";
@@ -22,6 +21,8 @@ import spin_shark from "@/assets/buildings/spin-sheets/akula.png?url";
 import spin_castle from "@/assets/buildings/spin-sheets/zamok.png?url";
 import spin_castle_alt from "@/assets/buildings/spin-sheets/zamok2.png?url";
 import spin_house from "@/assets/buildings/spin-sheets/dom.png?url";
+import spin_pixellabs_skeleton_archer_4240 from "@/assets/buildings/spin-sheets/skeleton-archer.png?url";
+import spin_blendertimer_heart_23 from "@/assets/buildings/spin-sheets/heart-23.png?url";
 
 export const SPIN_SHEET_URL_BY_GLB_FILE: Record<string, string> = {
   "tower.glb": spin_tower,
@@ -38,7 +39,6 @@ export const SPIN_SHEET_URL_BY_GLB_FILE: Record<string, string> = {
   "pixellabs-dagger-3178.glb": spin_pixellabs_dagger_3178,
   "planet-boy.glb": spin_planet_boy,
   "planet-defective.glb": spin_planet_defective,
-  "planet-energy.glb": spin_planet_energy,
   "planet-icon.glb": spin_planet_icon,
   "planet-shield.glb": spin_planet_shield,
   "planet-star.glb": spin_planet_star,
@@ -46,5 +46,7 @@ export const SPIN_SHEET_URL_BY_GLB_FILE: Record<string, string> = {
   "castle.glb": spin_castle,
   "castle-alt.glb": spin_castle_alt,
   "house.glb": spin_house,
+  "pixellabs-skeleton-archer-4240.glb": spin_pixellabs_skeleton_archer_4240,
+  "blendertimer-heart-23.glb": spin_blendertimer_heart_23,
 };
 

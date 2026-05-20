@@ -10,6 +10,8 @@ type UseMergedPlayerAppearancesOpts = {
   localAppearance: PlayerAppearance;
   /** Оффлайн: число ботов; в комнате — 0 или не передавать. */
   offlineBotCount: number;
+  /** Сид партии — новый залп случайных скинов ботов. */
+  offlineSessionSeed: string;
   isRoom: boolean;
 };
 
@@ -20,15 +22,17 @@ export function useMergedPlayerAppearances({
   localPlayerId,
   localAppearance,
   offlineBotCount,
+  offlineSessionSeed,
   isRoom,
 }: UseMergedPlayerAppearancesOpts): PlayerAppearancesMap {
   const offlineBots = useMemo(() => {
     if (isRoom) return {};
     return buildOfflineBotAppearances(
       offlineBotCount,
-      localAppearance.displayColor
+      localAppearance.displayColor,
+      offlineSessionSeed
     );
-  }, [isRoom, offlineBotCount, localAppearance.displayColor]);
+  }, [isRoom, offlineBotCount, localAppearance.displayColor, offlineSessionSeed]);
 
   const { fighter, building, displayColor } = localAppearance;
 

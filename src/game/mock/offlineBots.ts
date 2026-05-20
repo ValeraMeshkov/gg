@@ -1,9 +1,5 @@
 import { CELL } from "@/shared/constants";
-import {
-  buildingSkinForOfflineBot,
-  OFFLINE_MOCK_BOT_APPEARANCES,
-} from "@/shared/offlineMock";
-import type { PlayerAppearance } from "@/game/appearance";
+import type { PlayerAppearancesMap } from "@/game/appearance";
 import {
   isTerritoryIndexHidden,
   mapDotCenter,
@@ -26,21 +22,6 @@ export function offlineBotIdsForCount(botCount: number): string[] {
   const n = normalizeOfflineBotCount(botCount);
   return MOCK_PLAYERS.slice(1, 1 + n).map((u) => u.id);
 }
-
-/** Скины в `shared/offlineMock.ts` — привязка к слотам mock-user-2 … mock-user-6. */
-export const OFFLINE_BOT_APPEARANCES: Record<string, PlayerAppearance> =
-  Object.fromEntries(
-    OFFLINE_MOCK_BOT_APPEARANCES.map((appearance, i) => {
-      const user = MOCK_PLAYERS[i + 1]!;
-      return [
-        user.id,
-        {
-          ...appearance,
-          building: buildingSkinForOfflineBot(i),
-        },
-      ] as const;
-    })
-  );
 
 type FlightLike = {
   readonly fromIndex: number;
@@ -72,8 +53,11 @@ function reservedPowerOnSource(
   return reservedLaunchPower(sims);
 }
 
-function launchPowerForBot(botId: string): number {
-  const fighter = OFFLINE_BOT_APPEARANCES[botId]?.fighter ?? "bomb";
+function launchPowerForBot(
+  botId: string,
+  appearances?: PlayerAppearancesMap
+): number {
+  const fighter = appearances?.[botId]?.fighter ?? "bomb";
   return weaponStatsForFighter(fighter).power;
 }
 
@@ -132,6 +116,7 @@ export type PickOfflineBotAttackOpts = {
   rng?: () => number;
   /** 0 — очень просто, 100 — сложно. */
   difficulty?: number;
+  appearances?: PlayerAppearancesMap;
 };
 
 /**
@@ -149,7 +134,7 @@ export function pickOfflineBotAttack(
   const skill = offlineBotSkillNormalized(opts?.difficulty ?? 50);
   const hard = skill >= 0.78;
   const elite = skill >= 0.99;
-  const launchPower = launchPowerForBot(botId);
+  const launchPower = launchPowerForBot(botId, opts?.appearances);
   type Src = { index: number; avail: number; launchPower: number };
   const sources: Src[] = [];
   for (let i = 0; i < map.territories.length; i++) {

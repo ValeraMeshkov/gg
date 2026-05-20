@@ -1,6 +1,6 @@
 import type { MapCell } from "@/game/maps/types";
-import { sanitizeCombatCell } from "@/shared/cellUnits";
+import { cloneCombatCells } from "@/shared/cellUnits";
 
 export function cloneCells(c: readonly MapCell[]): MapCell[] {
-  return c.map((x) => sanitizeCombatCell({ ...x }));
+  return cloneCombatCells(c);
 }

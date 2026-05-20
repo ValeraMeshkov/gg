@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useCenterSelectedBuildingOnSettingsOpen } from "@/components/settings/useCenterSelectedBuildingOnSettingsOpen";
+import { useCallback, useMemo, useState } from "react";
 import { writeAppRoute, inviteHref, type AppRoute } from "@/appUrl";
 import { UI } from "@/constants/uiStrings";
 import { useAuth } from "@/context/AuthContext";
@@ -13,7 +12,7 @@ type AppGameChromeProps = {
   createBusy: boolean;
   createError: string | null;
   onCreateRoom: () => void;
-  /** Одиночная игра: сброс партии без смены карты. */
+  /** Одиночная игра: показать кнопку «Новая игра» → разворот дока «Перед боем». */
   onNewSoloGame?: () => void;
 };
 
@@ -40,13 +39,10 @@ export function AppGameChrome({
   }, [user?.email]);
   const {
     shareBar,
-    settingsOpen,
-    setSettingsOpen,
-    settingsPanel,
     roomChromeActions,
+    requestExpandSoloBattleDock,
   } = useGameShell();
   const [headerLinkCopied, setHeaderLinkCopied] = useState(false);
-  const [settingsLayerMounted, setSettingsLayerMounted] = useState(false);
 
   const copyRoomInvite = useCallback(async () => {
     if (!route.roomCode) return;
@@ -71,35 +67,16 @@ export function AppGameChrome({
     writeAppRoute(next);
   }, [route.mapId, setRoute]);
 
-  useEffect(() => {
-    if (settingsOpen) setSettingsLayerMounted(true);
-  }, [settingsOpen]);
-
-  useCenterSelectedBuildingOnSettingsOpen(settingsOpen);
-
-  useEffect(() => {
-    if (!settingsOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setSettingsOpen(false);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [settingsOpen, setSettingsOpen]);
-
   const showNewGameInHeader =
     Boolean(onNewSoloGame) || (inRoom && roomChromeActions != null);
 
   const handleNewGameClick = useCallback(() => {
-    setSettingsOpen(false);
     if (onNewSoloGame) {
-      onNewSoloGame();
+      requestExpandSoloBattleDock();
       return;
     }
     void roomChromeActions?.onPrimary();
-  }, [onNewSoloGame, roomChromeActions, setSettingsOpen]);
+  }, [onNewSoloGame, roomChromeActions, requestExpandSoloBattleDock]);
 
   return (
     <div className={styles.chrome}>
@@ -151,15 +128,13 @@ export function AppGameChrome({
           ) : null}
           <div className={styles.headerRight}>
             {inRoom ? (
-              <>
-                <button
-                  type="button"
-                  className={styles.roomHeaderBtn}
-                  onClick={() => void copyRoomInvite()}
-                >
-                  {headerLinkCopied ? UI.linkCopied : UI.linkCopy}
-                </button>
-              </>
+              <button
+                type="button"
+                className={styles.roomHeaderBtn}
+                onClick={() => void copyRoomInvite()}
+              >
+                {headerLinkCopied ? UI.linkCopied : UI.linkCopy}
+              </button>
             ) : (
               <button
                 type="button"
@@ -170,53 +145,11 @@ export function AppGameChrome({
                 {createBusy ? UI.creatingRoom : UI.createRoom}
               </button>
             )}
-            <button
-              type="button"
-              className={styles.settingsBtn}
-              onClick={() => setSettingsOpen(true)}
-              aria-expanded={settingsOpen}
-            >
-              Настройки
-            </button>
           </div>
         </div>
       </header>
       {!inRoom && createError ? (
         <p className={styles.createRoomError}>{createError}</p>
-      ) : null}
-      {settingsPanel && (settingsOpen || settingsLayerMounted) ? (
-        <div
-          className={`${styles.modalBackdrop}${
-            settingsOpen ? "" : ` ${styles.modalBackdropHidden}`
-          }`}
-          role="presentation"
-          aria-hidden={!settingsOpen}
-          onClick={settingsOpen ? () => setSettingsOpen(false) : undefined}
-        >
-          <div
-            className={styles.modalPanel}
-            role="dialog"
-            aria-modal={settingsOpen ? true : undefined}
-            aria-hidden={!settingsOpen}
-            aria-labelledby="settings-dialog-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={styles.modalHead}>
-              <h2 id="settings-dialog-title" className={styles.modalTitle}>
-                Настройки
-              </h2>
-              <button
-                type="button"
-                className={styles.modalClose}
-                onClick={() => setSettingsOpen(false)}
-                tabIndex={settingsOpen ? 0 : -1}
-              >
-                Закрыть
-              </button>
-            </div>
-            <div className={styles.modalBody}>{settingsPanel}</div>
-          </div>
-        </div>
       ) : null}
     </div>
   );

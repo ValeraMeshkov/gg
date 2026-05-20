@@ -119,7 +119,6 @@ export const WEAPONS: Record<WeaponId, WeaponStats> = {
 };
 
 const WEAPON_BY_FIGHTER: Partial<Record<FighterSkinId, WeaponId>> = {
-  rocket: "bullet",
   bomb: "bomb",
   poison: "poison",
   potion: "potion",

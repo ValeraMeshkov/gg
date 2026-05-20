@@ -2,6 +2,7 @@ export type { GameMap, MapCell, TerritoryGameMap } from './types'
 export { assertMapShape, isTerritoryMap } from './types'
 export {
   cellPosFromIndex,
+  territoryCellPos,
   cellCount,
   cellIndex,
   getCell,
@@ -15,7 +16,11 @@ export {
   mapAspectRatioValue,
   type CellPos,
 } from './mapAccess'
-export { cellUnderCursorTerritoryDot, territoryCellPos } from './territoryDotPick'
+export { cellUnderCursorTerritoryDot } from './territoryDotPick'
+export {
+  forEachVisibleOwnedTerritorySpot,
+  type VisibleOwnedTerritorySpot,
+} from './iterateTerritorySpots'
 export {
   mapProjectileRadius,
   mapProjectileRadiusFromDotRadius,

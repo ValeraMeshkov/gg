@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { randomUUID } from "node:crypto";
 import {
@@ -31,23 +31,27 @@ import { clearRoomCombat } from "./roomAttack.js";
 import {
   broadcastGameReset,
   broadcastRoomSettings,
+  broadcastRoomStatus,
   clearRoomChatHistory,
 } from "./wsHub.js";
 import {
   createRoom,
   getRoom,
   joinRoom,
+  openMatchmaking,
   patchRoomSettings,
-  restartRoom,
+  endRoundToMatchmaking,
+  setPlayerReady,
   startRoom,
 } from "./rooms.js";
 import {
   createRoomBodySchema,
   createUserBodySchema,
+  endRoundBodySchema,
   joinRoomBodySchema,
   patchRoomBodySchema,
   profilePatchSchema,
-  restartRoomBodySchema,
+  readyRoomBodySchema,
   startRoomBodySchema,
 } from "./validation.js";
 
@@ -321,15 +325,21 @@ export function createApp() {
     const room = patchRoomSettings(
       c.req.param("code"),
       parsed.data.hostUserId,
-      { randomMapOnStart: parsed.data.randomMapOnStart }
+      {
+        randomMapOnStart: parsed.data.randomMapOnStart,
+        mapId: parsed.data.mapId,
+      }
     );
     if (!room) {
       return c.json(
-        { error: "Только хост может менять настройки комнаты" },
+        { error: "Нельзя менять настройки (нужен хост и нет активной партии)" },
         403
       );
     }
-    broadcastRoomSettings(room.code, room.randomMapOnStart);
+    if (parsed.data.randomMapOnStart !== undefined) {
+      broadcastRoomSettings(room.code, room.randomMapOnStart);
+    }
+    broadcastRoomStatus(room);
     return c.json(room);
   });
 
@@ -367,13 +377,66 @@ export function createApp() {
         409
       );
     }
-    const { room, playerAdded } = result;
-    if (playerAdded && room.status === "playing") {
-      const game = ensureGameForRoom(room);
-      if (game) {
-        broadcastGameReset(room.code, game, room, { countdown: false });
-      }
+    if (result.playerAdded) {
+      broadcastRoomStatus(result.room);
     }
+    return c.json(result.room);
+  });
+
+  app.post("/api/rooms/:code/search", async (c) => {
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Некорректный JSON" }, 400);
+    }
+    const parsed = startRoomBodySchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Ошибка валидации", details: parsed.error.flatten() },
+        400
+      );
+    }
+    const room = openMatchmaking(
+      c.req.param("code"),
+      parsed.data.hostUserId
+    );
+    if (!room) {
+      return c.json(
+        { error: "Только хост может открыть подбор (комната не в лобби)" },
+        403
+      );
+    }
+    broadcastRoomStatus(room);
+    return c.json(room);
+  });
+
+  app.post("/api/rooms/:code/ready", async (c) => {
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Некорректный JSON" }, 400);
+    }
+    const parsed = readyRoomBodySchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Ошибка валидации", details: parsed.error.flatten() },
+        400
+      );
+    }
+    const room = setPlayerReady(
+      c.req.param("code"),
+      parsed.data.userId,
+      parsed.data.ready
+    );
+    if (!room) {
+      return c.json(
+        { error: "Готовность можно менять только в режиме подбора" },
+        409
+      );
+    }
+    broadcastRoomStatus(room);
     return c.json(room);
   });
 
@@ -394,55 +457,60 @@ export function createApp() {
     const room = startRoom(c.req.param("code"), parsed.data.hostUserId);
     if (!room) {
       return c.json(
-        { error: "Нельзя начать (нужен хост и 2 игрока)" },
+        { error: "Нельзя начать (нужен хост и минимум 2 готовых)" },
         409
       );
     }
+    const game = ensureGameForRoom(room);
+    if (game) {
+      broadcastGameReset(room.code, game, room, { countdown: true });
+    }
+    broadcastRoomStatus(room);
     return c.json(room);
   });
 
-  /** Хост: новая партия на той же карте (оба клиента получают game_reset по WS). */
-  app.post("/api/rooms/:code/restart", async (c) => {
+  const handleEndRound = async (c: Context) => {
     let body: unknown;
     try {
       body = await c.req.json();
     } catch {
       return c.json({ error: "Некорректный JSON" }, 400);
     }
-    const parsed = restartRoomBodySchema.safeParse(body);
+    const parsed = endRoundBodySchema.safeParse(body);
     if (!parsed.success) {
       return c.json(
         { error: "Ошибка валидации", details: parsed.error.flatten() },
         400
       );
     }
-    const room = restartRoom(c.req.param("code"), parsed.data.hostUserId, {
-      mapId: parsed.data.mapId,
-      randomMapOnStart: parsed.data.randomMapOnStart,
-    });
+    const room = endRoundToMatchmaking(
+      c.req.param("code"),
+      parsed.data.hostUserId,
+      {
+        mapId: parsed.data.mapId,
+        randomMapOnStart: parsed.data.randomMapOnStart,
+      }
+    );
     if (!room) {
       return c.json(
-        { error: "Только хост может начать новую игру в активной комнате" },
+        { error: "Завершить партию может только хост во время игры" },
         403
       );
     }
     clearRoomCombat(room.code);
     clearCellUpdateQueue(room.code);
-    const game = ensureGameForRoom(room);
-    if (game) {
-      clearRoomChatHistory(room.code);
-      if (parsed.data.randomMapOnStart !== undefined) {
-        broadcastRoomSettings(room.code, room.randomMapOnStart);
-      }
-      broadcastGameReset(room.code, game, room, { countdown: true });
+    clearRoomChatHistory(room.code);
+    if (parsed.data.randomMapOnStart !== undefined) {
+      broadcastRoomSettings(room.code, room.randomMapOnStart);
     }
-    return c.json({
-      ...room,
-      game: game
-        ? { mapId: game.mapId, cells: game.cells }
-        : undefined,
-    });
-  });
+    broadcastRoomStatus(room);
+    return c.json(room);
+  };
+
+  /** Хост: завершить партию → подбор (game_reset только после «Играть»). */
+  app.post("/api/rooms/:code/end-round", handleEndRound);
+  /** Совместимость со старым клиентом. */
+  app.post("/api/rooms/:code/restart", handleEndRound);
 
   return app;
 }

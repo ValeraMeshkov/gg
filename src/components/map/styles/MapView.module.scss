@@ -1,8 +1,36 @@
+@use "@/styles/perfBackdrop" as perf;
+
 .mapStack {
   position: relative;
   width: 100%;
   height: 100%;
   overflow: visible;
+}
+
+/** Выбор оружия/бойца — всегда виден, слева по центру экрана */
+.mapFighterRail {
+  position: fixed;
+  left: max(8px, env(safe-area-inset-left, 0px));
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 55;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: calc(88px + 12px + 12px);
+  padding: 10px;
+  margin: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(26, 58, 92, 0.12);
+  box-shadow: 0 4px 20px rgba(20, 35, 60, 0.14);
+  @include perf.perf-backdrop(8px);
+  pointer-events: auto;
+  max-height: min(88dvh, 720px);
+  overflow-x: visible;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* Фиксировано у левого края окна, не у края вписанной карты. */
@@ -145,12 +173,12 @@
   padding: 6px 10px 6px 6px;
   border: 2px solid rgba(20, 35, 60, 0.14);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.96);
   color: #1a2a44;
   text-align: left;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(20, 35, 60, 0.12);
-  backdrop-filter: blur(4px);
+  @include perf.perf-backdrop(4px);
 
   &:hover:not(:disabled) {
     background: #fff;
@@ -200,13 +228,58 @@
   top: 0;
   width: 100%;
   height: 100%;
+  z-index: 4;
   pointer-events: none;
+}
+
+/* Якорь в центре точки территории (viewBox → overlay px). */
+.mapGlbPinAnchor {
+  overflow: visible;
+  pointer-events: none !important;
 }
 
 /* 3D-здания на карте — клики проходят к SVG-точкам под оверлеем */
 .mapGlbPinTrack {
   overflow: visible;
   pointer-events: none !important;
+}
+
+/* Линии жизни (сердце) — в координатах viewBox карты, под точками. */
+.heartLifeLinksG {
+  pointer-events: none;
+  animation: heartLifeFlow 2.4s linear infinite;
+}
+
+.heartLifeLinkStroke {
+  stroke-linecap: round;
+  fill: none;
+  stroke-width: 2px;
+  opacity: 0.42;
+  stroke-dasharray: 8 12;
+  vector-effect: non-scaling-stroke;
+}
+
+.heartLifeLinksSvg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.heartLifeLink {
+  stroke-linecap: round;
+  fill: none;
+  stroke-dasharray: 10 14;
+  animation: heartLifeFlow 1.1s linear infinite;
+}
+
+@keyframes heartLifeFlow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -40;
+  }
 }
 
 .mapGlbPinTrack * {
@@ -277,6 +350,16 @@
 .ownDotRingSelected {
   stroke: #ffffff;
   stroke-width: 3px;
+}
+
+/* Наведение на свою точку (как красное кольцо у цели при прицеле) */
+.ownDotRingHovered {
+  stroke-width: 3px;
+  filter:
+    drop-shadow(0 0 3px rgba(255, 255, 255, 1))
+    drop-shadow(0 0 8px rgba(255, 255, 255, 0.85))
+    drop-shadow(0 0 14px rgba(255, 255, 255, 0.55))
+    drop-shadow(0 0 2px rgba(0, 0, 0, 0.35));
 }
 
 .ownDotMarkerEmphasis {

@@ -49,8 +49,8 @@ export function RoomLobby({ mapId }: RoomLobbyProps) {
     <div className={styles.root}>
       <h1 className={styles.title}>Мультиплеер</h1>
       <p className={styles.lead}>
-        Создайте комнату — сразу попадёте на карту. По ссылке может зайти любое
-        число друзей (до {MAX_ROOM_PLAYERS} на поле).
+        Создайте комнату — сначала лобби и подбор игроков, затем партия на карте.
+        По ссылке может зайти до {MAX_ROOM_PLAYERS} человек.
       </p>
 
       <section className={styles.panel}>

@@ -14,6 +14,7 @@ import {
 } from "@/game/maps";
 import {
   getEffectiveLayout,
+  loadMapDotLayout,
   layoutToTerritoryDots,
   saveMapDotLayout,
   territoryOriginalCenter,
@@ -62,7 +63,9 @@ export function MapDotEditor({ mapId, onMapIdChange }: MapDotEditorProps) {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [draggingSpot, setDraggingSpot] = useState<number | null>(null);
-  const [showHiddenOnMap, setShowHiddenOnMap] = useState(true);
+  const [showHiddenOnMap, setShowHiddenOnMap] = useState(
+    () => loadMapDotLayout(mapId)?.showHiddenOnMap !== false
+  );
   const svgRef = useRef<SVGSVGElement>(null);
   const svgSize = useMapSvgSize(svgRef, mapId);
   const spotMetrics = useMemo(() => {
@@ -77,6 +80,7 @@ export function MapDotEditor({ mapId, onMapIdChange }: MapDotEditorProps) {
     if (m.kind !== "territory") return;
     setPositions(initialPositions(m));
     setHiddenSpots(initialHidden(m));
+    setShowHiddenOnMap(loadMapDotLayout(mapId)?.showHiddenOnMap !== false);
     setSelectedSpot(1);
     setSaveMsg(null);
     setErrorMsg(null);
@@ -87,8 +91,9 @@ export function MapDotEditor({ mapId, onMapIdChange }: MapDotEditorProps) {
       version: 1,
       positions,
       hiddenSpots: [...hiddenSpots].sort((a, b) => a - b),
+      showHiddenOnMap,
     };
-  }, [positions, hiddenSpots]);
+  }, [positions, hiddenSpots, showHiddenOnMap]);
 
   const catalog = getMapCatalogEntry(mapId);
   const selectedIndex = selectedSpot - 1;

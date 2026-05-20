@@ -6,6 +6,10 @@ export type MapCell = {
   ownerId?: string;
   /** Unix ms — пауза пассивного +1 после попадания по нейтрали/врагу. */
   growthPausedUntil?: number;
+  /** Щит крепости (0–20). */
+  fortressShield?: number;
+  /** Unix ms — пауза восстановления щита после попадания. */
+  fortressShieldRegenPausedUntil?: number;
   /** Подсветка выбора UI (не то же самое, что владение) */
   active?: boolean;
 };

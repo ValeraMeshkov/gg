@@ -37,6 +37,11 @@ export const MAP_SHOT_SPEED_PER_MS =
 /** Радиус кружка точки на карте мира (viewBox). */
 export const TERRITORY_DOT_RADIUS = 14 / 1.5;
 
+/** Кольцо территории: радиус точки + отступ (viewBox). */
+export const TERRITORY_DOT_RING_PADDING = 8;
+export const TERRITORY_SPOT_RING_RADIUS =
+  TERRITORY_DOT_RADIUS + TERRITORY_DOT_RING_PADDING;
+
 /**
  * Базовый делитель: диаметр точки ÷ это число (меньше — крупнее).
  * Итоговый размер = базовый ÷ `TERRITORY_PROJECTILE_SIZE_MULTIPLIER`.

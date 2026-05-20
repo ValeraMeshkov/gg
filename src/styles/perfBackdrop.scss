@@ -1,0 +1,18 @@
+/**
+ * backdrop-filter отключается при prefers-reduced-transparency и на узких экранах.
+ * Использование: @include perf-backdrop(8px); + непрозрачный fallback в background.
+ */
+@mixin perf-backdrop($blur: 8px) {
+  backdrop-filter: blur($blur);
+  -webkit-backdrop-filter: blur($blur);
+
+  @media (prefers-reduced-transparency: reduce) {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  @media (max-width: 768px) {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}

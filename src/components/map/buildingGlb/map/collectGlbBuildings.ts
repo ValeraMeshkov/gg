@@ -4,8 +4,7 @@ import {
   type PlayerAppearancesMap,
 } from "@/game/appearance";
 import {
-  getCell,
-  isTerritoryIndexHidden,
+  forEachVisibleOwnedTerritorySpot,
   mapDotCenter,
   territoryCellPos,
   type TerritoryGameMap,
@@ -17,7 +16,10 @@ import { isGlbBuildingVisible } from "@/components/map/buildingGlb/catalog/glbBu
 
 export type GlbBuildingSpot = {
   key: string;
+  /** Индекс клетки на карте — актуальный щит читается при отрисовке. */
+  cellIndex: number;
   skin: GlbBuildingSkinId;
+  ownerId: string;
   cx: number;
   cy: number;
   targetMapSize: number;
@@ -34,24 +36,18 @@ export function collectGlbBuildings(
   /** Тот же квадрат, что в настройках (84px × MAP_PIN_SIZE). */
   const baseMapSize = MAP_PIN_REFERENCE_PX * GLB_MAP_SIZE_SCALE;
 
-  map.territories.forEach((territory, index) => {
-    if (isTerritoryIndexHidden(map, index, hiddenOpts)) return;
-    const cell = getCell(map, index);
-    if (!cell.ownerId) return;
-
-    const buildingSkin = appearanceForPlayer(
-      playerAppearances,
-      cell.ownerId
-    ).building;
+  forEachVisibleOwnedTerritorySpot(map, hiddenOpts, ({ index, ownerId }) => {
+    const buildingSkin = appearanceForPlayer(playerAppearances, ownerId).building;
     if (!isGlbBuildingSkin(buildingSkin) || !isGlbBuildingVisible(buildingSkin)) return;
 
     const center = mapDotCenter(map, territoryCellPos(index));
     spots.push({
-      key: `${territory.id}-${index}`,
+      key: `${map.territories[index]!.id}-${index}`,
+      cellIndex: index,
       skin: buildingSkin,
+      ownerId,
       cx: center.x,
       cy: center.y,
-      /** Одинаковый квадрат viewport — Bounds подгоняет каждый GLB, как в настройках. */
       targetMapSize: baseMapSize,
     });
   });

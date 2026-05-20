@@ -103,6 +103,14 @@ function parseRgb(color: string): [number, number, number] | null {
   return [Number(m[1]), Number(m[2]), Number(m[3])];
 }
 
+/** `rgb(r,g,b)` → `rgba(r,g,b,a)`; иначе исходная строка. */
+export function colorWithAlpha(color: string, alpha: number): string {
+  const rgb = parseRgb(color);
+  if (!rgb) return color;
+  const a = Math.min(1, Math.max(0, alpha));
+  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${a})`;
+}
+
 function softPlayerTint(color: string, amount: number): string {
   const rgb = parseRgb(color);
   if (!rgb) return color;

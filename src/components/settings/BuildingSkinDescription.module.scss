@@ -1,0 +1,30 @@
+.root {
+  margin-top: 10px;
+  padding: 10px 11px;
+  border-radius: 10px;
+  background: rgba(241, 245, 249, 0.95);
+  border: 1px solid rgba(26, 39, 64, 0.1);
+}
+
+.summary {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #334155;
+}
+
+.list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #475569;
+}
+
+.list li {
+  margin-bottom: 4px;
+}
+
+.list li:last-child {
+  margin-bottom: 0;
+}

@@ -49,6 +49,18 @@ export function playerOwnsAnyCell(
   return cells.some((c) => c.ownerId === playerId);
 }
 
+/** Был на карте или в бою (не пустой слот в подсчёте очков). */
+export function playerHadMatchPresence(
+  playerId: string,
+  cells: readonly MapCell[],
+  flights: readonly FlightPayload[],
+  rawScore = 0
+): boolean {
+  if (rawScore > 0) return true;
+  if (playerOwnsAnyCell(playerId, cells)) return true;
+  return (inFlightPowerByPlayer(flights, [playerId]).get(playerId) ?? 0) > 0;
+}
+
 /** Сила патронов игрока в полёте (без приземлившихся / уничтоженных). */
 export function inFlightPowerByPlayer(
   flights: readonly FlightPayload[],

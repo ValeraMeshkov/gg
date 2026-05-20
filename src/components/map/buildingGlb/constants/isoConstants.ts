@@ -9,8 +9,18 @@ export const PREVIEW_BOUNDS_MARGIN =
 export const SPIN_BOUNDS_MARGIN = PREVIEW_BOUNDS_MARGIN * 1.55;
 export const PREVIEW_CAMERA_ZOOM = 17 * PREVIEW_SETTINGS_SCALE;
 
-/** Размер квадрата превью в настройках (здания и бойцы). */
-export const SETTINGS_BUILDING_PREVIEW_PX = 88;
+/** Внешний размер ячейки здания в сетке настроек (с рамкой). */
+export const SETTINGS_BUILDING_CELL_PX = 88;
+
+/** Толщина рамки ячейки (.cubeBuilding border-width). */
+export const SETTINGS_BUILDING_CELL_BORDER_PX = 3;
+
+/** Размер спрайта внутри ячейки (без рамки). */
+export const SETTINGS_BUILDING_INNER_PREVIEW_PX =
+  SETTINGS_BUILDING_CELL_PX - 2 * SETTINGS_BUILDING_CELL_BORDER_PX;
+
+/** Размер квадрата превью в настройках (здания и бойцы на карте). */
+export const SETTINGS_BUILDING_PREVIEW_PX = SETTINGS_BUILDING_CELL_PX;
 
 /** Эталон для расчёта размера пина на карте (не менять с кнопкой настроек). */
 export const MAP_PIN_REFERENCE_PX = 84;
@@ -34,6 +44,21 @@ export const MAP_PIN_OFFSET_Y_PX = -10;
  * 1 — крупно, 0.7 — компактно (эталон под 160px bake).
  */
 export const MAP_SPIN_SPRITE_DISPLAY_SCALE = 0.78;
+
+/** Размер GLB-пина на экране (px): как кольцо точки, не масштабируется с meet-scale. */
+export function mapGlbPinScreenSizePx(
+  targetMapSize = MAP_PIN_REFERENCE_PX * MAP_PIN_SIZE
+): number {
+  return Math.max(
+    24,
+    Math.round(
+      Math.min(
+        Math.round(MAP_PIN_REFERENCE_PX * 1.15),
+        Math.max(28, Math.round(targetMapSize))
+      ) * MAP_SPIN_SPRITE_DISPLAY_SCALE
+    )
+  );
+}
 
 /**
  * mapPinScale — buildingGlbCatalog.ts (запекание, npm run glb:bake-spin)

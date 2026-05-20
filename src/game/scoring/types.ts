@@ -1,1 +1,1 @@
-export type RoomGameOutcome = "won" | "lost" | "draw";
+export type RoomGameOutcome = "won" | "lost";
