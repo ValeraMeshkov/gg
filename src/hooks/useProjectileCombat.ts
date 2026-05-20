@@ -412,7 +412,7 @@ export function useProjectileCombat({
     y: number,
     fxId: string
   ) => {
-    const now = performance.now();
+    const now = combatClockMs();
     const spread = explosionJitterSpreadRef.current;
     const boomPos = jitterExplosionPosition(fxId, x, y, spread);
     setLandHitFx((prev) => {
@@ -522,7 +522,7 @@ export function useProjectileCombat({
       target,
       attackerId,
       sim.power,
-      Date.now(),
+      combatClockMs(),
       { defenderBuilding, attackerBuilding }
     );
     cellsRef.current = next;

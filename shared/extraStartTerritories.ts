@@ -16,7 +16,7 @@ export function grantExtraStartTerritories<T extends CombatCell>(
   const count = extraStartTerritoriesForBuilding(building);
   if (count <= 0) return null;
 
-  let current = cells.slice() as T[];
+  const current = cells.slice() as T[];
   let changed = false;
   const units = playerStartForBuilding(building);
 
